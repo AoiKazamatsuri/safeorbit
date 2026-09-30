@@ -6,7 +6,7 @@ import copy
 import json
 from queue_model import (require, exact, text, relative_path, authority,
                          apply as apply_v1, projections as project_v1, blockers as blockers_v1,
-                         children)
+                         children, task_number)
 
 CONFIG = 'charter/config.json'
 ARCHIVE = '.shell/queue/archive'
@@ -35,7 +35,8 @@ def config_bytes(value):
 
 
 def occupied(tasks):
-    return sorted(k for k, t in tasks.items() if t['status'] in WINDOW and not children(tasks, k))
+    return sorted((k for k, t in tasks.items() if t['status'] in WINDOW and not children(tasks, k)),
+                  key=task_number)
 
 
 def check_capacity(tasks, policy):
@@ -86,7 +87,11 @@ def upgrade(tasks, event):
 
 def apply(tasks, event):
     exact(event, {'seq', 'request', 'fingerprint', 'at', 'actor', 'operation', 'data',
-                  'projection_version', 'protocol', 'config', 'context'}, '新事件信封')
+                  'projection_version', 'protocol', 'config', 'context'} |
+          ({'numbering_version'} if 'numbering_version' in event else set()), '新事件信封')
+    numbering = event.get('numbering_version', 1)
+    require(type(numbering) is int and numbering in {1, 2}, '不支持此编号版本。', 'format')
+    require(numbering >= tasks.numbering_version, '新编号规则生效后不能追加旧编号事件。', 'format')
     require(type(event['protocol']) is int and event['protocol'] == 2 and
             type(event['projection_version']) is int and event['projection_version'] == 2,
             '不支持事件协议。', 'format')
@@ -112,12 +117,14 @@ def apply(tasks, event):
         upgrade(tasks, event)
         tasks.config = policy
         check_capacity(tasks, policy)
+        tasks.numbering_version = numbering
         return
     require(tasks.protocol == 2, '须先显式升级旧账。', 'upgrade_required')
     if op == 'config':
         exact(data, {'authority'}, '配置变更'); authority(data['authority'])
         tasks.config = policy
         check_capacity(tasks, policy)
+        tasks.numbering_version = numbering
         return
     require(policy == tasks.config, '任务事件使用了未登记的配置。', 'config')
     before = copy.deepcopy(dict(tasks))
@@ -139,7 +146,7 @@ def apply(tasks, event):
             if op == 'close':
                 require(t['status'] == '交付', '只有交付状态才能通过。', 'state' if t['status'] == '登记' else 'acceptance')
         old = legacy(tasks)
-        touched = apply_v1(old, probe)
+        touched = apply_v1(old, probe, numbering_version=numbering)
         for key in touched:
             t = old[key]
             old_status = t['status']
@@ -154,6 +161,7 @@ def apply(tasks, event):
             t['history'][-1] = event
             tasks[key] = t
     check_capacity(tasks, policy)
+    tasks.numbering_version = numbering
 
 
 def projections(tasks):

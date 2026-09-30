@@ -258,7 +258,7 @@ class QueueIntegration(unittest.TestCase):
         self.assertEqual(self.r.write('approve', ident, *AUTH, expected=1)['code'], 'sealed')
         self.assertEqual(self.r.raw(), before)
         next_id = self.r.create()['task']
-        self.assertEqual(next_id, 'T0002')
+        self.assertEqual(next_id, 'T2')
 
     def test_11_nonexistent_and_rejected_dependencies_rejected(self):
         self.r.create(deps=['T9999'], expected=1)
@@ -334,7 +334,7 @@ class QueueIntegration(unittest.TestCase):
     def test_19_parallel_registration_has_no_duplicate_or_lost_ids(self):
         with ThreadPoolExecutor(max_workers=8) as pool:
             ids = list(pool.map(lambda _: self.r.create(approve=False)['task'], range(12)))
-        self.assertEqual(sorted(ids), [f'T{i:04d}' for i in range(1, 13)])
+        self.assertEqual(sorted(ids, key=lambda ident: int(ident[1:])), [f'T{i}' for i in range(1, 13)])
         self.assertEqual(self.r.call('doctor')['seq'], 13)
 
     def test_20_tampered_projection_is_detected_and_repair_preserves_difference(self):
@@ -488,7 +488,7 @@ class QueueIntegration(unittest.TestCase):
         self.assertIn(original, (other.root / 'queue/tasks/T0001/legacy-import.md').read_text())
         backups = list((other.root / '.shell/local/recovery').rglob('task.md'))
         self.assertTrue(any(p.read_text() == original for p in backups))
-        self.assertEqual(other.create()['task'], 'T0004')
+        self.assertEqual(other.create()['task'], 'T4')
         self.assertEqual(other.commit().returncode, 0)
 
     def test_36_migration_never_guesses_old_authorization_or_overwrites(self):
@@ -566,7 +566,7 @@ sys.exit(q.main(['--root',root]+sys.argv[4:]))
         retried = self.r.call(*self.crash_create_args())
         self.assertTrue(retried['already_applied'])
         self.assertEqual(self.r.call('doctor')['seq'], 2)
-        self.assertTrue((self.r.root / 'queue/tasks/T0001/task.md').exists())
+        self.assertTrue((self.r.root / 'queue/tasks/T1/task.md').exists())
 
     def test_40_real_lock_contention_and_killed_owner_auto_release(self):
         args = self.crash_create_args()
@@ -592,7 +592,7 @@ sys.exit(q.main(['--root',root]+sys.argv[4:]))
         self.assertNotEqual(self.r.git('commit', '-qm', 'checker crash', expected=None).returncode, 0)
         code.write_bytes(original)
         # Same-user bypass is deliberately outside the guarantee, not a hidden claim of security.
-        path = self.r.root / 'queue/tasks/T0001/task.md'; path.write_text('tampered projection')
+        path = self.r.root / 'queue/tasks/T1/task.md'; path.write_text('tampered projection')
         self.r.git('add', '.')
         self.assertEqual(self.r.git('commit', '--no-verify', '-qm', 'test-only explicit bypass').returncode, 0)
         self.r.call('doctor', expected=1)
@@ -698,14 +698,22 @@ sys.exit(q.main(['--root',root]+sys.argv[4:]))
         rows = [json.loads(x) for x in ledger.read_text().splitlines()]
         events = rows[2:]
         for event in events:
-            for key in ('projection_version','protocol','config','context'): event.pop(key, None)
+            for key in ('projection_version','protocol','config','context','numbering_version'): event.pop(key, None)
+            for key in ('id', 'parent'):
+                if event['data'].get(key):
+                    event['data'][key] = f"T{int(event['data'][key][1:]):04d}"
+            if 'deps' in event['data']:
+                event['data']['deps'] = [f'T{int(dep[1:]):04d}' for dep in event['data']['deps']]
             event['seq'] -= 1
             if 'expect' in event['data']: event['data']['expect'] -= 1
         ledger.write_text(''.join(json.dumps(r, ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n' for r in [rows[0], *events]))
         import importlib.util
         spec = importlib.util.spec_from_file_location('legacy_model_fixture', SOURCE / 'tool/queue_model.py')
         model = importlib.util.module_from_spec(spec); spec.loader.exec_module(model)
-        for path in (self.r.root / 'queue/tasks'/ident).iterdir(): path.unlink()
+        home = self.r.root / 'queue/tasks' / ident
+        for path in home.iterdir(): path.unlink()
+        home.rmdir()
+        ident = f'T{int(ident[1:]):04d}'
         for name, content in model.projections(model.replay(events)).items():
             target = self.r.root / name; target.parent.mkdir(parents=True, exist_ok=True); target.write_bytes(content)
         self.r.call('doctor')

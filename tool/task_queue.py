@@ -21,7 +21,8 @@ import uuid
 from datetime import datetime, timezone
 
 from queue_model import (QueueError, require, text, sha, line, parse_proposal, decode, encode,
-                         replay, TERMINAL, task_id, relative_path, PROJECTION_VERSION)
+                         replay, TERMINAL, task_id, relative_path, PROJECTION_VERSION,
+                         next_task_id, task_number)
 from queue_v2 import projections, blockers, CONFIG, ARCHIVE, WINDOW, home, config_bytes, config, occupied
 import state_pack
 
@@ -561,7 +562,7 @@ def execute(args):
                 if not events:
                     policy = state_pack.load_config(store)
                     event = make_event([], 'upgrade', {'authority': {'by': '实例接入', 'basis': '初始化当前模板协议，不批准任何任务'}, 'source_sha256': sha(b'')}, 'system:init', 'init-protocol-2', sha(line(policy).encode()))
-                    event.update(protocol=2, config=policy, context='')
+                    event.update(protocol=2, config=policy, context='', numbering_version=2)
                     events = [event]
                 tasks = replay(events)  # Validate the whole import before changing hooks or ledger.
                 store.ensure_ignore(); store.install_hooks(); store.protection()
@@ -605,7 +606,8 @@ def execute(args):
                 require(args.id is None or tasks[args.id]['status'] is not None, '任务已取消移出队列；使用 task history 查历史。', 'removed')
                 selected = {k: t for k, t in selected.items() if t['status'] is not None}
             rows = []
-            for ident, t in selected.items():
+            for ident in sorted(selected, key=task_number):
+                t = selected[ident]
                 row = {k: t[k] for k in ('id', 'revision', 'assignee', 'parent', 'deps', 'round')}
                 if t['status'] is not None: row['status'] = t['status']
                 else: row['removed'] = True
@@ -651,7 +653,7 @@ def execute(args):
         require(tasks.protocol == 2, '旧账只读；先 upgrade --preview 并明确升级。', 'upgrade_required')
         state_pack.check(store, raw, events, tasks, args.context)
         if op == 'create':
-            data['id'] = f"T{max([int(k[1:]) for k in tasks] or [0]) + 1:04d}"
+            data['id'] = next_task_id(tasks, numbering_version=2)
         if op == 'revise':
             require(args.id in tasks, '任务不存在。', 'identity')
             if data['parent'] == {'keep': True}:
@@ -659,7 +661,7 @@ def execute(args):
             if data['deps'] == {'keep': True}:
                 data['deps'] = list(tasks[args.id]['deps'])
         event = make_event(events, op, data, args.actor, args.request, fingerprint)
-        event.update(protocol=2, config=tasks.config, context=args.context)
+        event.update(protocol=2, config=tasks.config, context=args.context, numbering_version=2)
         new_events = events + [event]
         updated = replay(new_events)
         if op == 'close':
@@ -700,7 +702,7 @@ def control(store, args, raw, events, tasks):
         else:
             store.verify_files(tasks)
     event = make_event(events, operation, data, args.actor or 'preview', args.request or 'preview', intent)
-    event.update(protocol=2, config=policy, context=args.context or '')
+    event.update(protocol=2, config=policy, context=args.context or '', numbering_version=2)
     updated = replay(events + [event])
     if args.preview:
         return {'ok': True, 'preview': True, 'source_sha256': token, 'window_occupied': occupied(updated),

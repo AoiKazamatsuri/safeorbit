@@ -43,11 +43,30 @@ def exact(value, keys, name):
     require(isinstance(value, dict) and set(value) == set(keys), f'{name} 字段不合格式。', 'format')
 
 
-def task_id(value):
-    require(isinstance(value, str) and re.fullmatch(r'T[0-9]{4,}', value), '任务号格式错误。')
+def task_id(value, numbering_version=1):
+    require(type(numbering_version) is int and numbering_version in {1, 2},
+            '不支持此编号版本。', 'format')
+    require(isinstance(value, str) and re.fullmatch(r'T[0-9]+', value), '任务号格式错误。')
     n = int(value[1:])
-    require(n > 0 and value == f'T{n:04d}', '任务号须为规范的正整数编号。')
+    expected = f'T{n:04d}' if numbering_version == 1 else f'T{n}'
+    require(n > 0 and value == expected, '任务号须为该版本的规范正整数编号。')
     return value
+
+
+def task_number(value):
+    """Read an existing exact identity, not an alias converting T0001 into T1."""
+    require(isinstance(value, str) and re.fullmatch(r'T[0-9]+', value), '任务号格式错误。')
+    n = int(value[1:])
+    require(n > 0 and value in {f'T{n}', f'T{n:04d}'}, '既有任务号不是规范格式。')
+    return n
+
+
+def next_task_id(tasks, numbering_version=1):
+    numbers = [task_number(ident) for ident in tasks]
+    require(len(numbers) == len(set(numbers)), '同一数字身份不能有两个编号写法。', 'identity')
+    n = max(numbers, default=0) + 1
+    result = f'T{n:04d}' if numbering_version == 1 else f'T{n}'
+    return task_id(result, numbering_version)
 
 
 def proposal(value):
@@ -180,7 +199,7 @@ def blockers(tasks, ident):
         result.append(f"已由 {item['assignee']} 认领")
     if any(tasks[p]['status'] != '批准执行' for p in parents(tasks, ident)):
         result.append('祖先未处于批准执行状态')
-    for dep in sorted(dependencies(tasks, ident)):
+    for dep in sorted(dependencies(tasks, ident), key=task_number):
         if tasks[dep]['status'] != '收官':
             result.append(f"前置 {dep} 为{tasks[dep]['status']}，未收官")
     if any(tasks[c]['status'] not in TERMINAL for c in children(tasks, ident)):
@@ -188,14 +207,14 @@ def blockers(tasks, ident):
     return result
 
 
-def new_task(ident, content, parent, deps, event, legacy=None):
-    task_id(ident)
+def new_task(ident, content, parent, deps, event, legacy=None, numbering_version=1):
+    task_id(ident, numbering_version)
     proposal(content)
     if parent is not None:
-        task_id(parent)
+        task_number(parent) if numbering_version == 2 else task_id(parent)
     require(isinstance(deps, list), '依赖必须是列表。')
     for dep in deps:
-        task_id(dep)
+        task_number(dep) if numbering_version == 2 else task_id(dep)
     return {'id': ident, 'proposal': copy.deepcopy(content), 'parent': parent, 'deps': list(deps),
             'status': '候裁', 'assignee': None, 'revision': event['seq'], 'created': event['at'],
             'round': 0, 'approvals': [], 'delivery': None, 'receipts': [], 'handoff': '',
@@ -231,7 +250,7 @@ def relation_change(tasks, item, parent, deps):
     validate_graph(tasks)
 
 
-def apply(tasks, event):
+def apply(tasks, event, numbering_version=1):
     fields = {'seq', 'request', 'fingerprint', 'at', 'actor', 'operation', 'data'}
     exact(event, fields | ({'projection_version'} if 'projection_version' in event else set()), '事件信封')
     version = event.get('projection_version', 1)
@@ -262,9 +281,10 @@ def apply(tasks, event):
         validate_graph(tasks)
     elif op == 'create':
         exact(data, {'id', 'proposal', 'parent', 'deps', 'authority'}, '登记')
-        expected = f"T{max([int(k[1:]) for k in tasks] or [0]) + 1:04d}"
+        expected = next_task_id(tasks, numbering_version)
         require(data['id'] == expected, '编号必须由账本连续分配，不得复用。', 'identity')
-        item = new_task(data['id'], data['proposal'], data['parent'], data['deps'], event)
+        item = new_task(data['id'], data['proposal'], data['parent'], data['deps'], event,
+                        numbering_version=numbering_version)
         tasks[item['id']] = item
         relation_change(tasks, item, data['parent'], data['deps'])
         if data['authority'] is not None:
@@ -365,6 +385,7 @@ def apply(tasks, event):
 class TaskMap(dict):
     protocol = 1
     config = None
+    numbering_version = 1
 
 
 def replay(events):

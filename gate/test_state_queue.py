@@ -59,7 +59,7 @@ class StateQueue(unittest.TestCase):
         shown={p.split('/')[2] for p in self.sources(self.get()) if p.startswith('queue/tasks/')}
         self.assertEqual(shown,set(ids))
         self.r.write('claim',ids[0]); self.r.deliver(ids[0]); self.assertEqual(self.r.create(expected=1)['code'],'capacity')
-        self.r.write('close',ids[0],*AUTH); self.assertEqual(self.r.create()['task'],'T0009')
+        self.r.write('close',ids[0],*AUTH); self.assertEqual(self.r.create()['task'],'T9')
 
     def test_03_two_approvals_compete_for_last_slot(self):
         for _ in range(7): self.r.create()
@@ -91,7 +91,7 @@ class StateQueue(unittest.TestCase):
         self.assertNotIn('status',hist); self.assertTrue(hist['removed'])
         self.assertEqual(self.r.write('claim',t,expected=1)['code'],'not_ready')
         self.assertTrue((self.r.root/f'.shell/queue/archive/{dep}/task.md').is_file())
-        self.assertEqual(self.r.create()['task'],'T0003')
+        self.assertEqual(self.r.create()['task'],'T3')
         self.assertEqual(self.r.commit().returncode,0)
 
     def test_06_payload_is_exact_whitelisted_truth_plus_all_window_files(self):
