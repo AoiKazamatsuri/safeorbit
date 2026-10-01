@@ -23,12 +23,13 @@
 | `AGENTS.md` | 根契约：身份、地图、开工步骤、全局规则、命令、用语 | 本文件 | 每次开工全读 |
 | `charter/` | 队列配置 `config.json`；修改常设规则的手续 | [charter/AGENTS.md](charter/AGENTS.md) | 改规则或配置前读 |
 | `truth/` | 长期目标与经确认的要求 | [truth/AGENTS.md](truth/AGENTS.md) | 白名单内的文档经状态包送达；写入前读区契约 |
+| `truth/architecture/` | 架构图纸区（truth 的子区）：架构图的图源、SVG、设计说明与产物清单 | [truth/architecture/AGENTS.md](truth/architecture/AGENTS.md) | 画图、改图、评审架构前读；不进状态包 |
 | `object/` | 工作产物的默认位置 | [object/AGENTS.md](object/AGENTS.md) | 每次开工全读区契约 |
 | `queue/`、`.shell/queue/` | 任务视图与机器账，由工具维护；取消的任务存档在 `.shell/queue/archive/` | [queue/AGENTS.md](queue/AGENTS.md) | 区契约每次开工全读；在窗任务包经状态包送达 |
 | `gate/` | 必须通过的检查与门控 | [gate/AGENTS.md](gate/AGENTS.md) | 按需 |
 | `eval/` | 效果评价方法（可选；软证据，不拦流程） | [eval/AGENTS.md](eval/AGENTS.md) | 按需 |
 | `tool/` | 队列工具与项目工具 | [tool/AGENTS.md](tool/AGENTS.md) | [队列用法](tool/queue-usage.md)每次开工全读；其余按需 |
-| `tool/diagram/` | 可选制图工具（随模板提供，默认不启用） | [tool/diagram/AGENTS.md](tool/diagram/AGENTS.md) | 启用、画图或改图前读；不用可整目录删去 |
+| `tool/diagram/` | 制图工具（已启用）：渲染架构图、检查图文一致、提交时把关 | [tool/diagram/AGENTS.md](tool/diagram/AGENTS.md) | 画图、改图或渲染前读 |
 | `reference/` | 有来源的参考资料 | [reference/AGENTS.md](reference/AGENTS.md) | 按需 |
 | `.shell/local/` | 本机运行态（锁、状态包分片、恢复备份、钩子接线信息），不入库 | — | 只按 `state get` 返回的路径读 |
 | 项目工具的依赖目录（如 `node_modules/`） | 本机安装的第三方依赖，不入库 | — | 其中的 AGENTS.md 等文件不是本仓规则，不读 |
@@ -146,7 +147,7 @@
 | 重建投影 | `python3 tool/shell.py repair` | 保留意外差异后，重建任务文件与配置 |
 | 比对远端账 | 见[队列用法](tool/queue-usage.md)“多个克隆与远端” | 有远端时，开工与推送前跑 |
 | 队列工具测试 | `python3 -B -m unittest discover -s gate -p 'test_*.py'` | 修改队列工具后跑；含队列、状态包与编号三组测试，约 3 分钟 |
-| 制图检查 | `node --experimental-strip-types --disable-warning=ExperimentalWarning tool/diagram/check.mts` | 启用制图工具后，画图、改图后跑；渲染与安装见[制图工具](tool/diagram/AGENTS.md) |
+| 制图检查 | `node --experimental-strip-types --disable-warning=ExperimentalWarning tool/diagram/check.mts` | 画图、改图后跑；改动触及 `truth/` 或 `tool/diagram/` 的提交由钩子自动跑；渲染与安装见[制图工具](tool/diagram/AGENTS.md) |
 
 ## 6. 用语
 

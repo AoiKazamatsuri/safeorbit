@@ -11,18 +11,20 @@
 
 ## 可选工具（随模板提供，默认不启用）
 
-这些工具的源码随模板提供，但不装依赖、不接钩子、不建它们的文档区。接入时由 Agent 逐项向用户说明并询问是否需要：需要的按其说明启用，启用后移到下文“项目专用工具”；不需要的可以整目录删去。
-
-### 制图工具
-
-- 用途：把系统架构图（C1 系统语境图、C2 容器图、C3 组件图）的 mermaid 图源渲染成 SVG 与可移植 SVG，并做三项检查——图源与产物一致、设计说明里的边表与图一致、上下层图之间的锚点对齐；可接为提交钩子，改了图或说明而没对齐时拒绝提交。
-- 何时需要：项目要在 truth/ 里长期维护经确认的架构图，并希望图与文字说明由机器核对一致。只写文字说明、或只放示意图的项目不需要。
-- 位置与说明：[tool/diagram/](diagram/AGENTS.md)，启用与删除步骤都在那里。启用后多出图纸子区 `truth/architecture/`（区契约、制图规范、治理细则，模板在 `tool/diagram/zone/`），在根契约第 2 节地图加一行；项目差异只写在 `tool/diagram/registry.json` 的 settings 里。
-- 前置条件：Node.js 22.6 以上（只做检查与跑夹具时只需 Node）；渲染与导出另需在 `tool/diagram/` 运行 `npm ci` 安装渲染依赖（约 400 MB，需联网）并配置本机 Chrome 路径。依赖目录已在 `.gitignore` 排除。
-- 授权：安装依赖与接提交钩子都须用户明确同意（根契约第 3 条）。
-- 验证：启用后运行工具自带的红绿夹具与检查；接了钩子的，按 [gate 契约](../gate/AGENTS.md)“接入项目自有的提交检查”试拦一次。
-- 来源：envshell 仓 `packs/diagram/`（提交 4a439c5），经独立运行适配；与上游的差异见 `tool/diagram/zone/治理细则.md` 第 8 节。
+随模板提供的可选工具，接入时由 Agent 逐项向用户说明并询问是否需要：需要的按其说明启用，启用后移到下文“项目专用工具”；不需要的可以整目录删去。本仓已无待选的可选工具：制图工具已于任务 T1 启用。
 
 ## 项目专用工具
 
-尚未登记。确实需要时为每件工具增加独立标题，写明用途、位置与说明、来源与版本、前置条件、副作用、授权要求与验证方法；接了提交钩子的，写明钩子何时运行、怎么安装。不把本次执行结果写在此处。
+确实需要时为每件工具增加独立标题，写明用途、位置与说明、来源与版本、前置条件、副作用、授权要求与验证方法；接了提交钩子的，写明钩子何时运行、怎么安装。不把本次执行结果写在此处。
+
+### 制图工具
+
+- 用途：把系统架构图（C1 系统语境图、C2 容器图，需要时加部署视图与 C3 组件图）的 mermaid 图源渲染成 SVG 与可移植 SVG，并做三项检查——图源与产物一致、设计说明里的边表与图一致、上下层图之间的锚点对齐。
+- 位置与说明：[tool/diagram/](diagram/AGENTS.md)；图纸区 [truth/architecture/](../truth/architecture/AGENTS.md)；承载 C1、C2 图源的设计文档登记在 `tool/diagram/registry.json` 的 `settings.design_doc`（本仓定为 `truth/工程架构.md`，由任务 T2 随文档一并登记：一经登记，检查即要求该文档在位）。
+- 来源与版本：随 devtemplate 2026-10-01 提供，源自 envshell 仓 `packs/diagram/`（提交 4a439c5），经独立运行适配；与上游的差异见 [《治理细则》](../truth/architecture/治理细则.md)第 8 节。渲染依赖钉版在 `tool/diagram/package.json` 与 `package-lock.json`。
+- 前置条件：Node.js 22.6 以上（检查与夹具只需 Node）；渲染与导出另需在 `tool/diagram/` 运行 `npm ci` 安装依赖（约 400 MB，需联网）。依赖目录已在 `.gitignore` 排除。
+- 浏览器：本机 Google Chrome 154 的无界面模式能输出正确结果，但退出时等待超时、退出码为 2，导出器会因此判为失败（T1 实测）。本仓改用渲染依赖 puppeteer 25.3.0 钉定的 chrome-headless-shell 150.0.7871.24：`tool/diagram/puppeteer-config.json` 写相对仓库根的路径 `tool/diagram/node_modules/.chrome-headless-shell/chrome-headless-shell-mac-arm64/chrome-headless-shell`，所以工具命令须在仓库根运行；该路径是一条本机链接，在仓库根运行 `ln -sfn ~/.cache/puppeteer/chrome-headless-shell/mac_arm-150.0.7871.24 tool/diagram/node_modules/.chrome-headless-shell` 建立。`npm ci` 会清空 `node_modules/`，之后须重建这条链接。本机 `~/.cache/puppeteer/` 没有该版本时，可在 `tool/diagram/` 运行 `npx puppeteer browsers install chrome-headless-shell` 下载（联网，须授权；T1 接入时本机已有缓存，此命令未实测）。
+- 副作用：渲染与导出写入图纸区的 SVG 与两份清单；`npm ci` 写入本机 `tool/diagram/node_modules/`；钩子写入本机 `.git/hooks/`。不联网（安装依赖时除外）、不产生费用。
+- 授权：安装依赖与接提交钩子都须用户明确同意（根契约第 3 条）；本仓由用户在任务 T1 中同意。
+- 提交钩子：暂存改动触及 `truth/` 或 `tool/diagram/` 时，对暂存内容跑三项检查，有红即拒绝提交；找不到 Node 22.6 以上也拒绝。每个克隆在仓库根运行一次 `sh tool/diagram/install-hook.sh` 接线，拆下用 `--uninstall`。
+- 验证：修改本工具后跑夹具 `node --experimental-strip-types --disable-warning=ExperimentalWarning tool/diagram/render-diagrams-accept.mts`；画图、改图后跑 `tool/diagram/check.mts`，检查项登记在 [gate/checks.md](../gate/checks.md)“架构图纸检查”。
