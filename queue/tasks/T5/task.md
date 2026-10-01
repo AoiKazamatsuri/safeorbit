@@ -3,12 +3,12 @@
 ```json
 {
   "id": "T5",
-  "revision": 26,
-  "assignee": "Claude Code",
+  "revision": 31,
+  "assignee": null,
   "parent": null,
   "deps": [],
   "round": 1,
-  "status": "交付"
+  "status": "通过"
 }
 ```
 
@@ -33,6 +33,7 @@ T3 第二次领取时，沿用上个会话领取所用的请求号 `T3-claim-202
 - #24｜create｜Claude Code｜{"authority": {"basis": "用户指示：“新会话再领同一件任务时，请求号要换新”若属于符合第一性原理的常驻规范，就可以加入契约", "by": "用户"}, "deps": [], "id": "T5", "parent": null, "proposal": {"criteria": "| 编号 | 可观察的结果 | 验证方法 | 通过条件 |\n|---|---|---|---|\n| E1 | 规则在位 | 阅读 `queue/AGENTS.md`“一致性”一节 | 写明一笔操作一个请求号、重试沿用、新操作用新号、同种操作再做一次也换号及取号区分办法 |\n| E2 | 说法不冲突 | `git grep -n \"请求号\"` 全仓核对 | 与根契约第 7 条、`tool/queue-usage.md`“成功回执与重试”不矛盾 |\n| E3 | 检查通过 | `python3 tool/shell.py doctor`；提交时队列检查 | doctor 为 protection: ready、protocol: 2；提交被放行 |\n\n验收安排：执行者逐项实跑并在回执中附原样命令、退出码与输出摘录，标“未独立验证”；用户审阅后决定是否通过。", "origin": "T3 第二次领取时，沿用上个会话领取所用的请求号 `T3-claim-20261001`，工具以“同一请求号对应不同输入”拒绝，换新号后才领取成功。执行者把它列为候选教训；用户指示：若它属于符合第一性原理的常驻规范，就写入契约。执行者的判断：请求号是一笔写账操作的身份，工具凭它分辨“重试”（同号同输入，返回原结果）与“新操作”；同一任务同一种操作的再一次执行（释放后再领、返工后再交付、换会话接手）是新操作，必须用新号。这由请求号的定义推出，与本机环境无关，属于常驻规范；按“区专属规则写在该区契约”，写进队列规则“一致性”一节（根契约第 7 条讲请求号时即指向该节），不放平台备忘。\n\n目的：以后的会话不再因沿用旧请求号被拒。", "plan": "1. 修改 `queue/AGENTS.md`“一致性”一节。\n2. 全仓核对“请求号”的说法；跑 doctor。\n3. 写回执、交付，同批暂存并提交；不推送。", "scope": "- 要交付：`queue/AGENTS.md`“一致性”一节补一句：请求号一笔操作一个；重试沿用原号，新操作用新号；同一任务同一种操作再做一次（释放后再领、返工后再交付、换会话接手）也是新操作；按“编号-操作-日期”取号时，同日再做同种操作须加区分标记（如会话或轮次）。\n- 不包含：修改队列工具、队列用法 `tool/queue-usage.md` 的示例或 gate 测试；根契约第 4.6 节。\n- 允许修改的位置：`queue/AGENTS.md`。", "title": "队列规则补“请求号不复用”"}}
 - #25｜claim｜Claude Code｜{"expect": 24, "id": "T5"}
 - #26｜deliver｜Claude Code｜{"artifacts": [{"path": "queue/AGENTS.md", "sha256": "65fba1c020f2bb1941dc3aa45511c14c5f8c9f12db9a581ce0a9813730f45b4c"}], "expect": 25, "id": "T5", "receipt": "# 验证回执\n\n- 所属任务：T5，见同卷 [task.md](task.md)；验收依据为批准基线 approval-001.md。\n- 对应交付及版本：本次 deliver 登记的工件 `queue/AGENTS.md`，以登记的指纹为准。\n- 验证时间、执行者：2026-10-01，Claude Code。\n- 独立性：未独立验证。读数由执行者自跑自核。\n\n## 逐项结果\n\n| 标准编号 | 实际操作与输入 | 结果 | 证据位置 |\n|---|---|---|---|\n| E1 | 在 `queue/AGENTS.md`“一致性”一节第一段后新增一段，通读 | 满足：写明请求号一笔操作一个、重试沿用原号、新操作用新号且旧号不复用；同一任务同种操作再做一次（释放后再领取、返工后再交付、换会话接手）是新操作，沿用旧号会被拒；同日按“编号-操作-日期”取号须加会话或轮次标记，附实例 | `queue/AGENTS.md` |\n| E2 | `git -c core.quotepath=false grep -n -E '请求号\\|request' -- '*.md' ':!queue/tasks' ':!reference' ':!CHANGELOG.md'` 逐行核对 | 满足：与根契约第 7 条（请求号做法见队列规则“一致性”）、`tool/AGENTS.md`“稳定请求号防止重复落账”、`tool/queue-usage.md`“同号同业务输入重试返回原操作……同号不同业务输入拒绝”一致，无矛盾 | 下文命令 1 |\n| E3 | doctor；提交时队列检查 | doctor 满足；提交检查在本次交付提交时运行，结果随提交汇报给用户 | 下文命令 2 |\n\n## 可复核的证据\n\n工作目录为仓库根；队列命令使用 init 记录的解释器 `/opt/anaconda3/bin/python3`。\n\n1. 上述 grep 命中 `AGENTS.md` 第 85 行（第 7 条）、`queue/AGENTS.md` 第 35 行、`tool/AGENTS.md` 第 18 行、`tool/queue-usage.md` 第 32、63、68、92–94、98、100、152 行；逐行阅读，均为“带稳定请求号”“重试沿用原号”“同号不同输入拒绝”的说法，与新增段落相容。新增段落中的相对链接检查：`checked 3 relative links in 1 files, missing 0`，退出码 0。\n2. `python3 tool/shell.py doctor`，退出码 0：`{\"ok\": true, \"protection\": \"ready\", \"seq\": 25, \"tasks\": 5, \"protocol\": 2}`。\n3. 依据实例：本会话领取 T3 时用请求号 `T3-claim-20261001`（上个会话第 17 笔领取已用此号，当时 expect 为 16），返回 `{\"ok\": false, \"code\": \"idempotency\", \"message\": \"同一请求号对应不同输入；拒绝重复执行，请核对原请求。\", \"committed\": false}`，退出码 1；改用 `T3-claim-20261001-session2` 后领取成功（第 19 笔）。\n\n## 未满足项与限制\n\n无未满足的验收标准。\n\n- `tool/queue-usage.md`“快速收尾”示例的请求号写法 `<乙>-claim-<日期>` 在同日重复操作时会撞号；它是模板机制文件，本任务按范围未改，新增段落已写明同日加区分标记的做法。\n\n本件记录检查事实，不代替用户最终验收。\n", "summary": "队列规则“一致性”一节补“请求号一笔操作一个、旧号不复用、同种操作再做一次也换新号”；全仓说法核对一致，doctor 通过（未独立验证）", "verification": "passed"}
+- #31｜close｜Claude Code｜{"authority": {"basis": "用户审阅 T5 交付与回执后回复“T5 通过”", "by": "用户"}, "expect": 26, "id": "T5"}
 
 ## 接手说明
 
