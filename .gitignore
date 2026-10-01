@@ -9,3 +9,15 @@ __pycache__/
 
 # 项目工具的第三方依赖目录在此逐个排除。
 /tool/diagram/node_modules/
+
+# 工作对象：生成目录、依赖目录与本机密钥，与 object/AGENTS.md“忽略的目录与文件”一致。
+DerivedData/
+xcuserdata/
+.build/
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.p8

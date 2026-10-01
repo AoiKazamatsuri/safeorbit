@@ -5,7 +5,7 @@
 - shell.py 是统一命令树；task_queue.py 为事务入口及兼容入口；queue_model.py 保留旧协议重放，queue_v2.py 定义五态/窗口/配置与任务包，state_pack.py 装配全文状态包。工具共同受检，不能单独替换以绕过检查。
 - 队列工具仅依赖 Python 标准库与本机 Git，不调用模型、联网或常驻运行。用法见 [queue-usage.md](queue-usage.md)。
 - 项目工具可选，优先复用已有能力，不为填目录先造工具。说明来源、版本、输入输出、前置条件及写入、联网、费用等副作用。
-- 有一定规模的项目工具住自己的目录 `tool/<工具>/`，带一份 AGENTS.md 写用途、安装、常用命令与修改规则；第三方依赖只住该目录并写进 `.gitignore`，队列工具保持零依赖。从别处克隆来的工具，在其说明里写明来源与版本，与上游的差异也记在那里。需要在提交时把关的，按 [gate 契约](../gate/AGENTS.md)“接入项目自有的提交检查”接线。例如随模板提供的制图工具 [tool/diagram/](diagram/AGENTS.md)：渲染要装 Node 依赖（约 400 MB），只该在需要它的项目里启用，所以默认不启用，列在 [catalog.md](catalog.md)“可选工具”里，接入时问用户是否需要。
+- 有一定规模的项目工具住自己的目录 `tool/<工具>/`，带一份 AGENTS.md 写用途、安装、常用命令与修改规则；第三方依赖只住该目录并写进 `.gitignore`，队列工具保持零依赖。从别处克隆来的工具，在其说明里写明来源与版本，与上游的差异也记在那里。需要在提交时把关的，按 [gate 契约](../gate/AGENTS.md)“接入项目自有的提交检查”接线。例如随模板提供的制图工具 [tool/diagram/](diagram/AGENTS.md)：渲染要装约 400 MB 的 Node 依赖，所以模板默认不启用；本仓已于任务 T1 启用，登记在 [catalog.md](catalog.md)“项目专用工具”。
 - 登记工具不等于获准安装或执行（[根契约](../AGENTS.md)第 3 条）。项目自身依赖仍归项目管理。
 - 修改队列代码须连同程序规则、用法与真实测试一起核对。
 
@@ -34,8 +34,11 @@
 
 ## 与模板的差异
 
-项目接入后，本仓对模板机制性文件——tool/ 下的队列工具与 queue-usage.md、gate/ 下的测试、queue/templates/——所做的改动登记在这里：改了什么、为什么、对应任务。契约文档按项目改写，不逐条登记。从模板同步新版本时，按这份清单重放这些改动，并跑一遍 gate 中的测试（做法见[模板源仓](https://github.com/mychmly/devtemplate) README“从模板同步更新”）。
+项目接入后，本仓对模板机制性文件——tool/ 下的队列工具与 queue-usage.md、gate/ 下的测试、queue/templates/，以及随模板提供的制图工具 tool/diagram/ 下的全部文件（含其 AGENTS.md）——所做的改动登记在这里：改了什么、为什么、对应任务。其他契约文档按项目改写，不逐条登记。从模板同步新版本时，按这份清单重放这些改动，并跑一遍 gate 中的测试（做法见[模板源仓](https://github.com/mychmly/devtemplate) README“从模板同步更新”）。
 
-尚无。
+| 文件 | 改了什么 | 为什么 | 任务 |
+| --- | --- | --- | --- |
+| `tool/diagram/puppeteer-config.json` | `executablePath` 由 macOS 上 Google Chrome 的标准位置，改为相对仓库根的 chrome-headless-shell 路径 | 本机 Chrome 154 无界面导出的退出码为 2，导出器判为失败；做法见 [catalog.md](catalog.md)“制图工具” | T1 |
+| `tool/diagram/AGENTS.md` | 标题与首段写明本仓已启用；启用步骤 3 注明 `design_doc` 须与文档同批登记；步骤 5 注明 npm 不运行 puppeteer 的安装脚本、Chrome 导出失败时改用 chrome-headless-shell | 把 T1、T2 踩过的坑写进启用步骤 | T3 |
 
 返回 [根契约](../AGENTS.md)。

@@ -1,6 +1,8 @@
-# tool/diagram：制图工具（可选，默认不启用）
+# tool/diagram：制图工具（本仓已启用）
 
-本目录是架构图纸区的生产与检查工具：把 mermaid 图源渲染成 SVG、派生可移植 SVG、跑三项检查、在提交时把关。随模板提供，**默认不启用**：不装依赖、不接钩子、不建图纸区，`registry.json` 的 settings 保持未声明。需要在 truth/ 里长期维护经确认的架构图时，按下文“启用”一节接入；用不上的项目可以整目录删去（见“不需要时”）。
+本目录是架构图纸区的生产与检查工具：把 mermaid 图源渲染成 SVG、派生可移植 SVG、跑三项检查、在提交时把关。随模板提供，模板默认不启用：不装依赖、不接钩子、不建图纸区，`registry.json` 的 settings 保持未声明。需要在 truth/ 里长期维护经确认的架构图时，按下文“启用”一节接入；用不上的项目可以整目录删去（见“不需要时”）。
+
+**本仓已于任务 T1 启用**：图纸区在 `truth/architecture/`，承载设计文档为 `truth/工程架构.md`；本机的渲染依赖、浏览器链接与提交钩子见 [tool/catalog.md](../catalog.md)“制图工具”。新克隆只需按下文第 5、6 步在本机装依赖、接钩子。本目录相对模板的改动登记在 [tool 区](../AGENTS.md)“与模板的差异”。
 
 来源：envshell 仓 `packs/diagram/`（提交 4a439c5）。上游是 envshell 的域包，要靠它的元工具与机检器装载；本目录是独立运行版，补了检查入口、公共库、提交闸与本机接线脚本，与上游的差异见图纸区《治理细则》第 8 节（模板在 [zone/治理细则.md](zone/治理细则.md)）。
 
@@ -23,9 +25,9 @@
 
 1. **确认运行环境**：Node.js 22.6 或更高（`node --version`）。只做检查与跑夹具时，这就够了。
 2. **建图纸区**：把 `zone/` 下三件复制到 `truth/architecture/`（如改用别处，同时改 `settings.arch_zone`）；在根契约第 2 节地图加一行子区；按需在 [tool/catalog.md](../catalog.md) 把本工具从“可选工具”移到“项目专用工具”，在 [gate/checks.md](../../gate/checks.md) 登记“架构图纸检查”一项。
-3. **填 settings**：`design_doc` 填承载 C1、C2 图源与容器指针表的设计文档（truth/ 下顶层的 .md）；C1、C2 定稿声明时，在 `l2_diagrams` 按“语境图在前、容器图在后”登记两张图名。其余键的含义见 `registry.json` 的 `_settings_note`。
+3. **填 settings**：`design_doc` 填承载 C1、C2 图源与容器指针表的设计文档（truth/ 下顶层的 .md）；C1、C2 定稿声明时，在 `l2_diagrams` 按“语境图在前、容器图在后”登记两张图名。其余键的含义见 `registry.json` 的 `_settings_note`。`design_doc` 一经登记，检查即要求该文档在位（“登记即在位”），所以登记它的改动须与文档本身同批提交，不能先登记、后补文档。
 4. **跑夹具与检查**：见下文“常用命令”。`l2_diagrams` 声明两张图之前，夹具会把 9 个依赖层二的用例记为 SKIP；声明之后 SKIP 须为 0。
-5. **需要渲染时装依赖**（须用户明确同意：要联网下载约 400 MB）：在仓库根运行 `cd tool/diagram && npm ci`；把 `puppeteer-config.json` 的 `executablePath` 改成本机 Chrome 的路径（默认是 macOS 上 Google Chrome 的标准位置）。
+5. **需要渲染时装依赖**（须用户明确同意：要联网下载约 400 MB）：在仓库根运行 `cd tool/diagram && npm ci`；把 `puppeteer-config.json` 的 `executablePath` 改成本机 Chrome 的路径（模板默认是 macOS 上 Google Chrome 的标准位置）。本机 npm 不运行 puppeteer 的安装脚本（`npm ci` 会提示其 postinstall 未被允许运行），所以不会自动下载浏览器。本机 Chrome 无界面导出失败时（如 Chrome 154 能输出结果但退出码为 2，导出器判为失败），改用 puppeteer 钉定的 chrome-headless-shell：`executablePath` 填它的路径；本仓采用的路径、本机链接与下载命令见 [tool/catalog.md](../catalog.md)“制图工具”，`npm ci` 清空 `node_modules/` 后须重建链接。
 6. **需要提交时把关就接钩子**（须用户明确同意，它会改变提交行为）：在仓库根运行 `sh tool/diagram/install-hook.sh`。它在本机 `.git/hooks/` 写入 `pre-commit` 与 `pre-merge-commit` 两个薄接线；队列工具装的钩子会先调用它们。钩子是本机配置，每个克隆都要装一次。装好后故意暂存一处会让检查报红的改动试提交一次，确认确实拦截（见 [gate 契约](../../gate/AGENTS.md)“接入项目自有的提交检查”）。拆下用 `sh tool/diagram/install-hook.sh --uninstall`。
 
 ## 不需要时
