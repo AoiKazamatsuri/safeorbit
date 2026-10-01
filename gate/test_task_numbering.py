@@ -1,5 +1,7 @@
 """Natural-number IDs: boundary unit cases and compact real-CLI regressions."""
 import copy
+import json
+import shutil
 import sys
 import tempfile
 import unittest
@@ -102,5 +104,43 @@ class TaskNumbering(unittest.TestCase):
         self.r.write('claim',parent);self.r.deliver(parent);self.r.write('close',parent,*AUTH)
         self.assertEqual(self.r.status(parent)['status'],'通过')
         self.assertEqual(self.r.commit().returncode,0)
+
+    def unmarked_natural_ledger(self):
+        """Mimic an instance that switched to natural IDs before the marker: T0001, T0002, T3, T4, no marker."""
+        self.r.create();self.r.create(approve=False)
+        self.r.create(approve=False,deps=['T2']);self.r.create(approve=False,deps=['T3'])
+        padded={'T1':'T0001','T2':'T0002'}
+        ledger=self.r.root/'.shell/queue/ledger.jsonl'
+        rows=[json.loads(x) for x in ledger.read_text().splitlines()]
+        for event in rows[1:]:
+            event.pop('numbering_version',None);data=event['data']
+            for key in ('id','parent'):
+                if data.get(key): data[key]=padded.get(data[key],data[key])
+            if 'deps' in data: data['deps']=[padded.get(d,d) for d in data['deps']]
+        ledger.write_text(''.join(json.dumps(r,ensure_ascii=False,sort_keys=True,separators=(',',':'))+'\n' for r in rows))
+        for old in padded: shutil.rmtree(self.r.root/'queue/tasks'/old)
+        self.r.call('repair')
+        return rows[1:]
+
+    def test_11_unmarked_natural_ids_from_early_adopters_replay_and_continue(self):
+        events=self.unmarked_natural_ledger()
+        self.assertEqual(self.r.call('doctor')['seq'],5)
+        self.assertEqual(self.r.status('T4')['deps'],['T3'])
+        self.assertEqual(self.r.status('T3')['deps'],['T0002'])
+        self.assertTrue((self.r.root/'queue/tasks/T0002/task.md').is_file())
+        new=self.r.create()['task'];self.assertEqual(new,'T5')
+        self.assertEqual(self.r.events()[-1]['numbering_version'],2)
+        self.assertEqual([t['id'] for t in self.r.call('status')['tasks']],['T0001','T0002','T3','T4','T5'])
+        self.assertEqual(self.r.commit().returncode,0)
+        m=self.model();self.assertEqual(sorted(m.replay(events)),['T0001','T0002','T3','T4'])
+
+    def test_12_unmarked_natural_ids_cannot_switch_back_or_skip(self):
+        events=self.unmarked_natural_ledger();m=self.model()
+        create=next(e for e in events if e['operation']=='create' and e['data']['id']=='T4')
+        for ident in ['T0005','T6','T05']:
+            extra=copy.deepcopy(create);extra['seq']=len(events)+1;extra['request']='unmarked-'+ident
+            extra['data']['id']=ident;extra['data']['deps']=[]
+            with self.subTest(ident=ident),self.assertRaises(m.QueueError):m.replay(events+[extra])
+        extra['data']['id']='T5';self.assertIn('T5',m.replay(events+[extra]))
 
 if __name__=='__main__':unittest.main()

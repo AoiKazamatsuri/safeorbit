@@ -25,6 +25,8 @@ python3 tool/shell.py task status
 
 新事件带 `numbering_version: 2`；未声明的旧事件按原补零规则重放，旧账前缀、批准基线、回执和封卷不改写。编号规则生效后不允许再追加旧编号版本；旧工具拒绝新字段，更新全部工具后继续，不删字段降级。批准轮次、回执事件序号和分片内部索引仍用原格式，它们不是任务编号。
 
+有的实例在这个标记出现前已自行改用不补零编号，账里留有未声明版本的 T34 之类记录。这类记录按原样重放：数值仍须连续；账里一旦出现不补零写法，此后未声明版本的登记不能退回补零。这类实例换用本工具后，新事件带标记，实例原有工具会拒绝它们，须整套更新工具。
+
 ## 任务命令
 
 每个写操作带 `--actor <执行者> --request <稳定请求号> --context <状态版本>`；已有任务另带 status 返回的 `--expect <revision>`。用户决定带 `--by <用户> --basis <指令依据>`。这些是代书与归因，不是身份认证；用户已明确批准的范围不重复请批。
@@ -77,6 +79,46 @@ python3 tool/shell.py config set --file <候选JSON文件> --context <状态版�
 `repair` 先保留意外差异，再重建任务文件与配置；缓存用 state get 重建。账本损坏、Git 历史冲突、旧备份不符则停止，不补造授权或丢失历史。进程锁退出会释放，不删除 queue.lock 抢锁。新协议与旧入口共用全部检查，无 context 的正常写入不能绕过。
 
 退出码：成功 0；拒绝 1；`committed_pending` 为账已保存而投影未完成，退出 2，原请求重试或 repair。缓存完整不等于人或模型已读懂；同权限恶意改程序、直接写业务文件、绕过 Git 钩子不在保证内。只在同一主工作树写队列，不支持多主分支队列合并或自动工作树隔离。
+
+## 多个克隆与远端
+
+机器账只能有一个写入位置。项目推到远端，或在另一台电脑、云端 Agent 上另有克隆时：
+
+- 约定一个克隆为**写账主仓**，登记、批准、领取、交付、通过都在这里经工具执行。其他克隆和云端会话不写账；需要新任务时，把方案交给主仓的执行者登记。
+- 主仓开工前和推送前，先确认远端的机器账是本地机器账的前缀。取回远端（`git fetch`）属于联网，按授权边界执行；下面的比对只读已取回的引用，不联网。把 `origin/main` 换成实际的远端分支，在模板根运行：
+
+```sh
+python3 - origin/main <<'EOF'
+import subprocess, sys
+ref, path = sys.argv[1], '.shell/queue/ledger.jsonl'
+shown = subprocess.run(['git', 'show', f'{ref}:./{path}'], capture_output=True)
+if shown.returncode:
+    sys.exit(f'读不到 {ref} 上的机器账：{shown.stderr.decode().strip()}')
+remote, local = shown.stdout, open(path, 'rb').read()
+if local.startswith(remote):
+    print('一致：远端账是本地账的前缀，可以继续写账和推送。')
+elif remote.startswith(local):
+    sys.exit('远端账更新：先 git pull --ff-only，再 state get 读变化。')
+else:
+    sys.exit('已分叉：两边在同一位置之后各写了不同事件。停止写账，按下文处理。')
+EOF
+```
+
+**分叉后的处理。** 工具不合并两份账。不要手工拼接事件、改编号或删事件来凑出一份。
+
+1. 停止两边的写账，向用户说明两边各多出哪些事件：本地看 `task history`，对方看它的提交。
+2. 由用户决定保留哪一份，通常保留推进更多、已有验收的那份。
+3. 提交检查以当前分支（HEAD）的账为基准，只接受追加，所以**在保留方的分支上合并另一方**；在另一方的分支上合并，提交会被拒绝。保留远端那份时，先 `git switch -c <新分支> origin/main`，再合并本地分支，提交后本地主分支可以快进到这个新分支。合并后把受管的队列文件恢复成保留方的版本，检查后提交：
+
+```sh
+git restore --source=HEAD --staged --worktree -- .shell/queue queue/tasks charter/config.json
+python3 tool/shell.py doctor
+git commit
+```
+
+   提交说明写明被舍弃的事件序号范围和对方的提交号。非队列文件的冲突照常逐个解决。
+4. 合并提交推送到远端（推送须获授权）后，再跑一次上面的比对，应显示一致。另一克隆拉取合并结果后不再写账。
+5. 被舍弃那份里的任务，由主仓用 `task register` 重新登记为新编号，登记依据写明原提交号、原事件序号和当时的状态。原来的批准、领取与交付不随之转移，要继续须重新取得用户批准。被舍弃事件的原文留在 Git 历史的那次提交里，不另抄一份。
 
 ## 升级已有机器账
 

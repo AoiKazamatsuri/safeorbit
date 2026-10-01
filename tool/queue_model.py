@@ -69,6 +69,21 @@ def next_task_id(tasks, numbering_version=1):
     return task_id(result, numbering_version)
 
 
+def creation_spelling(tasks, ident, numbering_version):
+    """Check a recorded creation ID and return the spelling version it used.
+
+    Unmarked events normally use padded IDs. Some instances switched to natural IDs before the
+    marker existed; those unmarked natural IDs replay as recorded, and once one appears the
+    ledger cannot switch back to padding.
+    """
+    natural = next_task_id(tasks, 2)
+    allowed = {natural}
+    if numbering_version == 1 and all(key == f'T{task_number(key):04d}' for key in tasks):
+        allowed.add(next_task_id(tasks, 1))
+    require(ident in allowed, '编号必须由账本连续分配，不得复用。', 'identity')
+    return 2 if ident == natural and ident != f'T{task_number(ident):04d}' else numbering_version
+
+
 def proposal(value):
     exact(value, PROPOSAL_KEYS, '方案')
     for key, item in value.items():
@@ -281,10 +296,9 @@ def apply(tasks, event, numbering_version=1):
         validate_graph(tasks)
     elif op == 'create':
         exact(data, {'id', 'proposal', 'parent', 'deps', 'authority'}, '登记')
-        expected = next_task_id(tasks, numbering_version)
-        require(data['id'] == expected, '编号必须由账本连续分配，不得复用。', 'identity')
+        spelling = creation_spelling(tasks, data['id'], numbering_version)
         item = new_task(data['id'], data['proposal'], data['parent'], data['deps'], event,
-                        numbering_version=numbering_version)
+                        numbering_version=spelling)
         tasks[item['id']] = item
         relation_change(tasks, item, data['parent'], data['deps'])
         if data['authority'] is not None:

@@ -70,6 +70,10 @@ class Repo:
             destination = self.root / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(SOURCE / name, destination)
+        # An instance's whitelist names truth files the fixture does not copy; start from the template default.
+        (self.root / 'charter/config.json').write_text(json.dumps(
+            {'truth_whitelist': ['truth/goals.md'], 'version': 1, 'window_capacity': 8},
+            ensure_ascii=False, indent=2, sort_keys=True) + '\n')
         self.git('init', '-q')
         self.git('add', '.')
         self.git('commit', '-qm', 'Template test baseline; no real user task')
