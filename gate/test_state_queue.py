@@ -225,4 +225,83 @@ class StateQueue(unittest.TestCase):
         p=run([sys.executable,'-B',str(self.r.root/'tool/shell.py'),'--help'],self.r.repo)
         self.assertIn('task register',p.stdout); self.assertIn('state get',p.stdout)
 
+    def stale_versions(self):
+        # Every fixture write fetches a pack first, so each create leaves one version behind.
+        for _ in range(4): self.r.create()
+        base=self.r.root/'.shell/local/state'
+        dirs=sorted((d for d in base.iterdir() if not d.is_symlink() and d.name!='notes'),key=lambda d:d.name)
+        for i,d in enumerate(dirs): os.utime(d/'manifest.json',(1000+i,1000+i))
+        return base,dirs
+
+    def test_25_get_keeps_current_sizes_and_two_newest_stale_versions(self):
+        base,dirs=self.stale_versions()
+        self.assertEqual(len(dirs),3)  # pruning during the creates already bounded growth
+        pack=self.get();small=self.get(size=7)
+        self.assertEqual(pack['pruned'],1);self.assertEqual(small['pruned'],0)
+        self.assertEqual({d.name for d in base.iterdir()},{dirs[1].name,dirs[2].name,pack['context'],small['context']})
+        for p in (pack,small): self.r.call('state','check','--context',p['context'])
+
+    @unittest.skipIf(os.name=='nt' or os.geteuid()==0,'needs POSIX permissions as a normal user')
+    def test_26_pruning_skips_foreign_entries_and_never_blocks_delivery(self):
+        base=self.r.root/'.shell/local/state';self.get()
+        outside=Path(self.tmp.name)/'outside';outside.mkdir();(outside/'keep.txt').write_text('x')
+        link=base/('f'*64+'-24000');link.symlink_to(outside,target_is_directory=True)
+        notes=base/'notes';notes.mkdir();(notes/'n.txt').write_text('mine')
+        for p in (outside,notes): os.utime(p,(1,1))  # oldest: would be pruned first if not skipped
+        base,dirs=self.stale_versions()
+        stuck=dirs[0]/'content';stuck.chmod(0o500);self.addCleanup(stuck.chmod,0o700)
+        pack=self.get()
+        self.assertEqual(pack['pruned'],0);self.assertTrue(stuck.exists())
+        self.assertTrue(link.is_symlink());self.assertTrue((outside/'keep.txt').exists())
+        self.assertTrue((notes/'n.txt').exists())
+        self.r.call('state','check','--context',pack['context'])
+
+    def amended(self, words='另补 object/extra.txt'):
+        p=self.r.input/('amended-'+uuid.uuid4().hex+'.md')
+        p.write_text(PROPOSAL.replace('只修改 object/result.txt',f'只修改 object/result.txt；{words}'));return p
+
+    def test_27_amend_keeps_claim_and_slot_and_freezes_a_new_baseline(self):
+        dep=self.r.create()['task'];parent=self.r.create(approve=False)['task']
+        t=self.r.create(approve=False,parent=parent,deps=[dep])['task']
+        self.r.write('approve',parent,*AUTH);self.r.write('approve',t,*AUTH)
+        self.r.write('claim',dep);self.r.deliver(dep);self.r.write('close',dep,*AUTH)
+        self.r.write('claim',t);home=self.r.root/f'queue/tasks/{t}'
+        first=(home/'approval-001.md').read_bytes();window=self.r.call('status')['window']['occupied']
+        result=self.r.write('amend',t,'--proposal',self.amended(),*AUTH,request='amend-once')
+        s=self.r.status(t)
+        self.assertEqual((s['status'],s['assignee'],s['round'],s['parent'],s['deps']),('领取','Agent A',2,parent,[dep]))
+        self.assertEqual(self.r.call('status')['window']['occupied'],window)
+        self.assertEqual((home/'approval-001.md').read_bytes(),first)
+        self.assertIn('另补 object/extra.txt',(home/'approval-002.md').read_text())
+        self.assertIn('另补 object/extra.txt',(home/'goal.md').read_text())
+        self.assertEqual(self.r.events()[-1]['operation'],'amend');self.assertEqual(self.r.events()[-1]['numbering_version'],2)
+        self.assertEqual(self.r.events()[-1]['data']['authority']['by'],AUTH[1])
+        retried=self.r.write('amend',t,'--proposal',self.amended(),*AUTH,request='amend-once',expect=result['seq']-1)
+        self.assertTrue(retried['already_applied'])
+        self.r.deliver(t);self.r.write('close',t,*AUTH)
+        self.assertEqual(self.r.status(t)['status'],'通过')
+        self.assertEqual(self.r.commit().returncode,0)
+
+    def test_28_amend_boundaries(self):
+        pool=self.r.create(approve=False)['task']
+        self.assertEqual(self.r.write('amend',pool,'--proposal',self.amended(),*AUTH,expected=1)['code'],'state')
+        ready=self.r.create()['task']
+        self.r.write('amend',ready,'--proposal',self.amended(),*AUTH)
+        self.assertEqual((self.r.status(ready)['status'],self.r.status(ready)['round']),('批准',2))
+        self.r.write('claim',ready)
+        self.assertEqual(self.r.write('amend',ready,'--proposal',self.amended('再补一处'),*AUTH,actor='Agent B',expected=1)['code'],'owner')
+        same=self.r.root/f'queue/tasks/{ready}/approval-002.md'
+        self.assertEqual(self.r.write('amend',ready,'--proposal',self.amended(),*AUTH,expected=1)['code'],'input')
+        self.r.deliver(ready)
+        self.assertEqual(self.r.write('amend',ready,'--proposal',self.amended('再补一处'),*AUTH,expected=1)['code'],'state')
+        self.r.write('rework',ready,'--basis','范围要改，先返工')
+        self.r.write('amend',ready,'--proposal',self.amended('再补一处'),*AUTH)
+        self.assertEqual(self.r.write('close',ready,*AUTH,expected=1)['code'],'acceptance')
+        self.assertTrue(same.is_file());self.assertTrue((self.r.root/f'queue/tasks/{ready}/approval-003.md').is_file())
+        missing=run([sys.executable,'-B',str(self.r.root/'tool/task_queue.py'),'--root',str(self.r.root),'amend',ready,
+                     '--expect','1','--proposal',str(self.amended()),'--actor','Agent A','--request','no-basis'],self.r.repo,expected=2)
+        self.assertIn('--by',missing.stderr)
+        self.r.deliver(ready);self.r.write('close',ready,*AUTH)
+        self.assertEqual(self.r.commit().returncode,0)
+
 if __name__ == '__main__': unittest.main()

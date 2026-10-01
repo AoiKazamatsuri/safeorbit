@@ -2,7 +2,10 @@
 .DS_Store
 Thumbs.db
 
-# 本机队列运行态不入库；.shell/queue/ledger.jsonl 必须入库。
+# 本机队列运行态不入库；.shell/queue/ledger.jsonl 必须入库，不要整体忽略 .shell/。
 /.shell/local/
 __pycache__/
 *.pyc
+
+# 项目工具的第三方依赖目录在此逐个排除。
+/tool/diagram/node_modules/

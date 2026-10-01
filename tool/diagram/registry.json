@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "_readme": "制图工具登记表（独立运行版，自 envshell 仓 packs/diagram/registry.json@4a439c5 承接）。本表两职：①逐件登记本工具的实物（件名、住址、职责、来源）；②顶层 settings 承载本仓的全部实例差异（图纸区住址、承载设计文档、产物前缀、层二图名、端点别名等）——渲染器、导出器、三项检查与夹具一律读它，源码里没有项目专有常量。改 settings 是填空，改字段结构要同时改读它的代码。envshell 的「域包装卸、三池镜像、登记-实物机检」机制独立运行版不设：entries 只作说明，不受机器核对。模板默认值即“未启用”：design_doc 为 null、l2_diagrams 为空，启用步骤见 tool/diagram/AGENTS.md。",
+  "_fields": {
+    "name": "件名（人读短名）",
+    "home": "住址：仓库相对路径",
+    "role": "职责一句",
+    "blueprint": "来源：上游出处，或「独立运行版新写」",
+    "status": "常役（在用）／休眠（保留未用）"
+  },
+  "_settings_note": "本仓实例差异之家（各件读此一处，不各自解释）：arch_zone＝图纸区住址（相对仓库根，图源件与渲染产物之家；承载文档面＝其上一级目录，即 truth/——渲染器收集 truth/ 顶层每份 .md 里的 mermaid 代码块）· design_doc＝承载层二图（C1 系统语境图、C2 容器图）与容器指针表的设计文档（相对仓库根；null＝本仓无此层，相关检查如实跳过）· product_prefix＝产物文件名前缀（字符串即取之，空串＝无前缀，于是每图一目录三件同名；缺键＝沿用承载文档名）· l2_diagrams＝层二图名清单（空表即层二段跳过；系统语境图第一、容器图第二——正式架构图任务声明之前为空）· node_aliases＝同层端点别名（登记即受审，表外短写一律红）· cross_layer_aliases＝跨层同实体异名对 · mechanism_pending_marker＝机制视图联合反查列的合法初值记号（机制视图休眠）· container_table_anchor＝设计文档内容器指针表的锚文字。渲染依赖钉版住 package.json 与 package-lock.json，装法见 tool/diagram/AGENTS.md。",
+  "settings": {
+    "arch_zone": "truth/architecture",
+    "design_doc": null,
+    "product_prefix": "",
+    "l2_diagrams": [],
+    "node_aliases": {},
+    "cross_layer_aliases": [],
+    "mechanism_pending_marker": "候首查",
+    "container_table_anchor": "容器指针表"
+  },
+  "entries": [
+    {
+      "name": "render-diagrams",
+      "home": "tool/diagram/render-diagrams.mts",
+      "role": "图渲染器：mermaid 图源（承载文档里的代码块与独立图源件）渲染为 SVG 投影并写产物清单；图源发现逻辑的唯一正本（三项检查复用其导出）",
+      "blueprint": "envshell packs/diagram/render-diagrams.mts@4a439c5",
+      "status": "常役"
+    },
+    {
+      "name": "export-portable-svg",
+      "home": "tool/diagram/export-portable-svg.mts",
+      "role": "可移植 SVG 导出器：产线 SVG 经本机浏览器烘焙为矢量工具可导入的第二投影，自检不过不落盘",
+      "blueprint": "envshell packs/diagram/export-portable-svg.mts@4a439c5",
+      "status": "常役"
+    },
+    {
+      "name": "checks（制图三项检查）",
+      "home": "tool/diagram/checks.mts",
+      "role": "三项检查：(e) 图源与渲染产物一致 · (w) 架构图文对齐 · (x) 架构跨层对齐",
+      "blueprint": "envshell packs/diagram/checks.mts@4a439c5",
+      "status": "常役"
+    },
+    {
+      "name": "check（检查入口）",
+      "home": "tool/diagram/check.mts",
+      "role": "装载三项检查并报告，红即非零退出；--staged 检查暂存区（提交钩子用）",
+      "blueprint": "独立运行版新写（承担 envshell 机检器 tool/envcheck.mts 装载域包判据插件的那一职）",
+      "status": "常役"
+    },
+    {
+      "name": "lib（公共库）",
+      "home": "tool/diagram/lib.mts",
+      "role": "仓库根解析与 truth/ 文档读取",
+      "blueprint": "独立运行版新写（函数体承自 envshell tool/lib.mts@4a439c5）",
+      "status": "常役"
+    },
+    {
+      "name": "pre-commit（提交闸）",
+      "home": "tool/diagram/pre-commit.sh",
+      "role": "暂存改动触及 truth/ 或 tool/diagram/ 时对暂存内容跑三项检查，红即拒绝提交",
+      "blueprint": "独立运行版新写（承担 envshell gate/hooks/pre-commit 里制图判据那一部分）",
+      "status": "常役"
+    },
+    {
+      "name": "install-hook（本机接线）",
+      "home": "tool/diagram/install-hook.sh",
+      "role": "在本机 .git/hooks/ 写入或拆下提交闸的两个薄接线",
+      "blueprint": "独立运行版新写",
+      "status": "常役"
+    },
+    {
+      "name": "render-diagrams-accept（夹具）",
+      "home": "tool/diagram/render-diagrams-accept.mts",
+      "role": "渲染器与三项检查的红绿夹具（不起渲染引擎、零网络）；修改本工具后运行",
+      "blueprint": "envshell packs/diagram/render-diagrams-accept.mts@4a439c5（层二未声明时两组用例记 SKIP）",
+      "status": "常役"
+    },
+    {
+      "name": "puppeteer-config",
+      "home": "tool/diagram/puppeteer-config.json",
+      "role": "渲染与烘焙所用的本机浏览器住址（executablePath）：渲染器与导出器共读一处；缺件或路径不存在时导出器报缺，不静默回退",
+      "blueprint": "envshell packs/diagram/puppeteer-config.json@4a439c5",
+      "status": "常役"
+    },
+    {
+      "name": "zone（图纸区契约模板）",
+      "home": "tool/diagram/zone/",
+      "role": "启用时复制到图纸区 settings.arch_zone 的三份规则：区契约、架构设计与制图规范、治理细则",
+      "blueprint": "envshell truth/architecture/@4a439c5 的区契约与两份细则，改写为通用版",
+      "status": "常役"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "devtemplate-diagram",
+  "version": "0.0.0",
+  "private": true,
+  "description": "制图工具的外部依赖（渲染引擎钉版，承自 envshell packs/diagram@4a439c5）——队列工具零依赖，渲染所需的外部包只住 tool/diagram/，依赖与锁文件随本目录走",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@mermaid-js/mermaid-cli": "^11.16.0"
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  }
+}

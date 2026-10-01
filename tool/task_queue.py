@@ -502,7 +502,7 @@ def parser():
     p = sub.add_parser('migrate', help='只导入旧版未认领候裁记录，不推断历史授权')
     p.add_argument('--preview', action='store_true'); p.add_argument('--expect-source')
     p.add_argument('--actor'); p.add_argument('--request'); p.add_argument('--by'); p.add_argument('--basis')
-    for op in ('create', 'revise', 'approve', 'claim', 'release', 'handoff', 'replan', 'deliver', 'close', 'revoke', 'cancel', 'rework'):
+    for op in ('create', 'revise', 'approve', 'claim', 'release', 'handoff', 'replan', 'deliver', 'close', 'revoke', 'cancel', 'rework', 'amend'):
         p = sub.add_parser(op)
         if op != 'create':
             p.add_argument('id'); p.add_argument('--expect', type=int, required=True, help='刚读到的任务 revision')
@@ -517,8 +517,10 @@ def parser():
             p.add_argument('--clear-deps', action='store_true')
         if op == 'create':
             p.add_argument('--approve', action='store_true'); p.add_argument('--by'); p.add_argument('--basis')
-        if op in ('approve', 'close', 'revoke', 'cancel'):
+        if op in ('approve', 'close', 'revoke', 'cancel', 'amend'):
             p.add_argument('--by', required=True); p.add_argument('--basis', required=True)
+        if op == 'amend':
+            p.add_argument('--proposal', required=True, help='改后的完整方案；关系不变')
         if op in ('revoke', 'cancel'):
             p.add_argument('--tree', action='store_true', help='对子树整笔撤销或取消，不自动扩张授权范围')
             p.add_argument('--expect-seq', type=int, help='--tree 时必填，刚读到的全局 seq')
@@ -630,7 +632,9 @@ def execute(args):
         if op == 'create':
             data['authority'] = get_authority(args) if args.approve else None
             require(args.approve or not (args.by or args.basis), '提供授权依据时须显式 --approve；否则仅登记候裁。', 'input')
-        if op in {'approve', 'close', 'revoke', 'cancel'}:
+        if op == 'amend':
+            data['proposal'] = parse_proposal(read_input(args.proposal, '方案'))
+        if op in {'approve', 'close', 'revoke', 'cancel', 'amend'}:
             data['authority'] = get_authority(args)
         if op in {'revoke', 'cancel'}:
             data['tree'] = args.tree

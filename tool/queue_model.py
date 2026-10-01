@@ -18,7 +18,8 @@ PROPOSAL_KEYS = {'title', 'origin', 'scope', 'criteria', 'plan'}
 SECTIONS = {'来源与目的': 'origin', '范围': 'scope', '验收标准与验证方法': 'criteria', '执行计划': 'plan'}
 LABELS = {'create': '登记', 'revise': '修订提案', 'approve': '批准执行', 'claim': '领取',
           'release': '让出', 'handoff': '交接', 'replan': '修订计划', 'deliver': '交付',
-          'close': '验收通过', 'revoke': '撤销', 'cancel': '取消', 'import': '导入候裁任务', 'upgrade': '升级', 'config': '配置', 'rework': '返工'}
+          'close': '验收通过', 'revoke': '撤销', 'cancel': '取消', 'import': '导入候裁任务', 'upgrade': '升级', 'config': '配置', 'rework': '返工',
+          'amend': '经批准改范围'}
 
 
 class QueueError(Exception):
@@ -242,6 +243,11 @@ def approve(tasks, item, auth, event):
     require(all(tasks[p]['status'] == '批准执行' for p in parents(tasks, item['id'])),
             '先批准父任务，再批准子任务。', 'state')
     item['status'] = '批准执行'
+    freeze_baseline(item, auth, event)
+
+
+def freeze_baseline(item, auth, event):
+    # A new approval round: earlier deliveries lose eligibility, the approved scope is frozen as a baseline.
     item['round'] += 1
     item['delivery'] = None
     item['approvals'].append({'round': item['round'], 'seq': event['seq'],

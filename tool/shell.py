@@ -8,7 +8,7 @@ if __name__ == '__main__':
         print('''用法：python3 tool/shell.py [--root 模板根] [--wait 秒] <命令组> ...
   init / doctor / check [--staged] / repair
   task register / approve / claim / deliver / pass / status / history
-  task revise / replan / rework / handoff / release / revoke / cancel
+  task revise / amend / replan / rework / handoff / release / revoke / cancel
   state get [--chunk-chars N] / check --context VERSION
   config show / set --file JSON --context VERSION --actor NAME --request ID --by USER --basis TEXT
   upgrade --preview / --expect-source HASH --actor NAME --request ID --by USER --basis TEXT

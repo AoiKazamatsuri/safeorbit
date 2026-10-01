@@ -1,0 +1,4 @@
+{
+  "_readme": "渲染与烘焙用的本机浏览器住址（第二档工具的配置旋钮，填空题）：executablePath 填本机 Chromium 系浏览器可执行文件的绝对路径。渲染器把它交给 mermaid-cli，导出器直接以它跑无头烘焙；两器官共读本件，不各留一份。缺件或路径不存在时导出器响亮报缺（不静默回退到某个平台的固定路径）。",
+  "executablePath": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+}

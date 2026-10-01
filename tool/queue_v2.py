@@ -4,7 +4,7 @@ Removed tasks exist only as historical records (status=None), never as a sixth s
 """
 import copy
 import json
-from queue_model import (require, exact, text, relative_path, authority,
+from queue_model import (require, exact, text, relative_path, authority, proposal, freeze_baseline,
                          apply as apply_v1, projections as project_v1, blockers as blockers_v1,
                          children, task_number)
 
@@ -137,6 +137,21 @@ def apply(tasks, event):
         text(data['basis'], '返工依据')
         t.update(status='领取', delivery=None, revision=event['seq'])
         t['history'].append(event)
+    elif op == 'amend':
+        # One user-approved scope change: new frozen baseline; claim, window slot and relations unchanged.
+        exact(data, {'id', 'expect', 'proposal', 'authority'}, '改范围')
+        ident = data['id']; require(ident in tasks, '任务不存在。', 'identity')
+        t = tasks[ident]
+        require(type(data['expect']) is int and t['revision'] == data['expect'], '任务版本已变。', 'conflict')
+        require(t['status'] in {'批准', '领取'},
+                '只有批准或领取中的任务能改范围；登记中用 revise，交付后先 rework。', 'state')
+        require(t['status'] == '批准' or t['assignee'] == event['actor'], '领取中的任务只能由认领者改范围。', 'owner')
+        authority(data['authority']); proposal(data['proposal'])
+        require(data['proposal'] != t['proposal'], '新方案与当前方案相同，无需改范围。', 'input')
+        t['proposal'] = copy.deepcopy(data['proposal'])
+        freeze_baseline(t, data['authority'], event)
+        t['revision'] = event['seq']
+        t['history'].append(event)
     else:
         ident = data.get('id')
         if ident in tasks:
@@ -174,7 +189,7 @@ def projections(tasks):
         # Existing baselines/receipts are rendered by their original versions.
         one = copy.deepcopy(item)
         one['status'] = TO_OLD[item['status']]
-        one['history'] = [e for e in one['history'] if e['operation'] not in {'upgrade', 'rework'}]
+        one['history'] = [e for e in one['history'] if e['operation'] not in {'upgrade', 'rework', 'amend'}]
         old = project_v1({ident: one})
         dest = home(item); prefix = f'queue/tasks/{ident}'
         for path, content in old.items():

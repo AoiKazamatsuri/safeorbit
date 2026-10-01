@@ -11,11 +11,11 @@ python3 tool/shell.py state get
 python3 tool/shell.py task status
 ```
 
-先按入口读取区域契约、核对工作对象位置和用户授权，填写 truth/goals.md；需要常驻的规则写进对应区域契约，不另建接入表。新克隆须 init 安装本机钩子；已有钩子保留并串接。doctor 应为 `protection: ready` 且 `protocol: 2`。原 v1 账只读，须按下文显式升级，不自动猜测转换。
+先按根契约读取区域契约、核对工作对象位置和用户授权，填写根契约“身份”表与 truth/goals.md；跨区常驻的规则写进根契约，只适用于某区的写进该区契约，不另建接入表。新克隆须 init 安装本机钩子；已有钩子保留并串接。doctor 应为 `protection: ready` 且 `protocol: 2`。原 v1 账只读，须按下文显式升级，不自动猜测转换。
 
-`state get` 返回 `context`、`base`、`manifest` 和 `files`。**按 files 中每个 source 的 parts 顺序读取全部分片**；拼接即该源文件全文，无附加摘要。清单是校验元数据，不是第三类业务内容。首次 Session 读全包；后续可按源指纹识别变化再读。charter/入口规则仍按 AGENTS.md 单独阅读，不被偷偷加入状态包。
+`state get` 返回 `context`、`base`、`manifest` 和 `files`。**按 files 中每个 source 的 parts 顺序读取全部分片**；拼接即该源文件全文，无附加摘要。清单是校验元数据，不是第三类业务内容。首次 Session 读全包；后续可按源指纹识别变化再读。根契约与各区契约仍按 AGENTS.md 单独阅读，不被偷偷加入状态包。
 
-正文唯一来源：配置白名单内 truth 文件全文，加全部窗口任务包文件全文。候裁池（登记）、通过、已取消档案不入包，外部引用不递归展开。分片默认 24000 字符，可用 `--chunk-chars N` 改运输尺寸，不是 token 数，不改变送达内容；不同尺寸独立保存，不破坏其他调用者的分片。
+正文唯一来源：配置白名单内 truth 文件全文，加全部窗口任务包文件全文。候裁池（登记）、通过、已取消档案不入包，外部引用不递归展开。分片默认 24000 字符，可用 `--chunk-chars N` 改运输尺寸，不是 token 数，不改变送达内容；不同尺寸独立保存，不破坏其他调用者的分片。每次 `state get` 送达后清理过期缓存：当前状态的各尺寸版本都保留，过期版本只留最近 2 个供对照指纹，其余删除；返回的 `pruned` 是本次删除的目录数，删除失败不影响送达。
 
 每次正常任务写入携带刚获取并读过的 `--context <版本>`。源、队列或配置变化时旧版本拒绝，重新获取并读变化，不凭空替换版本号。`state check --context <版本>` 同时检查新鲜度及缓存完整性；缺片或被改后重新 get 重建。工具不证明模型已经理解，只对受控写入检查依据版本。
 
@@ -40,6 +40,7 @@ python3 tool/shell.py task status
 | task deliver 编号 | 重复 `--artifact <Git根相对路径>`、`--receipt <文本文件>`、`--verification passed或failed或unverified`、`--summary <摘要>`；进入交付待验 |
 | task pass 编号 | `--by --basis`；仅交付状态，本轮有效验证申报 passed，工件未变，用户明确通过，才封存 |
 | task revise 编号 | 登记时 `--proposal --basis`；可选关系参数；省略关系保留，`--clear-parent`/`--clear-deps` 明确清空 |
+| task amend 编号 | 批准或领取时（领取中限认领者）`--proposal <方案文件> --by --basis`；经用户同意改目标、范围、验收标准与计划，一笔冻结新一轮批准基线，认领、窗口名额与父子依赖不变，旧回执失去本轮通过资格。登记中用 revise；交付后先 rework；关系要变须 revoke 后 revise |
 | task replan 编号 | 领取时 `--plan <文本文件> --basis <原因>`；改计划，不改批准范围 |
 | task rework 编号 | 交付后 `--basis <返工原因>`；认领者回到领取，旧回执保留但失去本轮通过资格，必须重新交付 |
 | task handoff 编号 | `--text <说明正文>`；领取或交付的认领者留说明，不释放认领；该参数不是文件路径 |
@@ -71,6 +72,32 @@ python3 tool/shell.py config set --file <候选JSON文件> --context <状态版�
 任务/配置/升级操作返回 `files`，其中 `base` 为 Git 根，`ledger` 与各任务的 `task`、`approval`、`receipt`、`legacy`、`package` 为实际文件路径。没有的字段为 null。`stage_paths` 是本次操作涉及的文件（取消还含需要暂存删除的旧路径），不是整个工作树，更不是扩大授权。不要猜文件名；另外修改的项目资料须按范围一并暂存。
 
 同号同业务输入重试返回原操作的路径与结果，允许原状态版本已经过期；`current_seq` 可能已前进。同号不同业务输入拒绝。先看 committed/already_applied，不重造请求；别为了“重试”重复批准、交付或升级。
+
+## 快速收尾
+
+收尾通常是同一执行者连续几笔写入，例如“通过 → 领取 → 释放（留交接说明）→ 提交”。可以压成两步，规则不变：
+
+1. **读一次**：`state get`，按分片读完与上次读过版本相比有变化的源，记下返回的 `seq`（下称 N）与相关任务的 `revision`（`task status`）；交接说明等正文先写成受管路径外的文件。
+2. **连写一次**：每笔写入前现场取新状态版本，并核对 `seq` 恰好是 N 加上自己已写的笔数；不相等说明有其他执行者写过，命令停下，回到第 1 步读变化。任务的 `revision` 就是它最后一次事件的序号，所以同一任务连写时，下一笔的 `--expect` 等于上一笔写入后的序号。最后同批暂存并提交。
+
+```sh
+fresh() {  # 用法：fresh <预期序号>；序号不符即非零退出，不输出版本
+  python3 tool/shell.py state get | python3 -c '
+import json, sys
+d = json.load(sys.stdin); want = int(sys.argv[1]); seq = d["seq"]
+if seq != want: sys.exit(f"序号 {seq}，预期 {want}：有其他写入，先 state get 读变化")
+print(d["context"])' "$1"
+}
+N=<第 1 步的 seq>; A=<执行者>
+C=$(fresh $N) && python3 tool/shell.py task pass <甲> --by 用户 --basis "<验收指令>" --actor "$A" --request <甲>-pass-<日期> --context "$C" --expect <甲的 revision> \
+&& C=$(fresh $((N+1))) && python3 tool/shell.py task claim <乙> --actor "$A" --request <乙>-claim-<日期> --context "$C" --expect <乙的 revision> \
+&& C=$(fresh $((N+2))) && python3 tool/shell.py task release <乙> --text "$(cat <交接说明文件>)" --actor "$A" --request <乙>-release-<日期> --context "$C" --expect $((N+2)) \
+&& git -C "$(git rev-parse --show-toplevel)" add -- <各笔回执 stage_paths 列出的路径> && git commit -m "<提交说明>"
+```
+
+- 中途停下时先看输出：已落账的笔不重做；重试沿用原请求号和原输入（见上节）。
+- 只暂存本次各笔写入回执 `stage_paths` 列出的路径：它们相对 Git 仓库根（所以上面在仓库根执行 `git add`），通过一件本批才交付的任务时也包含交付工件。工作树里其他执行者未提交的改动不要顺手带上。机器账里若已有他人未提交的事件，提交检查会连同其任务视图一起核对，先与对方协调由谁提交。
+- 这是减少往返的写法，不是豁免：仍须读过变化、携带 context 与 revision、使用稳定请求号、同批暂存、不绕过钩子。
 
 ## 提交、恢复和保障边界
 
