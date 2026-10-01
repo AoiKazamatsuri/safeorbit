@@ -1,0 +1,14 @@
+{
+  "safeorbit-containers/portable/safeorbit-containers-portable.svg": {
+    "source": "safeorbit-containers/safeorbit-containers.svg",
+    "source_hash": "c1b781e93bf4d281"
+  },
+  "safeorbit-context/portable/safeorbit-context-portable.svg": {
+    "source": "safeorbit-context/safeorbit-context.svg",
+    "source_hash": "fd1d0f230181911f"
+  },
+  "safeorbit-demo-deployment/portable/safeorbit-demo-deployment-portable.svg": {
+    "source": "safeorbit-demo-deployment/safeorbit-demo-deployment.svg",
+    "source_hash": "db96f0dbae9da7f1"
+  }
+}

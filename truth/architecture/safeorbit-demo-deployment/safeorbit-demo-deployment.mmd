@@ -1,0 +1,36 @@
+graph TB
+    %% name: safeorbit-demo-deployment
+    %% home: safeorbit-demo-deployment
+    subgraph WIFI["同一 Wi-Fi 局域网"]
+        EP["老人 iPhone<br/>SafeOrbit App，老人身份<br/>[iPhone · iOS]"]
+        FP["家属 iPhone<br/>SafeOrbit App，家属身份<br/>[iPhone · iOS]"]
+        subgraph LAPTOP["开发者电脑"]
+            subgraph DOCKER["Docker"]
+                BE["后端程序<br/>照护接口、照护智能体、触达网关三个模块<br/>[Backend · Node.js · NestJS]"]
+                DB["照护数据库<br/>[Care Database · PostgreSQL · PostGIS]"]
+            end
+            XC["Xcode<br/>向老人手机播放模拟轨迹<br/>[Xcode · 开发工具]"]
+            SEED["历史灌入脚本<br/>按历史时间回放一个月模拟轨迹<br/>[Seed Script · 开发工具]"]
+        end
+    end
+    MAP["苹果地图<br/>[Apple Maps · 外部系统]"]
+    APNS["苹果推送<br/>[APNs · 外部系统]"]
+    LLM["云端大模型<br/>[Cloud LLM · 外部系统]"]
+    EP -->|"业务请求"| BE
+    FP -->|"请求与对话"| BE
+    BE -.->|"实时推送"| FP
+    BE -->|"读写"| DB
+    BE -->|"发送通知"| APNS
+    APNS -.->|"投递通知"| FP
+    BE -->|"理解与表达"| LLM
+    EP -->|"地图与路线"| MAP
+    FP -->|"地图与路线"| MAP
+    XC -.->|"模拟轨迹"| EP
+    SEED -->|"回放历史"| BE
+    classDef shell fill:#deebf7,stroke:#5b81a8,color:#1f2d3d
+    classDef ext fill:#f2f2f2,stroke:#8a8a8a,color:#333333
+    class EP,FP,BE,DB shell
+    class XC,SEED,MAP,APNS,LLM ext
+    style WIFI fill:none,stroke:#4a90e2,stroke-dasharray:6 4
+    style LAPTOP fill:none,stroke:#8a8a8a,stroke-dasharray:2 2
+    style DOCKER fill:none,stroke:#8a8a8a,stroke-dasharray:2 2

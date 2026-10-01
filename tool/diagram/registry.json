@@ -11,9 +11,12 @@
   "_settings_note": "本仓实例差异之家（各件读此一处，不各自解释）：arch_zone＝图纸区住址（相对仓库根，图源件与渲染产物之家；承载文档面＝其上一级目录，即 truth/——渲染器收集 truth/ 顶层每份 .md 里的 mermaid 代码块）· design_doc＝承载层二图（C1 系统语境图、C2 容器图）与容器指针表的设计文档（相对仓库根；null＝本仓无此层，相关检查如实跳过）· product_prefix＝产物文件名前缀（字符串即取之，空串＝无前缀，于是每图一目录三件同名；缺键＝沿用承载文档名）· l2_diagrams＝层二图名清单（空表即层二段跳过；系统语境图第一、容器图第二——正式架构图任务声明之前为空）· node_aliases＝同层端点别名（登记即受审，表外短写一律红）· cross_layer_aliases＝跨层同实体异名对 · mechanism_pending_marker＝机制视图联合反查列的合法初值记号（机制视图休眠）· container_table_anchor＝设计文档内容器指针表的锚文字。渲染依赖钉版住 package.json 与 package-lock.json，装法见 tool/diagram/AGENTS.md。",
   "settings": {
     "arch_zone": "truth/architecture",
-    "design_doc": null,
+    "design_doc": "truth/工程架构.md",
     "product_prefix": "",
-    "l2_diagrams": [],
+    "l2_diagrams": [
+      "safeorbit-context",
+      "safeorbit-containers"
+    ],
     "node_aliases": {},
     "cross_layer_aliases": [],
     "mechanism_pending_marker": "候首查",

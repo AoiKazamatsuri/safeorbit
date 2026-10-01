@@ -1,0 +1,14 @@
+{
+  "safeorbit-context/safeorbit-context.svg": {
+    "doc": "工程架构.md",
+    "hash": "3e018a31da1aca66"
+  },
+  "safeorbit-containers/safeorbit-containers.svg": {
+    "doc": "工程架构.md",
+    "hash": "1e922aa737e44a84"
+  },
+  "safeorbit-demo-deployment/safeorbit-demo-deployment.svg": {
+    "doc": "architecture/safeorbit-demo-deployment/safeorbit-demo-deployment.mmd",
+    "hash": "65a37eed1e89bca6"
+  }
+}
