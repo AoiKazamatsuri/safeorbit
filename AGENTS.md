@@ -2,22 +2,18 @@
 
 本文件是所有 Agent 进入本仓的入口契约：全局规则只写在这里，各区的细则写在该区的 AGENTS.md。用户正常下达指令，Agent 负责代书，队列工具维护状态与历史。人类读者从 [README](README.md) 开始。
 
-> **维护模板本身。** 已有机器账 `.shell/queue/ledger.jsonl`，或第 1 节身份表已经填写，本仓就是项目实例，本段不适用：在项目里改契约或工具照常登记任务。两样都没有时，本仓可能是模板源仓，也可能是刚克隆、待接入的新项目：用户要用模板开展项目，按 [README](README.md)“开始使用”接入并删去本段；用户要改模板本身（入口、契约、队列工具或测试），就是在维护模板源仓。分不清时先问用户。
->
-> 维护模板源仓时：不运行 init、不登记任务，也不提交 `.shell/`。源仓不带机器账，一旦 init 就会生成任务账，随提交分发给之后的每个新项目。队列命令在源仓都会报“保护未就绪”，所以跳过第 3 节第一步 1–2 与第二步 1、4；第二步 3 只核对用户指令与可写范围，不登记任务；开工汇报写明“模板维护模式，无队列”。改动直接经 Git 提交管理，修改队列工具后按 README“维护验证”跑测试，并在[变更记录](CHANGELOG.md)记一笔；交接说明与候选教训写进提交说明或变更记录。
-
 ## 1. 身份
 
 接入时由 Agent 按用户确认填写；未确认的项保持“待填写”，不猜。
 
 | 项 | 内容 |
 | --- | --- |
-| 项目 | 待填写：项目名称与一句话目标（详见[项目目标](truth/goals.md)） |
+| 项目 | SafeOrbit：帮助轻度认知障碍老人安全自主出行、减轻家属照护负担的智能体 iPhone App；当前为 Demo 级，用于课堂演示与演示视频（详见[项目目标](truth/goals.md)） |
 | 工作产物 | 默认 `object/`；实际位置与对象规则见[工作对象契约](object/AGENTS.md) |
 | 用户 | 向 Agent 下达指令的人；一切批准与验收只来自用户的明确指令 |
-| 执行者 | 待填写：会接手本仓的 Agent 工具，例如 Claude Code、Codex；本文件的规则对所有执行者相同 |
+| 执行者 | Claude Code、Codex；本文件的规则对所有执行者相同 |
 | 任务管线 | 本地任务队列：机器账 `.shell/queue/ledger.jsonl`，唯一写入口 `python3 tool/shell.py`；需要 Python 3.10+ 与 Git |
-| 模板来源 | devtemplate，版本见[变更记录](CHANGELOG.md)最新一条。接入后改写为“devtemplate＋所基于的版本”；对模板机制性文件的改动登记在 [tool/AGENTS.md](tool/AGENTS.md)“与模板的差异” |
+| 模板来源 | devtemplate 2026-10-01（见[变更记录](CHANGELOG.md)）；对模板机制性文件的改动登记在 [tool/AGENTS.md](tool/AGENTS.md)“与模板的差异” |
 | 许可证 | 待填写：本项目的许可证；模板文件随附 Apache-2.0（[LICENSE](LICENSE)），已有项目保留原许可证 |
 
 ## 2. 地图
@@ -50,7 +46,7 @@
 
 **第一步：状态就位。**
 
-1. 运行 `python3 tool/shell.py doctor`，应为 `protection: ready` 且 `protocol: 2`。身份表仍为“待填写”且没有机器账时，先按 README“开始使用”接入；未初始化或旧协议时按[队列用法](tool/queue-usage.md)接入。保护未就绪时不施工（维护模板源仓时除外，见文首）。
+1. 运行 `python3 tool/shell.py doctor`，应为 `protection: ready` 且 `protocol: 2`。身份表仍为“待填写”且没有机器账时，先按 README“开始使用”接入；未初始化或旧协议时按[队列用法](tool/queue-usage.md)接入。保护未就绪时不施工。
 2. 运行 `python3 tool/shell.py state get`，按返回的 files 逐个来源、按 parts 顺序读完全文。状态包只含白名单内的 truth 文档与在窗任务包；本文件与各区契约不在包里，按第 2 节单独读。
 3. 每次开工全读：本文件、[队列规则](queue/AGENTS.md)、[队列用法](tool/queue-usage.md)、[工作对象契约](object/AGENTS.md)。
 

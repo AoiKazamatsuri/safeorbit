@@ -1,0 +1,2 @@
+{"format":"devtemplate-queue/1"}
+{"actor":"system:init","at":"2026-10-01T19:02:05.879171+00:00","config":{"truth_whitelist":["truth/goals.md"],"version":1,"window_capacity":8},"context":"","data":{"authority":{"basis":"初始化当前模板协议，不批准任何任务","by":"实例接入"},"source_sha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},"fingerprint":"145f91c3e8d4e54da9821bdde44b165236af0218540ec1f6d5271b115c122e89","numbering_version":2,"operation":"upgrade","projection_version":2,"protocol":2,"request":"init-protocol-2","seq":1}
