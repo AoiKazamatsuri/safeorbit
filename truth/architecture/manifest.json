@@ -10,5 +10,9 @@
   "safeorbit-demo-deployment/safeorbit-demo-deployment.svg": {
     "doc": "architecture/safeorbit-demo-deployment/safeorbit-demo-deployment.mmd",
     "hash": "65a37eed1e89bca6"
+  },
+  "safeorbit-care-agent/safeorbit-care-agent.svg": {
+    "doc": "architecture/safeorbit-care-agent/safeorbit-care-agent.mmd",
+    "hash": "a7e501184e7c6912"
   }
 }

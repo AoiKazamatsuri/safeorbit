@@ -1,4 +1,8 @@
 {
+  "safeorbit-care-agent/portable/safeorbit-care-agent-portable.svg": {
+    "source": "safeorbit-care-agent/safeorbit-care-agent.svg",
+    "source_hash": "2467e4780b1095da"
+  },
   "safeorbit-containers/portable/safeorbit-containers-portable.svg": {
     "source": "safeorbit-containers/safeorbit-containers.svg",
     "source_hash": "c1b781e93bf4d281"

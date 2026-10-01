@@ -1,0 +1,47 @@
+graph TB
+    %% name: safeorbit-care-agent
+    %% home: safeorbit-care-agent
+    APP["SafeOrbit App<br/>家属身份发起智能对话<br/>[SafeOrbit App · Swift · SwiftUI]"]
+    subgraph AGENT["照护智能体"]
+        subgraph TECH["技术组件"]
+            TRIG["评估触发器<br/>决定后台工作何时开始<br/>[Evaluation Trigger · NestJS]"]
+            EP["对话端点<br/>收发对话，校验登录凭证<br/>[Conversation Endpoint · NestJS]"]
+            LLMA["大模型适配器<br/>把生成请求交给供应商<br/>[LLM Adapter · Vercel AI SDK]"]
+        end
+        subgraph BIZ["业务组件"]
+            EVAL["规则评估<br/>编排一轮评估，不做判定<br/>[Rule Evaluation · TypeScript]"]
+            TRIP["出行规则<br/>判定出行与监测受限<br/>[Trip Rules · TypeScript]"]
+            ANOM["异常规则<br/>识别四类异常行为<br/>[Anomaly Rules · TypeScript]"]
+            RISK["风险规则<br/>风险转移与出手动作<br/>[Risk Rules · TypeScript]"]
+            ROUTE["参照路线<br/>参照路线的选用与学习<br/>[Reference Routes · TypeScript]"]
+            EXPL["解释<br/>把已判定的事实写成说明<br/>[Explanation · TypeScript]"]
+            CHAT["对话<br/>回答家属提问并核对<br/>[Conversation · TypeScript]"]
+            GEN["生成口<br/>规定向大模型要什么<br/>[Generation Port · TypeScript]"]
+        end
+    end
+    API["照护接口<br/>业务记录的唯一读写者<br/>[Care API · Node.js · NestJS]"]
+    LLM["云端大模型<br/>[Cloud LLM · 外部系统]"]
+    APP -->|"智能对话"| EP
+    API -->|"评估事件"| TRIG
+    TRIG -->|"发起评估"| EVAL
+    TRIG -->|"每日规律"| EXPL
+    EVAL -->|"读写上下文"| API
+    EVAL -->|"判定出行"| TRIP
+    EVAL -->|"识别异常"| ANOM
+    EVAL -->|"判定风险"| RISK
+    EVAL -->|"参照与学习"| ROUTE
+    EVAL -.->|"风险已变化"| EXPL
+    EXPL -->|"证据与解释"| API
+    EXPL -->|"生成说明"| GEN
+    EP -->|"提问"| CHAT
+    CHAT -->|"查询与存档"| API
+    CHAT -->|"生成回答"| GEN
+    GEN -->|"调用模型"| LLMA
+    LLMA -->|"理解与表达"| LLM
+    classDef shell fill:#deebf7,stroke:#5b81a8,color:#1f2d3d
+    classDef ext fill:#f2f2f2,stroke:#8a8a8a,color:#333333
+    class APP,API,TRIG,EP,LLMA,EVAL,TRIP,ANOM,RISK,ROUTE,EXPL,CHAT,GEN shell
+    class LLM ext
+    style AGENT fill:none,stroke:#4a90e2,stroke-dasharray:6 4
+    style TECH fill:none,stroke:#5b81a8,stroke-dasharray:2 2
+    style BIZ fill:none,stroke:#5b81a8,stroke-dasharray:2 2
