@@ -17,16 +17,18 @@ function add(isa, name, data) {
   objects[isa][id(name) + '_comment'] = name;
   return id(name);
 }
-const sources = ['SafeOrbit/SafeOrbitApp.swift', 'SafeOrbit/ServerConfiguration.swift'];
-const tests = ['SafeOrbitTests/ServerConfigurationTests.swift'];
-const files = [...sources, ...tests, 'SafeOrbit/Info.plist', 'Config/Debug.xcconfig', 'Config/Release.xcconfig'];
+const sources = ['SafeOrbit/SafeOrbitApp.swift', 'SafeOrbit/ServerConfiguration.swift', 'SafeOrbit/OnboardingModels.swift', 'SafeOrbit/OnboardingAPI.swift', 'SafeOrbit/OnboardingStore.swift', 'SafeOrbit/OnboardingUI.swift', 'SafeOrbit/QRScanner.swift'];
+const tests = ['SafeOrbitTests/ServerConfigurationTests.swift', 'SafeOrbitTests/OnboardingTests.swift'];
+const resources = ['SafeOrbit/Assets.xcassets', 'SafeOrbit/Localizable.xcstrings', 'SafeOrbit/InfoPlist.xcstrings'];
+const files = [...sources, ...tests, ...resources, 'SafeOrbit/SafeOrbit.entitlements', 'SafeOrbit/Info.plist', 'Config/Debug.xcconfig', 'Config/Release.xcconfig'];
 for (const file of files) {
   add('PBXFileReference', file, { path: '"' + file + '"', sourceTree: '"<group>"',
-    lastKnownFileType: file.endsWith('.swift') ? 'sourcecode.swift' : file.endsWith('.plist') ? 'text.plist.xml' : 'text.xcconfig' });
+    lastKnownFileType: file.endsWith('.xcassets') ? 'folder.assetcatalog' : file.endsWith('.swift') ? 'sourcecode.swift' : file.endsWith('.xcstrings') ? 'text.json.xcstrings' : file.endsWith('.entitlements') ? 'text.plist.entitlements' : file.endsWith('.plist') ? 'text.plist.xml' : 'text.xcconfig' });
 }
 for (const file of [...sources, ...tests]) {
   add('PBXBuildFile', file + ' in Sources', { fileRef: id(file), fileRef_comment: file });
 }
+for (const file of resources) add('PBXBuildFile', file + ' in Resources', { fileRef: id(file), fileRef_comment: file });
 add('PBXFileReference', 'SafeOrbit.app', { path: 'SafeOrbit.app', sourceTree: 'BUILT_PRODUCTS_DIR', explicitFileType: 'wrapper.application', includeInIndex: 0 });
 add('PBXFileReference', 'SafeOrbitTests.xctest', { path: 'SafeOrbitTests.xctest', sourceTree: 'BUILT_PRODUCTS_DIR', explicitFileType: 'wrapper.cfbundle', includeInIndex: 0 });
 add('PBXGroup', 'Products', { children: [ref('SafeOrbit.app'), ref('SafeOrbitTests.xctest')], name: 'Products', sourceTree: '"<group>"' });
@@ -38,6 +40,7 @@ for (const target of ['SafeOrbit', 'SafeOrbitTests']) {
     files: (isTest ? tests : sources).map(f => ref(f + ' in Sources')), runOnlyForDeploymentPostprocessing: 0 });
   add('PBXFrameworksBuildPhase', target + ' Frameworks', { buildActionMask: 2147483647, files: [], runOnlyForDeploymentPostprocessing: 0 });
   add('PBXResourcesBuildPhase', target + ' Resources', { buildActionMask: 2147483647, files: [], runOnlyForDeploymentPostprocessing: 0 });
+  objects.PBXResourcesBuildPhase[id(target + ' Resources')].files = isTest ? [] : resources.map(f => ref(f + ' in Resources'));
   for (const config of ['Debug', 'Release']) {
     add('XCBuildConfiguration', target + ' ' + config, {
       baseConfigurationReference: id('Config/' + config + '.xcconfig'),
@@ -48,7 +51,7 @@ for (const target of ['SafeOrbit', 'SafeOrbitTests']) {
         ENABLE_TESTABILITY: config === 'Debug' ? 'YES' : 'NO', SWIFT_OPTIMIZATION_LEVEL: config === 'Debug' ? '"-Onone"' : '"-O"',
         LD_RUNPATH_SEARCH_PATHS: '"$(inherited) @executable_path/Frameworks @loader_path/Frameworks"',
         ...(isTest ? { GENERATE_INFOPLIST_FILE: 'YES', TEST_HOST: '"$(BUILT_PRODUCTS_DIR)/SafeOrbit.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SafeOrbit"', BUNDLE_LOADER: '"$(TEST_HOST)"' }
-                   : { INFOPLIST_FILE: 'SafeOrbit/Info.plist', GENERATE_INFOPLIST_FILE: 'NO', SWIFT_EMIT_LOC_STRINGS: 'YES' }),
+                   : { CODE_SIGN_ENTITLEMENTS: 'SafeOrbit/SafeOrbit.entitlements', INFOPLIST_FILE: 'SafeOrbit/Info.plist', GENERATE_INFOPLIST_FILE: 'NO', SWIFT_EMIT_LOC_STRINGS: 'YES' }),
       },
     });
   }
@@ -70,10 +73,10 @@ for (const config of ['Debug','Release']) {
 }
 add('XCConfigurationList', 'Project Configurations', { buildConfigurations: ['Debug','Release'].map(c => ref('Project ' + c)), defaultConfigurationIsVisible: 0, defaultConfigurationName: 'Release' });
 add('PBXProject', 'Project', { attributes: { LastUpgradeCheck: 2700, TargetAttributes: {
-  [id('SafeOrbit')]: { CreatedOnToolsVersion: '27.0' },
+  [id('SafeOrbit')]: { CreatedOnToolsVersion: '27.0', SystemCapabilities: { 'com.apple.SignInWithApple': { enabled: 1 } } },
   [id('SafeOrbitTests')]: { CreatedOnToolsVersion: '27.0', TestTargetID: id('SafeOrbit') },
 } }, buildConfigurationList: id('Project Configurations'), compatibilityVersion: '"Xcode 14.0"', developmentRegion: 'en',
-  hasScannedForEncodings: 0, knownRegions: ['en', '"zh-Hans"', 'Base'], mainGroup: id('Main'), productRefGroup: id('Products'),
+  hasScannedForEncodings: 0, knownRegions: ['en', 'Base'], mainGroup: id('Main'), productRefGroup: id('Products'),
   projectDirPath: '""', projectRoot: '""', targets: [ref('SafeOrbit'),ref('SafeOrbitTests')] });
 const project = xcode.project(projectFile);
 project.hash = { project: { archiveVersion: 1, classes: {}, objectVersion: 56, objects, rootObject: id('Project'), rootObject_comment: 'Project object' } };

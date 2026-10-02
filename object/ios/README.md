@@ -1,0 +1,63 @@
+# 家属登录、老人档案与绑定前端
+
+打开 `SafeOrbit.xcodeproj`，运行 SafeOrbit scheme。首次启动选择手机使用者：家属进入邮箱/Google/Apple 登录；老人进入二维码扫描。视觉参考路径仍为 `reference/ui/`；页面按最终批准预览采用白底、居中青绿标题、细边框胶囊输入框与浅绿第三方按钮，界面统一使用英文，标题与说明已精简；界面采用与参考图一致的浅色外观。
+
+本阶段只实现前端。现有后端仍只有健康检查，尚无登录、档案和绑定接口，因此真实运行会显示服务不可用并允许再次操作重试；不会以本地假登录或随机二维码表示成功。查看完整页面时，在 Xcode 打开 `SafeOrbitApp.swift` 的 Canvas，选择各个命名预览；输入和照片选择可在 ProfilePage 的交互预览中体验。测试数据与渲染截图只用于预览/测试，不进入生产业务流程。
+
+## 已实现的交互
+
+- 家属：邮箱登录/注册/密码找回、Google 系统网页授权、Apple 登录（准备失败后再次点击重试）、手机号码输入、老人姓名/照片/号码表单、生成二维码、过期刷新、手动查询绑定结果、档案修改。
+- 登录与注册不展示顶部 App icon、SafeOrbit 字样或访客入口。密码显示按钮有辅助功能标签；登录中禁止重复提交，服务失败保留填写内容。注册密码至少 8 个字符且确认一致；找回成功提示只在服务响应成功后显示。切换登录模式清空密码，保留邮箱。
+- Apple 验证准备独立运行，期间仍可填写邮箱或进入注册；只临时禁用 Apple 按钮。Google 使用系统授权窗口，检查授权地址和一次性 state；回调代码交给服务交换会话，不信任 URL 中的令牌。取消授权不显示错误。
+- 老人：无需登录的相机扫码、相机拒绝时进入系统设置、设备无相机时粘贴绑定链接、无关二维码提示与绑定结果页。
+- 两处手机号输入默认 China +86，提供九个国家/地区选择；只输入本地号码，自动组合区号提交。非空无效号码显示英文红字并禁用提交，空输入不显示红字。既有国际号码回填时保留区号，列表外地区作为临时选项显示。
+- 档案页不展示称呼和时区输入；新档案的称呼默认使用姓名，时区使用设备时区，已有数据保留。
+- 照片用系统照片选择器，缩小到最长边 640 像素后编码为 JPEG，最高 512 KB。保存失败保留填写内容。
+- 会话凭证放 Keychain，启动时向服务恢复会话；收到 401 清理过期凭证。网络错误不直接销毁凭证。退出会清理本机凭证，即使服务暂时不可用。
+- 二维码使用 `safeorbit://bind?token=...`；只接受固定 scheme、host、单个 43 字符 base64url token。打开分享链接先显示连接页，由用户确认连接，不会自动绑定。
+
+## 后续后端需要提供的接口
+
+下面是前端当前使用的接口约定，尚未在后端实现。接口基址为构建配置 `SAFEORBIT_SERVER_URL` 加 `/v1`；凭证通过 `Authorization: Bearer <token>` 传递。服务端必须自行验证 Apple 签名、nonce、接收方与有效期，执行授权检查和一次性绑定，不以客户端校验替代。
+
+| 请求 | 输入 | 成功 JSON |
+| --- | --- | --- |
+| POST `/auth/challenge` | 无 | `{id, nonce}`；nonce 为原始随机字符串，Apple 请求使用其 SHA-256 十六进制摘要 |
+| POST `/auth/apple` | `{challengeId, identityToken}` | `{token, role:"caregiver", caregiver:{id,phone?}, elder?}` |
+| POST `/auth/email/login` | `{email,password}` | 与 Apple 登录相同的会话 |
+| POST `/auth/email/register` | `{email,password}` | 仅在服务完成账户创建及验证后返回会话 |
+| POST `/auth/email/forgot-password` | `{email}` | `{ok:true}`；不泄露邮箱是否存在 |
+| POST `/auth/google/start` | 无 | `{authorizationURL,state}`，HTTPS accounts.google.com 地址，含相同的单个 state 参数；服务管理一次性授权与 PKCE |
+| POST `/auth/google` | `{code,state}` | 与 Apple 登录相同的会话；服务验证 state、授权码、PKCE 与 Google 身份 |
+| GET `/session` | 会话凭证 | `{role, caregiver?, elder?}` |
+| DELETE `/session` | 会话凭证 | `{ok:true}` |
+| PUT `/caregiver` | `{phone}`，会话凭证 | `{id,phone}` |
+| PUT `/elder` | `{id?,name,callName,phone,timezone,photo?,bound}`，会话凭证 | 老人档案 |
+| GET `/elder` | 会话凭证 | 老人档案 |
+| POST `/binding` | 会话凭证 | `{token,expiresAt}`；token 为 32 随机字节的 base64url，日期为 ISO 8601 |
+| POST `/binding/claim` | `{token}`，无需登录 | `{token,role:"elder",elder}`，响应 token 是新签发的设备会话凭证 |
+
+Google 回调为 `safeorbit://oauth?code=...&state=...`。邮箱/Google/Apple 服务均尚未实现；本轮没有申请账号、证书或客户端密钥。前端不持久化密码；服务端负责密码散列、验证邮件、重置凭证、限流和 OAuth 凭据。
+
+档案的 `id` 与 `bound` 由服务端决定，客户端提交的值不能用于授权。`photo` 为 `data:image/jpeg;base64,...` 或 null。401 表示会话/身份无效；409/410 表示绑定冲突、过期或已使用；400/422 表示输入错误；404/501/503 显示服务暂不可用。服务不返回密码或真实令牌到日志。
+
+## 构建与页面验证
+
+仓库根执行：
+
+```sh
+sh object/dev/ios-check.sh
+```
+
+该入口沿用环境阶段的无签名构建，Keychain 检查在系统返回“缺少签名权限”时跳过。完整前端测试用模拟器临时签名运行，不需要开发者账号或证书；先用 `xcrun simctl list devices available` 查模拟器 ID，再执行：
+
+```sh
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit \
+  -destination 'platform=iOS Simulator,id=<模拟器 ID>' \
+  -derivedDataPath object/ios/DerivedData \
+  CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test
+```
+
+自动化测试涵盖表单校验、绑定链接解析、请求地址/凭证头、错误响应、时间解析、Keychain 过期会话，以及页面渲染。截图以 XCTest 附件保存在 `DerivedData/Logs/Test` 的测试结果中，也写入测试 App 的 Documents/FrontendSnapshots 便于本机检查。测试中的 QR token 仅为固定测试字符串，不是真实绑定凭证。
+
+App 工程声明 Sign in with Apple 能力；真机运行还需对应开发者 Team、App ID 能力与签名配置，留到后续账号授权与联调。相机只在老人点击扫描时申请，不申请定位或推送；相机扫码、真实 Apple 登录、两部手机完成绑定尚需后端与真机验证。

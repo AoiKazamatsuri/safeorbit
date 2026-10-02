@@ -1,6 +1,6 @@
 # 开发环境
 
-代码直接在 `object/` 内开发：`ios/` 是 SwiftUI App，`server/` 是 NestJS 后端与数据库，`dev/` 是开发辅助脚本。设计要求来自 truth 三份文档，UI 视觉基线保持 `reference/ui/`。本骨架提供编译、测试与数据库连接入口；完整业务界面、风险规则、历史灌入与模拟轨迹由后续开发补齐。
+代码直接在 `object/` 内开发：`ios/` 是 SwiftUI App，`server/` 是 NestJS 后端与数据库，`dev/` 是开发辅助脚本。设计要求来自 truth 三份文档，UI 视觉基线保持 `reference/ui/`。工程提供编译、测试与数据库连接入口；登录、档案和绑定的前端说明见 [ios/README.md](../ios/README.md)，风险规则、历史灌入与模拟轨迹由后续开发补齐。
 
 ## 前置工具
 
@@ -64,9 +64,9 @@ npm --prefix object/server run start:dev
 
 连接真机时，将 `object/ios/Config/Local.xcconfig.example` 复制为同目录的 `Local.xcconfig`，填电脑的 Wi-Fi IP 与实际开发者 Team；它已排除出 Git。构建地址中的 `http:/$()/` 是 xcconfig 避免双斜杠被当作注释的写法。Bundle ID 是工程的初始值 `org.safeorbit.demo`，正式签名前在 Xcode 中按实际账号调整。
 
-当前 App 仅有启动页面与服务器地址配置，不申请定位、不发送推送。后台定位、语音导航、国内坐标与真机局域网表现仍须按工程架构第 15 节验证，不能以模拟器构建代替。
+当前 App 已有身份选择、家属登录、档案和扫码绑定前端；业务接口尚未实现，真实请求会显示失败提示。各页面可通过 Xcode Canvas 预览，详见 [前端说明](../ios/README.md)。App 不申请定位、不发送推送。后台定位、语音导航、国内坐标与真机局域网表现仍须按工程架构第 15 节验证，不能以模拟器构建代替。
 
-工程已入库，不需要每次生成。仅重建初始骨架时使用 `npm --prefix object/dev run ios:generate`；生成器会拒绝覆盖已有工程，显式 `--force` 才重建，重建会覆盖后来在 Xcode 做的改动。
+工程已入库，不需要每次生成。仅明确需要重建工程时使用 `npm --prefix object/dev run ios:generate`；生成器会拒绝覆盖已有工程，显式 `--force` 才重建，重建会覆盖后来在 Xcode 做的改动。
 
 ## 验证
 
@@ -79,4 +79,4 @@ sh object/dev/queue.sh doctor
 
 iOS 脚本自动选择已安装的 iPhone 模拟器；要选其他设备，设置 `SAFEORBIT_SIMULATOR_ID`。后端检查会构建、测试 HTTP 健康接口和数据库失败响应，检查源码依赖，并故意写入两种临时越界引用确认拒绝后删除。运行检查需要本机端口与模拟器权限；沙箱拒绝时由 Agent 按执行环境申请运行权限。
 
-执行输出与本次配置结果归任务 T6，此文只维护可复用方法。产品是否满足 Demo 要求由后续真机和录屏验收决定。
+环境配置结果归任务 T6，前端执行输出归任务 T7，此文只维护可复用方法。产品是否满足 Demo 要求由后续真机和录屏验收决定。

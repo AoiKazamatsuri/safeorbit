@@ -8,7 +8,17 @@
 /* Begin PBXFileReference section */
 		3FB2BD550F06A795A4AB7FF4 /* SafeOrbit/SafeOrbitApp.swift */ = {isa = PBXFileReference; path = "SafeOrbit/SafeOrbitApp.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
 		366EE99968210FA8F05B566B /* SafeOrbit/ServerConfiguration.swift */ = {isa = PBXFileReference; path = "SafeOrbit/ServerConfiguration.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
+		46F327A303236EE513E7E21A /* SafeOrbit/OnboardingModels.swift */ = {isa = PBXFileReference; path = "SafeOrbit/OnboardingModels.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
+		38AD48EA6F376F2130580E69 /* SafeOrbit/OnboardingAPI.swift */ = {isa = PBXFileReference; path = "SafeOrbit/OnboardingAPI.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
+		DB31C845D61A37607A458424 /* SafeOrbit/OnboardingStore.swift */ = {isa = PBXFileReference; path = "SafeOrbit/OnboardingStore.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
+		F53B972F484839B1F6E82F96 /* SafeOrbit/OnboardingUI.swift */ = {isa = PBXFileReference; path = "SafeOrbit/OnboardingUI.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
+		E97854554CF94F5DFF1FA51F /* SafeOrbit/QRScanner.swift */ = {isa = PBXFileReference; path = "SafeOrbit/QRScanner.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
 		83308961FB490F788E6D4808 /* SafeOrbitTests/ServerConfigurationTests.swift */ = {isa = PBXFileReference; path = "SafeOrbitTests/ServerConfigurationTests.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
+		2BD199390D0C58BE5786949D /* SafeOrbitTests/OnboardingTests.swift */ = {isa = PBXFileReference; path = "SafeOrbitTests/OnboardingTests.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
+		F029AA7C22824C0748EDB4F4 /* SafeOrbit/Assets.xcassets */ = {isa = PBXFileReference; path = "SafeOrbit/Assets.xcassets"; sourceTree = "<group>"; lastKnownFileType = folder.assetcatalog; };
+		95BE1949FB74F1944A0D15BF /* SafeOrbit/Localizable.xcstrings */ = {isa = PBXFileReference; path = "SafeOrbit/Localizable.xcstrings"; sourceTree = "<group>"; lastKnownFileType = text.json.xcstrings; };
+		92DAF409D0B1D7FE3A8369EC /* SafeOrbit/InfoPlist.xcstrings */ = {isa = PBXFileReference; path = "SafeOrbit/InfoPlist.xcstrings"; sourceTree = "<group>"; lastKnownFileType = text.json.xcstrings; };
+		6E93D021BA762BF4F1DA888C /* SafeOrbit/SafeOrbit.entitlements */ = {isa = PBXFileReference; path = "SafeOrbit/SafeOrbit.entitlements"; sourceTree = "<group>"; lastKnownFileType = text.plist.entitlements; };
 		CE2BD72ADACACF1E2DA7025A /* SafeOrbit/Info.plist */ = {isa = PBXFileReference; path = "SafeOrbit/Info.plist"; sourceTree = "<group>"; lastKnownFileType = text.plist.xml; };
 		ACD4BCC47A4DDAA3B0722D11 /* Config/Debug.xcconfig */ = {isa = PBXFileReference; path = "Config/Debug.xcconfig"; sourceTree = "<group>"; lastKnownFileType = text.xcconfig; };
 		323B5140B8E0B7C06560E7E1 /* Config/Release.xcconfig */ = {isa = PBXFileReference; path = "Config/Release.xcconfig"; sourceTree = "<group>"; lastKnownFileType = text.xcconfig; };
@@ -19,7 +29,16 @@
 /* Begin PBXBuildFile section */
 		12AE4209B019D95CC96587FE /* SafeOrbit/SafeOrbitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB2BD550F06A795A4AB7FF4 /* SafeOrbit/SafeOrbitApp.swift */; };
 		09A74B74C46451ABC6862DE0 /* SafeOrbit/ServerConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366EE99968210FA8F05B566B /* SafeOrbit/ServerConfiguration.swift */; };
+		41186EF3B07413680D670CBE /* SafeOrbit/OnboardingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F327A303236EE513E7E21A /* SafeOrbit/OnboardingModels.swift */; };
+		07847ED970BE051D143FB891 /* SafeOrbit/OnboardingAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38AD48EA6F376F2130580E69 /* SafeOrbit/OnboardingAPI.swift */; };
+		8085A362AD5E052199D0FA0B /* SafeOrbit/OnboardingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB31C845D61A37607A458424 /* SafeOrbit/OnboardingStore.swift */; };
+		8094EDD5466819A92EAF01E3 /* SafeOrbit/OnboardingUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = F53B972F484839B1F6E82F96 /* SafeOrbit/OnboardingUI.swift */; };
+		CF48425D5854F6B715C5A05F /* SafeOrbit/QRScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E97854554CF94F5DFF1FA51F /* SafeOrbit/QRScanner.swift */; };
 		9C0782040571C3F1E18FC874 /* SafeOrbitTests/ServerConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83308961FB490F788E6D4808 /* SafeOrbitTests/ServerConfigurationTests.swift */; };
+		C5284D633A6E2F64E34790E6 /* SafeOrbitTests/OnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BD199390D0C58BE5786949D /* SafeOrbitTests/OnboardingTests.swift */; };
+		D29418975E11D4FDE8DF2A91 /* SafeOrbit/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F029AA7C22824C0748EDB4F4 /* SafeOrbit/Assets.xcassets */; };
+		FC08DB3F5DB0C0EDB56FAEB8 /* SafeOrbit/Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 95BE1949FB74F1944A0D15BF /* SafeOrbit/Localizable.xcstrings */; };
+		D57BF325FD7BF54FFB25D23D /* SafeOrbit/InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 92DAF409D0B1D7FE3A8369EC /* SafeOrbit/InfoPlist.xcstrings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXGroup section */
@@ -37,7 +56,17 @@
 			children = (
 				3FB2BD550F06A795A4AB7FF4 /* SafeOrbit/SafeOrbitApp.swift */,
 				366EE99968210FA8F05B566B /* SafeOrbit/ServerConfiguration.swift */,
+				46F327A303236EE513E7E21A /* SafeOrbit/OnboardingModels.swift */,
+				38AD48EA6F376F2130580E69 /* SafeOrbit/OnboardingAPI.swift */,
+				DB31C845D61A37607A458424 /* SafeOrbit/OnboardingStore.swift */,
+				F53B972F484839B1F6E82F96 /* SafeOrbit/OnboardingUI.swift */,
+				E97854554CF94F5DFF1FA51F /* SafeOrbit/QRScanner.swift */,
 				83308961FB490F788E6D4808 /* SafeOrbitTests/ServerConfigurationTests.swift */,
+				2BD199390D0C58BE5786949D /* SafeOrbitTests/OnboardingTests.swift */,
+				F029AA7C22824C0748EDB4F4 /* SafeOrbit/Assets.xcassets */,
+				95BE1949FB74F1944A0D15BF /* SafeOrbit/Localizable.xcstrings */,
+				92DAF409D0B1D7FE3A8369EC /* SafeOrbit/InfoPlist.xcstrings */,
+				6E93D021BA762BF4F1DA888C /* SafeOrbit/SafeOrbit.entitlements */,
 				CE2BD72ADACACF1E2DA7025A /* SafeOrbit/Info.plist */,
 				ACD4BCC47A4DDAA3B0722D11 /* Config/Debug.xcconfig */,
 				323B5140B8E0B7C06560E7E1 /* Config/Release.xcconfig */,
@@ -54,6 +83,11 @@
 			files = (
 				12AE4209B019D95CC96587FE /* SafeOrbit/SafeOrbitApp.swift in Sources */,
 				09A74B74C46451ABC6862DE0 /* SafeOrbit/ServerConfiguration.swift in Sources */,
+				41186EF3B07413680D670CBE /* SafeOrbit/OnboardingModels.swift in Sources */,
+				07847ED970BE051D143FB891 /* SafeOrbit/OnboardingAPI.swift in Sources */,
+				8085A362AD5E052199D0FA0B /* SafeOrbit/OnboardingStore.swift in Sources */,
+				8094EDD5466819A92EAF01E3 /* SafeOrbit/OnboardingUI.swift in Sources */,
+				CF48425D5854F6B715C5A05F /* SafeOrbit/QRScanner.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -62,6 +96,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9C0782040571C3F1E18FC874 /* SafeOrbitTests/ServerConfigurationTests.swift in Sources */,
+				C5284D633A6E2F64E34790E6 /* SafeOrbitTests/OnboardingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -89,6 +124,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D29418975E11D4FDE8DF2A91 /* SafeOrbit/Assets.xcassets in Resources */,
+				FC08DB3F5DB0C0EDB56FAEB8 /* SafeOrbit/Localizable.xcstrings in Resources */,
+				D57BF325FD7BF54FFB25D23D /* SafeOrbit/InfoPlist.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -118,6 +156,7 @@
 				ENABLE_TESTABILITY = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				CODE_SIGN_ENTITLEMENTS = SafeOrbit/SafeOrbit.entitlements;
 				INFOPLIST_FILE = SafeOrbit/Info.plist;
 				GENERATE_INFOPLIST_FILE = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -139,6 +178,7 @@
 				ENABLE_TESTABILITY = NO;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				CODE_SIGN_ENTITLEMENTS = SafeOrbit/SafeOrbit.entitlements;
 				INFOPLIST_FILE = SafeOrbit/Info.plist;
 				GENERATE_INFOPLIST_FILE = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -304,6 +344,11 @@
 				TargetAttributes = {
 					373B9A7B0591AC3069343A3B = {
 						CreatedOnToolsVersion = 27.0;
+						SystemCapabilities = {
+							com.apple.SignInWithApple = {
+								enabled = 1;
+							};
+						};
 					};
 					D7DD05776768D056E5B6F7EE = {
 						CreatedOnToolsVersion = 27.0;
@@ -317,7 +362,6 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
-				"zh-Hans",
 				Base,
 			);
 			mainGroup = 46F841CC66BFBE86BDB66ED7;
