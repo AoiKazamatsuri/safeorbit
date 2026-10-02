@@ -1,0 +1,16 @@
+{
+  "name": "safeorbit-dev",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.6.0 <27"
+  },
+  "scripts": {
+    "ios:generate": "node generate-ios.mjs",
+    "env:setup": "node setup-env.mjs",
+    "env:check": "node check-env.mjs"
+  },
+  "devDependencies": {
+    "xcode": "3.0.1"
+  }
+}

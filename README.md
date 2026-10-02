@@ -33,6 +33,10 @@ Demo 级，用于课堂演示：一个按老人或家属身份切换界面的 iP
 | `eval/` | 效果评价方法（可选） |
 | `.shell/` | 任务的机器账（入库）与本机运行态（不入库） |
 
+## 开发环境
+
+首次安装、启动和验证命令见 [开发环境说明](object/dev/README.md)。App 工程在 `object/ios/SafeOrbit.xcodeproj`，后端与数据库在 `object/server/`；UI 视觉依据保持 `reference/ui/`。
+
 ## 怎么协作
 
 本仓按任务推进：用户下达指令，Agent 起草任务、执行、跑检查并交付，用户验收。Agent 的规则以[根契约](AGENTS.md)为准，本文件只是给人看的介绍。新克隆接入任务队列的做法见[队列用法](tool/queue-usage.md)“接入与恢复上下文”。本仓基于 devtemplate 2026-10-01 搭建，模板的变化见[变更记录](CHANGELOG.md)。

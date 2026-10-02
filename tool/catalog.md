@@ -28,3 +28,13 @@
 - 授权：安装依赖与接提交钩子都须用户明确同意（根契约第 3 条）；本仓由用户在任务 T1 中同意。
 - 提交钩子：暂存改动触及 `truth/` 或 `tool/diagram/` 时，对暂存内容跑三项检查，有红即拒绝提交；找不到 Node 22.6 以上也拒绝。每个克隆在仓库根运行一次 `sh tool/diagram/install-hook.sh` 接线，拆下用 `--uninstall`。
 - 验证：修改本工具后跑夹具 `node --experimental-strip-types --disable-warning=ExperimentalWarning tool/diagram/render-diagrams-accept.mts`；画图、改图后跑 `tool/diagram/check.mts`，检查项登记在 [gate/checks.md](../gate/checks.md)“架构图纸检查”。
+
+### 开发环境入口
+
+- 用途：初始化本机后端环境变量、检查开发依赖、选择正确 Python 调用队列、启动后端与数据库、运行 iOS 模拟器检查。
+- 位置与说明：[object/dev/README.md](../object/dev/README.md)；脚本在 `object/dev/`，按工作对象契约归代码工程，不在 tool 复制代码。
+- 来源与版本：本仓环境骨架 0.1.0，任务 [T6](../queue/tasks/T6/goal.md)；Xcode 初始工程生成器使用 xcode 3.0.1，版本钉在 `object/dev/package-lock.json`。
+- 前置：Python 3.10+、Node 22.6–26、Xcode 与 iPhone 模拟器、Docker Desktop；新克隆须接入队列保护。
+- 副作用：`setup-env.mjs` 仅在不存在时写本机 `object/server/.env`，不显示密码；`compose.sh up` 下载镜像、构建工程并启动本地服务；`ios-check.sh` 启动模拟器并写忽略的 DerivedData；工程生成器默认拒绝覆盖已有工程，`--force` 才覆盖。
+- 授权：项目依赖按根契约第 23 条；Docker 的系统级安装须单独授权；账号、证书、付费调用另行授权。脚本不推送远端。
+- 验证：命令与通过条件见 [gate/checks.md](../gate/checks.md)；业务与真机验收另行进行。

@@ -1,0 +1,335 @@
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXFileReference section */
+		3FB2BD550F06A795A4AB7FF4 /* SafeOrbit/SafeOrbitApp.swift */ = {isa = PBXFileReference; path = "SafeOrbit/SafeOrbitApp.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
+		366EE99968210FA8F05B566B /* SafeOrbit/ServerConfiguration.swift */ = {isa = PBXFileReference; path = "SafeOrbit/ServerConfiguration.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
+		83308961FB490F788E6D4808 /* SafeOrbitTests/ServerConfigurationTests.swift */ = {isa = PBXFileReference; path = "SafeOrbitTests/ServerConfigurationTests.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
+		CE2BD72ADACACF1E2DA7025A /* SafeOrbit/Info.plist */ = {isa = PBXFileReference; path = "SafeOrbit/Info.plist"; sourceTree = "<group>"; lastKnownFileType = text.plist.xml; };
+		ACD4BCC47A4DDAA3B0722D11 /* Config/Debug.xcconfig */ = {isa = PBXFileReference; path = "Config/Debug.xcconfig"; sourceTree = "<group>"; lastKnownFileType = text.xcconfig; };
+		323B5140B8E0B7C06560E7E1 /* Config/Release.xcconfig */ = {isa = PBXFileReference; path = "Config/Release.xcconfig"; sourceTree = "<group>"; lastKnownFileType = text.xcconfig; };
+		88F4CDFC38B9C0CE7B73BE5C /* SafeOrbit.app */ = {isa = PBXFileReference; path = SafeOrbit.app; sourceTree = BUILT_PRODUCTS_DIR; explicitFileType = wrapper.application; includeInIndex = 0; };
+		91E5D63736EA86B11DE2C380 /* SafeOrbitTests.xctest */ = {isa = PBXFileReference; path = SafeOrbitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; explicitFileType = wrapper.cfbundle; includeInIndex = 0; };
+/* End PBXFileReference section */
+
+/* Begin PBXBuildFile section */
+		12AE4209B019D95CC96587FE /* SafeOrbit/SafeOrbitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB2BD550F06A795A4AB7FF4 /* SafeOrbit/SafeOrbitApp.swift */; };
+		09A74B74C46451ABC6862DE0 /* SafeOrbit/ServerConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366EE99968210FA8F05B566B /* SafeOrbit/ServerConfiguration.swift */; };
+		9C0782040571C3F1E18FC874 /* SafeOrbitTests/ServerConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83308961FB490F788E6D4808 /* SafeOrbitTests/ServerConfigurationTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXGroup section */
+		4D59BD4F59BC7FC872211896 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				88F4CDFC38B9C0CE7B73BE5C /* SafeOrbit.app */,
+				91E5D63736EA86B11DE2C380 /* SafeOrbitTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		46F841CC66BFBE86BDB66ED7 /* Main */ = {
+			isa = PBXGroup;
+			children = (
+				3FB2BD550F06A795A4AB7FF4 /* SafeOrbit/SafeOrbitApp.swift */,
+				366EE99968210FA8F05B566B /* SafeOrbit/ServerConfiguration.swift */,
+				83308961FB490F788E6D4808 /* SafeOrbitTests/ServerConfigurationTests.swift */,
+				CE2BD72ADACACF1E2DA7025A /* SafeOrbit/Info.plist */,
+				ACD4BCC47A4DDAA3B0722D11 /* Config/Debug.xcconfig */,
+				323B5140B8E0B7C06560E7E1 /* Config/Release.xcconfig */,
+				4D59BD4F59BC7FC872211896 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXSourcesBuildPhase section */
+		5F6A9338085D3E23F8FB6BF7 /* SafeOrbit Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				12AE4209B019D95CC96587FE /* SafeOrbit/SafeOrbitApp.swift in Sources */,
+				09A74B74C46451ABC6862DE0 /* SafeOrbit/ServerConfiguration.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		991C998F80DEAA0A398FCA9B /* SafeOrbitTests Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9C0782040571C3F1E18FC874 /* SafeOrbitTests/ServerConfigurationTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B3738BA844ADC3134834D412 /* SafeOrbit Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BD8E6E833F7127522CCF2794 /* SafeOrbitTests Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3689B1113F9BB70CEC185CA2 /* SafeOrbit Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		012F9D35299D4FDABC35198E /* SafeOrbitTests Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		8665F37281000797AD86F468 /* SafeOrbit Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = ACD4BCC47A4DDAA3B0722D11 /* Debug.xcconfig */;
+			name = Debug;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = org.safeorbit.demo;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				CODE_SIGN_STYLE = Automatic;
+				SWIFT_VERSION = 5.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				ENABLE_TESTABILITY = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				INFOPLIST_FILE = SafeOrbit/Info.plist;
+				GENERATE_INFOPLIST_FILE = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+		};
+		CA4BE20CF6955442304AE294 /* SafeOrbit Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 323B5140B8E0B7C06560E7E1 /* Release.xcconfig */;
+			name = Release;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = org.safeorbit.demo;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				CODE_SIGN_STYLE = Automatic;
+				SWIFT_VERSION = 5.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				ENABLE_TESTABILITY = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				INFOPLIST_FILE = SafeOrbit/Info.plist;
+				GENERATE_INFOPLIST_FILE = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+		};
+		4414D8C86439C91293D9335A /* SafeOrbitTests Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = ACD4BCC47A4DDAA3B0722D11 /* Debug.xcconfig */;
+			name = Debug;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = org.safeorbit.demo.tests;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				CODE_SIGN_STYLE = Automatic;
+				SWIFT_VERSION = 5.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				ENABLE_TESTABILITY = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				GENERATE_INFOPLIST_FILE = YES;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SafeOrbit.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SafeOrbit";
+				BUNDLE_LOADER = "$(TEST_HOST)";
+			};
+		};
+		104FDA10424FE41F939FB381 /* SafeOrbitTests Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 323B5140B8E0B7C06560E7E1 /* Release.xcconfig */;
+			name = Release;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = org.safeorbit.demo.tests;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				CODE_SIGN_STYLE = Automatic;
+				SWIFT_VERSION = 5.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				ENABLE_TESTABILITY = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				GENERATE_INFOPLIST_FILE = YES;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SafeOrbit.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SafeOrbit";
+				BUNDLE_LOADER = "$(TEST_HOST)";
+			};
+		};
+		866FBEF258F539EB509C5327 /* Project Debug */ = {
+			isa = XCBuildConfiguration;
+			name = Debug;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+			};
+		};
+		1A4AC1309ADABF7D66E4EC58 /* Project Release */ = {
+			isa = XCBuildConfiguration;
+			name = Release;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+			};
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1364DE184D47BE47084E25E2 /* SafeOrbit Configurations */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8665F37281000797AD86F468 /* SafeOrbit Debug */,
+				CA4BE20CF6955442304AE294 /* SafeOrbit Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8295C81666A8791159ACE054 /* SafeOrbitTests Configurations */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4414D8C86439C91293D9335A /* SafeOrbitTests Debug */,
+				104FDA10424FE41F939FB381 /* SafeOrbitTests Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C61BE3748CFF795AB7883AC1 /* Project Configurations */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				866FBEF258F539EB509C5327 /* Project Debug */,
+				1A4AC1309ADABF7D66E4EC58 /* Project Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin PBXNativeTarget section */
+		373B9A7B0591AC3069343A3B /* SafeOrbit */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1364DE184D47BE47084E25E2;
+			buildPhases = (
+				5F6A9338085D3E23F8FB6BF7 /* SafeOrbit Sources */,
+				B3738BA844ADC3134834D412 /* SafeOrbit Frameworks */,
+				3689B1113F9BB70CEC185CA2 /* SafeOrbit Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SafeOrbit;
+			productName = SafeOrbit;
+			productReference = 88F4CDFC38B9C0CE7B73BE5C;
+			productType = "com.apple.product-type.application";
+		};
+		D7DD05776768D056E5B6F7EE /* SafeOrbitTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8295C81666A8791159ACE054;
+			buildPhases = (
+				991C998F80DEAA0A398FCA9B /* SafeOrbitTests Sources */,
+				BD8E6E833F7127522CCF2794 /* SafeOrbitTests Frameworks */,
+				012F9D35299D4FDABC35198E /* SafeOrbitTests Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4E64676DFD25B11B8D53C1F6 /* AppDependency */,
+			);
+			name = SafeOrbitTests;
+			productName = SafeOrbitTests;
+			productReference = 91E5D63736EA86B11DE2C380;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXContainerItemProxy section */
+		B83103CC2CE4C10B09A9C238 /* AppProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 39A67C09A176EFA66BF71C1E;
+			proxyType = 1;
+			remoteGlobalIDString = 373B9A7B0591AC3069343A3B;
+			remoteInfo = SafeOrbit;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		4E64676DFD25B11B8D53C1F6 /* AppDependency */ = {
+			isa = PBXTargetDependency;
+			target = 373B9A7B0591AC3069343A3B;
+			targetProxy = B83103CC2CE4C10B09A9C238;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXProject section */
+		39A67C09A176EFA66BF71C1E /* Project */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					373B9A7B0591AC3069343A3B = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					D7DD05776768D056E5B6F7EE = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = 373B9A7B0591AC3069343A3B;
+					};
+				};
+			};
+			buildConfigurationList = C61BE3748CFF795AB7883AC1;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				"zh-Hans",
+				Base,
+			);
+			mainGroup = 46F841CC66BFBE86BDB66ED7;
+			productRefGroup = 4D59BD4F59BC7FC872211896;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				373B9A7B0591AC3069343A3B /* SafeOrbit */,
+				D7DD05776768D056E5B6F7EE /* SafeOrbitTests */,
+			);
+		};
+/* End PBXProject section */
+	};
+	rootObject = 39A67C09A176EFA66BF71C1E /* Project object */;
+}

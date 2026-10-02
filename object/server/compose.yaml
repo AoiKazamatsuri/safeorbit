@@ -1,0 +1,40 @@
+name: safeorbit
+services:
+  database:
+    image: postgis/postgis:17-3.5
+    platform: linux/amd64
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-safeorbit}
+      POSTGRES_USER: ${POSTGRES_USER:-safeorbit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run node ../dev/setup-env.mjs first}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - care-data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-safeorbit.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  server:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      PORT: 3000
+      POSTGRES_HOST: database
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-safeorbit}
+      POSTGRES_USER: ${POSTGRES_USER:-safeorbit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run node ../dev/setup-env.mjs first}
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+volumes:
+  care-data:

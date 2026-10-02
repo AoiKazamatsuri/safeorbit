@@ -1,0 +1,32 @@
+{
+  "name": "safeorbit-server",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.6.0 <27"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node --env-file-if-exists=.env dist/src/main.js",
+    "start:dev": "npm run build && node --watch --env-file-if-exists=.env dist/src/main.js",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "check:boundaries": "depcruise --config .dependency-cruiser.cjs src",
+    "test:boundaries": "node test/boundaries.mjs",
+    "check": "npm run build && npm test && npm run check:boundaries && npm run test:boundaries"
+  },
+  "dependencies": {
+    "@nestjs/common": "11.2.7",
+    "@nestjs/core": "11.2.7",
+    "@nestjs/platform-express": "11.2.7",
+    "ai": "7.0.127",
+    "pg": "8.23.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "dependency-cruiser": "18.5.0",
+    "typescript": "5.9.3"
+  }
+}

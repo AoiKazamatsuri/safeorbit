@@ -21,3 +21,6 @@ coverage/
 .env.*
 !.env.example
 *.p8
+
+# Local iPhone server/signing configuration (example stays tracked).
+/object/ios/Config/Local.xcconfig

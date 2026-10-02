@@ -27,14 +27,14 @@
 - 提交钩子：暂存改动触及 `truth/` 或 `tool/diagram/` 时自动对暂存内容运行，有红即拒绝提交。每个克隆在仓库根运行一次 `sh tool/diagram/install-hook.sh` 安装；说明见 [tool/diagram/AGENTS.md](../tool/diagram/AGENTS.md)。
 - 方法来源：制图工具随附的三项检查，见 [tool/catalog.md](../tool/catalog.md)“制图工具”。
 
-以下三项登记于任务 [T3](../queue/tasks/T3/goal.md)，检查 [object/](../object/AGENTS.md) 下的 Demo 代码。原样命令由首个开发任务搭好骨架后补齐，补齐前各项不能当作已运行。三项暂不接提交钩子，由 Agent 在开发任务中实跑，读数写进任务回执。
+以下三项登记于任务 [T3](../queue/tasks/T3/goal.md)，命令由环境配置任务 [T6](../queue/tasks/T6/goal.md) 补齐，检查 [object/](../object/AGENTS.md) 下的 Demo 代码。三项暂不接提交钩子，由 Agent 在开发任务中实跑，读数写进任务回执。当前测试只覆盖环境骨架，业务规则用例随实现补齐。
 
 ### 后端单元测试
 
-- 检查对象：`object/server/` 后端程序三个模块（照护接口、照护智能体、触达网关）的单元测试，重点是照护智能体的风险规则与 Demo 默认参数。
+- 检查对象：`object/server/` 当前骨架的健康接口与数据库失败响应；业务实现后补齐三个模块的单元测试，重点为照护智能体的风险规则与 Demo 默认参数。
 - 工作目录：`object/server/`。
-- 前置条件：Node.js（版本随骨架确定）；已在该目录安装项目依赖。单元测试不连真实数据库、大模型与苹果推送，这些经适配器替身代替。
-- 命令：由首个开发任务搭好骨架后补齐。
+- 前置条件：Node.js 22.6–26；已在该目录安装项目依赖。单元测试不连真实数据库、大模型与苹果推送，这些经适配器替身代替。
+- 命令：`npm test`。
 - 通过条件：退出码 0，无失败用例。
 - 限制：只证明代码符合用例；阈值是否合理、真机效果如何不由它证明，靠模拟轨迹回放与用户观看录屏判断。
 - 方法来源：[工程架构](../truth/工程架构.md)第 8 节风险规则与 Demo 默认参数；[项目目标](../truth/goals.md)“完成的判断”的确认方式。
@@ -44,7 +44,7 @@
 - 检查对象：`object/server/` 的源码引用关系——照护智能体与触达网关只能引用照护接口公开的接口与事件；照护接口不得引用它们；任何模块不得绕过照护接口直接访问数据库。
 - 工作目录：`object/server/`。
 - 前置条件：同后端单元测试；dependency-cruiser 作为后端的开发依赖安装（[根契约](../AGENTS.md)第 23 条），规则文件在 `object/server/` 下。
-- 命令：由首个开发任务搭好骨架后补齐。
+- 命令：`npm run check:boundaries`；检查规则能否拒绝越界用 `npm run test:boundaries`。
 - 通过条件：退出码 0，无违规引用。
 - 限制：只看源码里的引用，不看运行时的动态加载与数据库连接配置；规则写漏的边界查不出，改规则文件须在任务里说明理由。
 - 方法来源：[工程架构](../truth/工程架构.md)第 2 节原则 3、7 与第 6 节“模块边界”；任务 [T2](../queue/tasks/T2/approval-002.md) 的 D34。
@@ -54,9 +54,19 @@
 - 检查对象：`object/ios/` 下的 Xcode 工程能否构建，以及 App 的单元测试（如坐标换算、位置缓存与补传、身份切换等逻辑）。
 - 工作目录：`object/ios/`。
 - 前置条件：macOS 与 Xcode；一个 iOS 17 或以上的模拟器运行时。
-- 命令：由首个开发任务搭好骨架后补齐（用 `xcodebuild` 构建，并在模拟器上跑单元测试）。
+- 命令：仓库根运行 `sh object/dev/ios-check.sh`；脚本调用 `xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination "platform=iOS Simulator,id=<可用 iPhone 的编号>" -derivedDataPath object/ios/DerivedData CODE_SIGNING_ALLOWED=NO test`。可用 `SAFEORBIT_SIMULATOR_ID` 指定模拟器。
 - 通过条件：构建成功，退出码 0，无失败用例。
 - 限制：模拟器不能证明后台定位、锁屏自动开始语音导航、推送送达与局域网连接等真机行为，这些靠[工程架构](../truth/工程架构.md)第 15 节的真机验证与模拟轨迹回放；也不证明界面与设计图一致。
 - 方法来源：[工程架构](../truth/工程架构.md)第 10、15 节。
 
 执行输出与失败记录归对应任务，本清单不保存“上次通过”的状态。
+
+### 开发环境与数据库
+
+- 对象：队列保护、Node、Xcode、iPhone 模拟器、Docker Engine、Compose、项目依赖与后端数据库连通性。
+- 工作目录：仓库根。
+- 前置：按 [开发环境说明](../object/dev/README.md) 安装依赖，生成本机 `.env` 并启动容器。
+- 命令：`node object/dev/check-env.mjs --running`；空间扩展查询用 `sh object/dev/compose.sh exec -T database psql -U safeorbit -d safeorbit -c "SELECT PostGIS_Version();"`。
+- 通过：退出码 0，环境检查输出 `Environment ready`，查询返回 PostGIS 版本。
+- 限制：不能证明真机后台定位、导航、签名与推送；不调用大模型、苹果推送或付费服务。本检查不接提交钩子。
+- 来源：工程架构第 6、10、14 节；任务 [T6](../queue/tasks/T6/goal.md)。

@@ -17,11 +17,11 @@
 
 ## 构建、运行与测试
 
-骨架落地前只定原则；具体命令由首个开发任务搭好骨架后补进本节，并在 [gate/checks.md](../gate/checks.md)“项目专属检查”的对应项写成原样命令。
+环境骨架由任务 [T6](../queue/tasks/T6/goal.md) 建立。安装与启动见 [dev/README.md](dev/README.md)，实际检查命令也登记在 [gate/checks.md](../gate/checks.md)。业务功能与真机验证在后续开发任务中完成。
 
-- **iOS**：用 Xcode 打开 `ios/` 下的工程，在真机上运行；命令行构建与单元测试用 `xcodebuild`，单元测试在模拟器上跑。最低系统 iOS 17。
-- **后端**：Docker Compose 一键启动后端程序与数据库（工程架构第 14 节）；后端单元测试与模块边界检查在 `server/` 下运行。
-- **开发工具**：灌入脚本与模拟轨迹文件的用法，由编写它们的任务补进本节。
+- **iOS**：用 Xcode 打开 `ios/SafeOrbit.xcodeproj`；仓库根运行 `sh object/dev/ios-check.sh` 在已安装的 iPhone 模拟器构建和测试。最低系统 iOS 17；真机签名与局域网地址放在被忽略的 `ios/Config/Local.xcconfig`。
+- **后端**：仓库根运行 `node object/dev/setup-env.mjs` 生成本机环境文件，`sh object/dev/compose.sh up -d --build --wait` 启动后端与 PostgreSQL/PostGIS；在 `server/` 运行 `npm run check` 完成构建、单元测试和模块边界检查。
+- **开发工具**：仓库根运行 `node object/dev/check-env.mjs --running` 检查环境及后端连通性；队列入口为 `sh object/dev/queue.sh`，会选择 Python 3.10+，须与本机 init 使用的解释器一致。历史灌入与模拟轨迹由业务开发任务补齐。
 - **演示连接**：两部 iPhone 与开发者电脑连同一个 Wi‑Fi，服务器地址写在 App 的构建配置里（工程架构第 6 节）；连接细节以首个开发任务的验证结论为准（工程架构第 15 节）。
 
 终端能跑的构建与测试由 Agent 自己跑，读数写进任务回执（根契约第 15 条）。
@@ -42,6 +42,7 @@
 | `node_modules/`、`dist/`、`coverage/` | Node 依赖、构建产物与测试覆盖率报告 |
 | `.env`、`.env.*`（`.env.example` 除外） | 本机环境变量 |
 | `*.p8` | 苹果推送密钥 |
+| `ios/Config/Local.xcconfig` | 本机服务器地址与真机签名配置；示例文件入库 |
 
 ## 依赖
 

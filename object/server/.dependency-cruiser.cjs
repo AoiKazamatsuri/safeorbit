@@ -1,0 +1,20 @@
+module.exports = {
+  forbidden: [
+    { name: 'no-circular', severity: 'error', from: {}, to: { circular: true } },
+    { name: 'no-unresolved', severity: 'error', from: {}, to: { couldNotResolve: true } },
+    { name: 'care-api-does-not-depend-on-consumers', severity: 'error',
+      from: { path: '^src/care-api/' }, to: { path: '^src/(care-agent|outreach-gateway)/' } },
+    { name: 'consumers-use-only-care-api-public', severity: 'error',
+      from: { path: '^src/(care-agent|outreach-gateway)/' },
+      to: { path: '^src/care-api/', pathNot: '^src/care-api/public/' } },
+    { name: 'consumers-do-not-depend-on-each-other', severity: 'error',
+      from: { path: '^src/care-agent/' }, to: { path: '^src/outreach-gateway/' } },
+    { name: 'gateway-does-not-depend-on-agent', severity: 'error',
+      from: { path: '^src/outreach-gateway/' }, to: { path: '^src/care-agent/' } },
+    { name: 'only-care-api-accesses-database', severity: 'error',
+      from: { path: '^src/', pathNot: '^src/care-api/' },
+      to: { path: '(^|/)(pg|pg-pool|postgres|typeorm|knex|prisma|@prisma)(/|$)' } },
+  ],
+  options: { doNotFollow: { path: 'node_modules' }, tsConfig: { fileName: 'tsconfig.json' },
+    enhancedResolveOptions: { extensions: ['.ts', '.js', '.json'] } },
+};
