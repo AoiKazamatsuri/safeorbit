@@ -24,6 +24,7 @@ struct OnboardingRoot: View {
                     case .familyBinding: FamilyBindingPage(profile: store.elder, code: store.code, busy: store.busy,
                         generate: { Task { await store.generateCode() } }, refresh: { Task { await store.refreshBinding() } },
                         edit: { store.screen = .profile })
+                    case .caregiverHome: CaregiverHomePage(store: store)
                     case .scan: ScanPage(busy: store.busy, payload: $payload) { value in Task { await store.bind(value) } }
                     case .elderReady: ElderReadyPage(profile: store.elder)
                     }
@@ -41,7 +42,7 @@ struct OnboardingRoot: View {
                         }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
-                        if store.token != nil {
+                        if store.token != nil && store.screen != .caregiverHome {
                             Button("Sign out") { confirmLogout = true }.disabled(store.busy)
                         }
                     }

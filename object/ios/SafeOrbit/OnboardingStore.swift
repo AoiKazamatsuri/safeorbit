@@ -3,7 +3,7 @@ import AuthenticationServices
 import CryptoKit
 
 @MainActor final class OnboardingStore: ObservableObject {
-    enum Screen { case role, login, signup, emailSignup, forgotPassword, phone, profile, familyBinding, scan, elderReady }
+    enum Screen { case role, login, signup, emailSignup, forgotPassword, phone, profile, familyBinding, caregiverHome, scan, elderReady }
     @Published var screen: Screen = .role
     @Published var email = ""
     @Published var password = ""
@@ -17,6 +17,9 @@ import CryptoKit
     @Published var elder = ElderProfile()
     @Published var caregiverPhone = ""
     @Published var code: BindingCode?
+    @Published private(set) var location: ElderLocationSnapshot?
+    @Published private(set) var locationLoading = false
+    @Published private(set) var locationError: String?
     @Published var restoring = false
     @Published private(set) var authorizing = false
     @Published private(set) var preparingLogin = false
@@ -41,7 +44,8 @@ import CryptoKit
         if let profile = session.elder { elder = profile }
         if session.role == "elder" { screen = .elderReady }
         else if caregiverPhone.isEmpty { screen = .phone }
-        else { screen = session.elder == nil ? .profile : .familyBinding }
+        else if session.elder == nil { screen = .profile }
+        else { screen = session.elder?.bound == true ? .caregiverHome : .familyBinding }
     }
     private func accept(_ session: AppSession) throws {
         guard ["caregiver", "elder"].contains(session.role),
@@ -200,7 +204,7 @@ import CryptoKit
         await perform {
             let profile: ElderProfile = try await self.api.request("elder", token: token)
             self.elder = profile
-            if profile.bound { self.code = nil }
+            if profile.bound { self.code = nil; self.screen = .caregiverHome }
         }
     }
     func bind(_ payload: String) async {
@@ -221,9 +225,28 @@ import CryptoKit
         let _: [String: Bool]? = try? await api.request("session", method: "DELETE", token: token)
         reset(); busy = false
     }
+    func refreshLocation() async {
+        guard let token, screen == .caregiverHome, !locationLoading else { return }
+        locationLoading = true
+        defer { locationLoading = false }
+        do {
+            let latest: ElderLocationSnapshot = try await api.request("location", token: token)
+            guard latest.coordinate.isValid else { throw APIError(kind: .other) }
+            location = latest
+            locationError = nil
+        } catch is CancellationError {
+        } catch {
+            if let apiError = error as? APIError, apiError.kind == .unauthorized {
+                reset(); screen = .login
+                self.error = "Session expired. Sign in again."
+            } else {
+                locationError = (error as? APIError)?.errorDescription ?? "Location is unavailable. Try again."
+            }
+        }
+    }
     func reset() {
         vault.clear(); token = nil; elder = .init(); code = nil; challenge = nil
         caregiverPhone = ""; email = ""; clearPasswords(); googleState = nil; resetEmailSent = false
-        screen = .role; error = nil; authorizing = false
+        screen = .role; error = nil; authorizing = false; location = nil; locationError = nil; locationLoading = false
     }
 }

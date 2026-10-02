@@ -248,7 +248,7 @@ final class OnboardingTests: XCTestCase {
         StubURLProtocol.handler = { _ in (200, Data(#"{"token":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expiresAt":"2099-10-02T10:00:00Z"}"#.utf8)) }
         await store.generateCode(); XCTAssertNotNil(store.code)
         StubURLProtocol.handler = { _ in (200, Data(#"{"id":"elder","name":"Li Lan","callName":"Grandma","phone":"+8613800000000","timezone":"Asia/Shanghai","bound":true}"#.utf8)) }
-        await store.refreshBinding(); XCTAssertTrue(store.elder.bound); XCTAssertNil(store.code)
+        await store.refreshBinding(); XCTAssertTrue(store.elder.bound); XCTAssertNil(store.code); XCTAssertEqual(store.screen, .caregiverHome)
         StubURLProtocol.handler = { _ in (503, Data()) }
         await store.signOut(); XCTAssertNil(vault.load()); XCTAssertNil(store.token); XCTAssertEqual(store.screen, .role)
     }
@@ -262,6 +262,7 @@ final class OnboardingTests: XCTestCase {
         StubURLProtocol.handler = { _ in (200, Data(#"{"id":"preview","nonce":"preview-nonce"}"#.utf8)) }
         let authStore = OnboardingStore(api: .init(baseURL: URL(string: "http://localhost")!, session: network))
         await authStore.prepareLogin()
+        let sampleLocation = LocationPreviewData.snapshot()
         let pages: [(String, AnyView)] = [
             ("role", AnyView(RolePage(family: {}, elder: {}))),
             ("login", AnyView(LoginPage(store: authStore))),
@@ -276,20 +277,28 @@ final class OnboardingTests: XCTestCase {
             ("binding", AnyView(FamilyBindingPage(profile: profile, code: code, busy: false, generate: {}, refresh: {}, edit: {}))),
             ("expired", AnyView(FamilyBindingPage(profile: profile, code: .init(token: code.token, expiresAt: .distantPast), busy: false, generate: {}, refresh: {}, edit: {}))),
             ("scan", AnyView(ScanPage(busy: false, payload: .constant(""), bind: { _ in }))),
-            ("ready", AnyView(ElderReadyPage(profile: profile)))
+            ("ready", AnyView(ElderReadyPage(profile: profile))),
+            ("location", AnyView(ZStack { LocationPage(profile: profile, snapshot: sampleLocation, message: nil, loading: false, refresh: {}, agent: {}, navigate: {}); VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)).padding(.bottom, 13) } })),
+            ("location-empty", AnyView(ZStack { LocationPage(profile: profile, snapshot: nil, message: nil, loading: false, refresh: {}, agent: {}, navigate: {}); VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)).padding(.bottom, 13) } })),
+            ("navigation-unavailable", AnyView(WalkingNavigationPage(snapshot: nil, name: profile.name, end: {})))
         ]
         let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("FrontendSnapshots")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         for (name, page) in pages {
-            let data = try await snapshot(page, size: CGSize(width: 393, height: 852))
+            let data = try await snapshot(page, size: CGSize(width: 393, height: 852),
+                                          waitMilliseconds: name.hasPrefix("location") ? 2500 : 120)
             try data.write(to: folder.appendingPathComponent(name + ".png"))
             let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
             attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
         }
         let large = AnyView(ProfilePage(profile: .constant(profile), busy: false, next: {}).environment(\.dynamicTypeSize, .accessibility2))
         try await snapshot(large, size: CGSize(width: 375, height: 812)).write(to: folder.appendingPathComponent("profile-large-text.png"))
+        let locationLarge = AnyView(LocationPage(profile: profile, snapshot: sampleLocation, message: nil, loading: false, refresh: {}, agent: {}, navigate: {})
+            .environment(\.dynamicTypeSize, .accessibility2))
+        try await snapshot(locationLarge, size: CGSize(width: 375, height: 812), waitMilliseconds: 2500)
+            .write(to: folder.appendingPathComponent("location-large-text.png"))
     }
-    @MainActor private func snapshot(_ page: AnyView, size: CGSize) async throws -> Data {
+    @MainActor private func snapshot(_ page: AnyView, size: CGSize, waitMilliseconds: Int = 120) async throws -> Data {
         let previous = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows).first(where: \.isKeyWindow)
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let window = UIWindow(windowScene: scene)
@@ -301,7 +310,7 @@ final class OnboardingTests: XCTestCase {
         window.rootViewController?.view.setNeedsLayout()
         window.rootViewController?.view.layoutIfNeeded()
         window.layoutIfNeeded()
-        try await Task.sleep(for: .milliseconds(120))
+        try await Task.sleep(for: .milliseconds(waitMilliseconds))
         let image = UIGraphicsImageRenderer(size: size).image { _ in
             window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
         }
