@@ -1,22 +1,22 @@
-# 家属端 Location：步行轨迹、底栏和设置面板
+# 家属首页地图、设置抽屉与风险状态返工
 
 ```json
 {
   "id": "T8",
-  "revision": 85,
+  "revision": 91,
   "assignee": "Codex",
   "parent": null,
   "deps": [
     "T6"
   ],
-  "round": 3,
+  "round": 4,
   "status": "交付"
 }
 ```
 
 ## 登记依据
 
-用户指出 Location 虚线太粗且穿过建筑、底部导航栏离屏幕底端过远，并要求头像打开参考图 `reference/ui/01-location-settings@2x.png` 的设置页；设置页图标采用相近 SF Symbols。原有地图首页、开发构建预览和步行导航要求继续有效。
+用户要求继续完善家属首页：Family Members 使用提供的图标且与其他菜单图标同宽；设置面板从左侧平滑滑出；地图支持缩放后回到默认取景；按现有参考图开发 Warning 与 High Risk 首页状态。用户确认本轮只做可演示前端，以 Debug 启动参数查看风险状态，不开发事件详情页或后端接口。
 
 ## 任务包
 
@@ -28,12 +28,14 @@
 - [approval-001.md](approval-001.md)
 - [approval-002.md](approval-002.md)
 - [approval-003.md](approval-003.md)
+- [approval-004.md](approval-004.md)
 - [receipt-000065.md](receipt-000065.md)
 - [receipt-000069.md](receipt-000069.md)
 - [receipt-000071.md](receipt-000071.md)
 - [receipt-000073.md](receipt-000073.md)
 - [receipt-000079.md](receipt-000079.md)
 - [receipt-000085.md](receipt-000085.md)
+- [receipt-000091.md](receipt-000091.md)
 
 ## 过程记录
 
@@ -52,6 +54,9 @@
 - #82｜rework｜Codex｜{"basis": "用户要求修正步行虚线、底栏位置并由头像打开设置页", "expect": 79, "id": "T8"}
 - #83｜amend｜Codex｜{"authority": {"basis": "用户明确要求步行虚线沿道路且更细、底栏下移、头像打开按参考图还原的设置页", "by": "用户"}, "expect": 82, "id": "T8", "proposal": {"criteria": "| 编号 | 可观察结果 | 验证方法 | 通过条件 |\n|---|---|---|---|\n| A1 | 开发预览轨迹沿道路转折且更细 | 同尺寸模拟器地图截图与测试点核对 | 不穿建筑，虚线清晰但比前版细 |\n| A2 | 底栏靠近屏幕底端 | 同尺寸截图比较 | 下移且不遮住系统操作区或人物卡 |\n| A3 | 设置面板符合参考图 | 参考图与模拟器同尺寸截图对照 | 左侧面板比例、人物卡、七项入口、右侧变暗地图和底部退出按钮相符，SF Symbols 可见 |\n| A4 | 头像、菜单、退出可操作 | 模拟器交互测试 | 可打开/关闭，菜单有响应，退出回身份选择 |\n| A5 | 现有定位与导航逻辑不回退 | iOS 测试与 Release 构建 | 测试和构建通过，预览数据不进入正式路径 |\n\n验收安排：执行者实跑并记录原样命令、退出码和摘录，标未独立验证；用户最终验收。", "origin": "用户指出 Location 虚线太粗且穿过建筑、底部导航栏离屏幕底端过远，并要求头像打开参考图 `reference/ui/01-location-settings@2x.png` 的设置页；设置页图标采用相近 SF Symbols。原有地图首页、开发构建预览和步行导航要求继续有效。", "plan": "1. 返工并一次更新批准范围，核对参考图与现有截图。\n2. 调整轨迹和底栏，开发设置面板及预览头像。\n3. 用模拟器截图对比参考，修复明显偏差，完成交互和回归测试。\n4. 重新交付并提交本地，不推送。", "scope": "- 要交付：将虚线笔画减细；开发预览的步行轨迹沿地图道路转折显示，不用起终点直线充当路线；真实位置数据仍保持原采样轨迹含义，不伪称路网推算是实际走过的位置；底栏靠近屏幕底部且不压住系统操作区；点击左上角头像打开与参考图相符的左侧设置面板，包含人物卡、Account Settings、Senior Profile、Family Members、AI Agent Settings、Location Settings、Notifications、Help 和底部 Log Out，右侧地图变暗，点击背景关闭。图标使用 SF Symbols，菜单点击有可见响应，Log Out 使用现有退出流程。开发预览可用示例头像，正式构建不把示例身份当真实用户。\n- 不包含：后端接口、真实家庭成员或通知配置、真机定位证明、truth 与 reference 修改；本件不实现七个设置子页的业务能力。\n- 允许修改的位置：object/ios/ 下 Location SwiftUI、位置预览模型、测试、素材、前端说明与视觉核对记录；必要时工程文件及 object/dev/generate-ios.mjs。与 T7 共用文件分别重交指纹。队列记录只经工具维护。", "title": "家属端 Location：步行轨迹、底栏和设置面板"}}
 - #85｜deliver｜Codex｜{"artifacts": [{"path": "object/ios/SafeOrbit/LocationUI.swift", "sha256": "46a251d885d691eb6614c764e40a2f43b2646ad6f898da4369998fd23434c6ab"}, {"path": "object/ios/SafeOrbit/LocationModels.swift", "sha256": "c8cab647f72f16bbe8604b8ddc996dc0c30dfd255d65c48e249253441542a88d"}, {"path": "object/ios/SafeOrbitTests/LocationTests.swift", "sha256": "270dcd6669bd9d170b2947dba05d60c6cd01d822ab0e57dc6db03e121a1a447f"}, {"path": "object/ios/SafeOrbitTests/OnboardingTests.swift", "sha256": "7c056da2b4d51da242decfd4d5211d739cb8b6116f9f71fead33f9f52859e07e"}, {"path": "object/ios/SafeOrbit/Assets.xcassets/PreviewCaregiver.imageset/portrait.png", "sha256": "a85e3169a7f41ad87afc4d393ed13949421a0895b72a530a6e20a3426ed62420"}, {"path": "object/ios/SafeOrbit/Assets.xcassets/PreviewCaregiver.imageset/Contents.json", "sha256": "6ba25e2091125184e9f144776949a4f86f14596715d5d10193b197895f47b497"}, {"path": "object/ios/README.md", "sha256": "b7a2e47498a541083cdcd4d714786a02ca958c22cf611bb0a524e02a9383e921"}, {"path": "object/ios/location-qa.md", "sha256": "8b1ccd2229dce4586b8bc7919fc5e293de105d4d5a10f1577cf176002a978c12"}], "expect": 83, "id": "T8", "receipt": "# T8 Location 视觉与交互返工交付\n\n地图轨迹虚线由 4 pt 改为 2.3 pt，开发预览样例沿 Nanxiucun 和 Pingcang Alley 附近可见道路转折，不再斜穿街区。真实位置仍逐点绘制服务端采样轨迹，不把路网猜测当成已经走过的路线。底栏下移 13 pt，人物卡同步下移。点击头像打开左侧设置面板；顶部示例人物卡、七个入口、右侧暗色遮罩和底部 Log Out 按参考图实现，图标使用 SF Symbols。菜单进入标注 Coming soon 的说明页并可返回，点击右侧暗处关闭，Log Out 调用现有退出流程。示例人物图片仅在 Debug 预览会话显示，Release 使用通用头像。前端说明与视觉核对记录同步更新。未改后端、参考图或长期要求；无新增依赖。\n\n## 验证事实（未独立验证）\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -derivedDataPath /private/tmp/safeorbit-dd-20261003 CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- -testLanguage en -testRegion US test > /private/tmp/safeorbit-test-final-20261003.log 2>&1`。退出码 0；原样输出摘录：`Executed 19 tests, with 0 failures (0 unexpected)`、`** TEST SUCCEEDED **`。截图已导出到 `/private/tmp/safeorbit-attachments-delivery-20261003/`；目视比较 `location-interactive-preview`、`location-settings-preview` 与 `reference/ui/01-location-settings@2x.png`，核对街道转弯、细线、底栏位置和设置面板布局。\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/safeorbit-release-20261003 CODE_SIGNING_ALLOWED=NO build > /private/tmp/safeorbit-release-final-20261003.log 2>&1`。退出码 0；原样输出摘录：`** BUILD SUCCEEDED **`。`git diff --check` 与 `git diff --exit-code -- object/server reference truth` 均退出码 0，无输出。实际 GPS 步行轨迹、真机地图坐标和七项设置业务尚未验证或实现；上述检查由执行者自验，未独立验证，用户验收尚未记录。\n", "summary": "Location 细虚线沿演示道路转折、底栏下移、头像打开参考设置面板；19 项测试与 Release 构建通过，未独立验证", "verification": "passed"}
+- #89｜rework｜Codex｜{"basis": "用户要求完善家属首页图标、设置滑出、地图复位及风险状态", "expect": 85, "id": "T8"}
+- #90｜amend｜Codex｜{"authority": {"basis": "用户明确要求实施家属首页图标、抽屉动画、地图复位和可演示风险状态方案", "by": "用户"}, "expect": 89, "id": "T8", "proposal": {"criteria": "| 编号 | 可观察结果 | 验证方法 | 通过条件 |\n|---|---|---|---|\n| A1 | Family Members 图标与其他菜单图标等宽 | 模拟器设置抽屉截图与原图核对 | 原图比例不变，显示宽度 30 pt，和菜单图标列对齐 |\n| A2 | 设置抽屉平滑滑出并可关闭 | 模拟器头像、背景与菜单操作，检查减少动态效果 | 打开/关闭过渡连续；减少动态效果时无位移动画 |\n| A3 | 地图可浏览并一键复位 | 模拟器缩放、平移、复位和位置刷新 | 调整后顶部出现操作，点后回到老人及轨迹默认取景；刷新不抢回手动镜头 |\n| A4 | 两种风险首页与参考图相符 | 分别用 Debug 参数启动，核对 03/04 参考图及交互 | 黄色/红色气泡、状态标签、呼叫样式正确，导航和呼叫仍可用；正式构建无假风险 |\n| A5 | 既有功能不回退 | 完整 iOS 测试、Release 构建及范围检查 | 检查通过，不改后端、truth、reference 和原有字符串资源 |\n\n验收安排：执行者实跑并记录原样命令、退出码、截图与观察，标未独立验证；最终由用户验收。", "origin": "用户要求继续完善家属首页：Family Members 使用提供的图标且与其他菜单图标同宽；设置面板从左侧平滑滑出；地图支持缩放后回到默认取景；按现有参考图开发 Warning 与 High Risk 首页状态。用户确认本轮只做可演示前端，以 Debug 启动参数查看风险状态，不开发事件详情页或后端接口。", "plan": "1. 返工 T8 并一次更新批准范围，保留原有 Location 验收要求。\n2. 导入图标，完善抽屉动画和镜头复位，加入与后端风险判定分离的三态展示模型及 Debug 启动参数。\n3. 在 iPhone 18 Pro 模拟器验证图标、动画、地图、两态风险及现有动作；补充测试，运行完整 iOS 测试与 Release 构建。\n4. 记录回执并本地提交，不推送。", "scope": "- 要交付：保留既有步行轨迹、底栏和设置内容；把用户提供的 30×21 图标作为 Family Members 图标资源，30 pt 宽等比显示；设置面板与暗色遮罩随头像打开/背景关闭作约 0.28 秒滑入滑出和淡入淡出，尊重系统减少动态效果；地图手势缩放、平移后顶部出现回到默认视图操作，恢复老人位置与轨迹取景，数据刷新不打断用户浏览；Normal、Warning、High Risk 三种家属首页展示状态，其中风险状态按参考图使用黄色/红色气泡、标签和呼叫样式；风险状态仅来自注入的展示数据，不由客户端轨迹推断；仅 Debug 预览会话识别 `-safeorbitRiskState warning` 和 `-safeorbitRiskState high`，使用固定示例，Release 不展示示例风险。\n- 不包含：后端风险接口、推送、风险判定、事件详情页、真实家庭成员与设置子页业务、truth/reference 修改、App 内演示切换按钮；不纳入现有两份字符串资源改动。\n- 允许修改的位置：object/ios/ 下家属首页与位置展示源码、Debug 预览数据、资源、相关测试与前端说明；必要时工程文件及 object/dev/generate-ios.mjs；队列记录只经工具维护。", "title": "家属首页地图、设置抽屉与风险状态返工"}}
+- #91｜deliver｜Codex｜{"artifacts": [{"path": "object/ios/SafeOrbit/LocationUI.swift", "sha256": "e11df96327f789f476f4f95e95f72be3e7c6e78a2095b8bc39afc4e5bae1ccc6"}, {"path": "object/ios/SafeOrbit/OnboardingStore.swift", "sha256": "56f516d9a5abdcf022ebd6bf2014cf828ea3b7eb3acc064beba0fe873bbf64ae"}, {"path": "object/ios/SafeOrbit/Assets.xcassets/FamilyMembers.imageset/Contents.json", "sha256": "222d4635eafe371ba174cbe841267ee07070bd2a424af0d3eca47495040338a5"}, {"path": "object/ios/SafeOrbit/Assets.xcassets/FamilyMembers.imageset/family-members.png", "sha256": "9b6ceca05ea276f5303f7d119fe2108f7bc0f682f267d270d6110177bd3a1646"}, {"path": "object/ios/SafeOrbitTests/LocationTests.swift", "sha256": "cbbaa8b3594b56c095e1a9ac1d93ca800663a74be4f3296b6ea31169858025b8"}, {"path": "object/ios/README.md", "sha256": "9fed1060f393243113eb2edf4a2b73ac7aa4707174dbdf47fb133144464e5c17"}], "expect": 90, "id": "T8", "receipt": "# T8 家属首页地图、设置抽屉与风险状态返工交付\n\n使用用户提供的图片新增 Family Members 图标，在设置菜单以 30 pt 宽度等比显示。头像打开左侧设置面板与暗色遮罩时采用约 0.28 秒的滑入和淡入过渡，关闭时反向过渡；系统开启减少动态效果时改为透明度过渡。地图保留系统缩放和平移手势；调整取景后顶部出现 Back to default view，点击恢复老人位置和轨迹的默认取景。位置刷新更新默认取景，不打断正在浏览地图的用户。\n\n家属首页新增 Normal、Warning、High Risk 三种展示状态。Warning 和 High Risk 分别显示黄色、红色风险气泡、标签与呼叫按钮样式；现有导航和拨号入口保留。风险状态只从展示数据传入，客户端不依据轨迹推断风险。固定风险示例仅在 Debug 预览会话中读取启动参数 `-safeorbitRiskState warning` 或 `-safeorbitRiskState high`；Release 仍走真实位置流程。Debug 示例档案使用虚构号码让呼叫入口可操作，不改真实档案。未增加依赖，未改后端、truth、reference 或事件详情页；既有两份未提交的 `.xcstrings` 不纳入本轮。\n\n## 验证事实（未独立验证）\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -derivedDataPath /private/tmp/safeorbit-home-risk-test-dd CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- -testLanguage en -testRegion US test > /private/tmp/safeorbit-home-risk-test-final.log 2>&1`。退出码 0；原样输出摘录：`Executed 23 tests, with 0 failures (0 unexpected)`、`** TEST SUCCEEDED **`。测试覆盖风险参数解析和两种风险首页截图。截图保存于模拟器 App Documents/FrontendSnapshots，并与 `reference/ui/03-location-high-risk@2x.png`、`04-location-warning@2x.png` 目视核对。\n\n在 iPhone 18 Pro、iOS 27 模拟器中，Debug 启动参数分别显示黄色 Warning 与红色 High Risk。手势拖动和双击缩放均显示 Back to default view；点击后地图复位并隐藏该按钮；放大状态刷新位置不抢回地图。头像可打开设置抽屉，点击右侧暗区可关闭；开启减少动态效果后仍可开关。风险页呼叫按钮在补入虚构预览号码后为可用状态；未实际拨号。真实路线与真实服务告警没有在本轮调用。\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/safeorbit-home-risk-release-dd CODE_SIGNING_ALLOWED=NO build > /private/tmp/safeorbit-home-risk-release.log 2>&1`。退出码 0；原样输出摘录：`** BUILD SUCCEEDED **`。`git diff --check` 与 `git diff --exit-code -- object/server reference truth` 均退出码 0，无输出。以上由执行者自验，未独立验证；用户验收尚未记录。\n", "summary": "家属首页图标、抽屉动画、地图复位与两种风险预览完成；23 项测试和 Release 构建通过，未独立验证", "verification": "passed"}
 
 ## 接手说明
 

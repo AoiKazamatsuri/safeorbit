@@ -12,6 +12,39 @@ enum CaregiverTab: String, CaseIterable {
     }
 }
 
+enum CaregiverRiskState: String {
+    case normal, warning, high
+
+    var headline: String? {
+        switch self {
+        case .normal: nil
+        case .warning: "Wandering for 7 minutes"
+        case .high: "Wandering for 15 minutes"
+        }
+    }
+    var label: String {
+        switch self {
+        case .normal: "Normal"
+        case .warning: "Warning"
+        case .high: "High Risk"
+        }
+    }
+    var color: Color {
+        switch self {
+        case .normal: Color(red: 0.84, green: 0.91, blue: 0.80)
+        case .warning: Color(red: 0.89, green: 0.67, blue: 0.43)
+        case .high: Color(red: 0.91, green: 0.29, blue: 0.30)
+        }
+    }
+#if DEBUG
+    static func preview(arguments: [String]) -> Self {
+        guard let index = arguments.firstIndex(of: "-safeorbitRiskState"),
+              arguments.indices.contains(index + 1) else { return .normal }
+        return Self(rawValue: arguments[index + 1]) ?? .normal
+    }
+#endif
+}
+
 struct CaregiverTabBar: View {
     @Binding var selection: CaregiverTab
     var body: some View {
@@ -36,12 +69,22 @@ struct CaregiverTabBar: View {
 
 struct CaregiverHomePage: View {
     @ObservedObject var store: OnboardingStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tab: CaregiverTab = .location
     @State private var navigating = false
     @State private var showingSettings: Bool
     init(store: OnboardingStore, settingsInitiallyOpen: Bool = false) {
         self.store = store
         _showingSettings = State(initialValue: settingsInitiallyOpen)
+    }
+    private var riskState: CaregiverRiskState {
+#if DEBUG
+        if store.previewSession { return .preview(arguments: ProcessInfo.processInfo.arguments) }
+#endif
+        return .normal
+    }
+    private func setSettings(_ open: Bool) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.28)) { showingSettings = open }
     }
     var body: some View {
         ZStack {
@@ -50,7 +93,7 @@ struct CaregiverHomePage: View {
                              message: store.locationError, loading: store.locationLoading,
                              refresh: { Task { await store.refreshLocation() } },
                              agent: { tab = .agent }, navigate: { navigating = true },
-                             settings: { showingSettings = true })
+                             settings: { setSettings(true) }, riskState: riskState)
             } else {
                 Color.white.ignoresSafeArea()
                 VStack(spacing: 12) {
@@ -62,22 +105,25 @@ struct CaregiverHomePage: View {
                 }.offset(y: -30)
             }
             VStack { Spacer(); CaregiverTabBar(selection: $tab) }
-            if showingSettings {
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    if showingSettings {
                         Color.black.opacity(0.36).ignoresSafeArea()
-                            .onTapGesture { showingSettings = false }
+                            .onTapGesture { setSettings(false) }
+                            .transition(.opacity)
                         CaregiverSettingsPanel(
                             name: store.previewSession ? "Emma Liu" : "Caregiver",
                             showsPreviewPortrait: store.previewSession,
-                            logout: { Task { await store.signOut(); showingSettings = false } }
+                            logout: { Task { await store.signOut(); setSettings(false) } }
                         )
                         .frame(width: geometry.size.width * 0.765, height: geometry.size.height)
+                        .transition(reduceMotion ? .opacity : .move(edge: .leading))
                     }
                 }
-                .ignoresSafeArea()
-                .transition(.move(edge: .leading))
             }
+            .ignoresSafeArea()
+            .allowsHitTesting(showingSettings)
+            .zIndex(2)
         }
         .toolbar(.hidden, for: .navigationBar)
         .task { await store.refreshLocation() }
@@ -96,7 +142,12 @@ struct LocationPage: View {
     let agent: () -> Void
     let navigate: () -> Void
     var settings: () -> Void = {}
+    var riskState: CaregiverRiskState = .normal
     @State private var camera: MapCameraPosition = .automatic
+    @State private var defaultRegion: MKCoordinateRegion?
+    @State private var baselineVisibleRegion: MKCoordinateRegion?
+    @State private var awaitingBaseline = true
+    @State private var showingReset = false
 
     private var point: CLLocationCoordinate2D? { snapshot?.coordinate.isValid == true ? snapshot?.coordinate.appleCoordinate : nil }
     var body: some View {
@@ -128,19 +179,68 @@ struct LocationPage: View {
                 }
             }
             .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
-            .ignoresSafeArea()
-            VStack(alignment: .leading) {
-                Button(action: settings) {
-                    Circle().fill(.white)
-                        .shadow(color: .black.opacity(0.16), radius: 3)
-                        .frame(width: 55, height: 55)
-                        .overlay(Image(systemName: "person.crop.circle.fill").font(.system(size: 48)).foregroundStyle(OrbitStyle.teal))
+            .mapControlVisibility(.hidden)
+            .onMapCameraChange(frequency: .onEnd) { context in
+                guard defaultRegion != nil else { return }
+                if awaitingBaseline || baselineVisibleRegion == nil {
+                    baselineVisibleRegion = context.region
+                    awaitingBaseline = false
+                } else if let baselineVisibleRegion {
+                    let from = CLLocation(latitude: baselineVisibleRegion.center.latitude,
+                                          longitude: baselineVisibleRegion.center.longitude)
+                    let to = CLLocation(latitude: context.region.center.latitude,
+                                        longitude: context.region.center.longitude)
+                    let moved = from.distance(from: to) > 5
+                    let resized = abs(context.region.span.latitudeDelta / baselineVisibleRegion.span.latitudeDelta - 1) > 0.015
+                        || abs(context.region.span.longitudeDelta / baselineVisibleRegion.span.longitudeDelta - 1) > 0.015
+                    showingReset = moved || resized
                 }
-                .buttonStyle(.plain)
-                .offset(y: -8)
-                .accessibilityLabel("Open settings")
+            }
+            .ignoresSafeArea()
+            if let headline = riskState.headline, snapshot?.isCurrent == true {
+                GeometryReader { geometry in
+                    Text(headline)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(riskState == .high ? .white : .black)
+                        .padding(.horizontal, 17).padding(.vertical, 9)
+                        .background(riskState.color, in: Capsule())
+                        .shadow(color: .black.opacity(0.22), radius: 5, y: 3)
+                        .position(x: geometry.size.width / 2, y: geometry.size.height * 0.34)
+                        .accessibilityLabel(headline)
+                }
+                .allowsHitTesting(false)
+            }
+            VStack(alignment: .leading) {
+                HStack(alignment: .top) {
+                    Button(action: settings) {
+                        Circle().fill(.white)
+                            .shadow(color: .black.opacity(0.16), radius: 3)
+                            .frame(width: 55, height: 55)
+                            .overlay(Image(systemName: "person.crop.circle.fill").font(.system(size: 48)).foregroundStyle(OrbitStyle.teal))
+                    }
+                    .buttonStyle(.plain)
+                    .offset(y: -8)
+                    .accessibilityLabel("Open settings")
+                    Spacer(minLength: 0)
+                }
+                if showingReset {
+                    Button {
+                        guard let defaultRegion else { return }
+                        awaitingBaseline = true
+                        withAnimation(.easeInOut(duration: 0.25)) { camera = .region(defaultRegion) }
+                        showingReset = false
+                    } label: {
+                        Label("Back to default view", systemImage: "arrow.uturn.backward")
+                            .font(.system(size: 13, weight: .medium))
+                            .padding(.horizontal, 14).padding(.vertical, 9)
+                            .background(.white, in: Capsule())
+                            .shadow(color: .black.opacity(0.14), radius: 4, y: 2)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel("Back to default view")
+                }
                 Spacer(minLength: 0)
-                if let snapshot, snapshot.isCurrent, let status = snapshot.status, !status.isEmpty {
+                if riskState == .normal, let snapshot, snapshot.isCurrent, let status = snapshot.status, !status.isEmpty {
                     Text(status).font(.system(size: 15, weight: .medium))
                         .padding(.horizontal, 16).padding(.vertical, 9)
                         .background {
@@ -168,7 +268,7 @@ struct LocationPage: View {
                         .background(.white, in: RoundedRectangle(cornerRadius: 14))
                         .padding(.bottom, 8)
                 }
-                SeniorLocationCard(profile: profile, snapshot: snapshot, navigate: navigate)
+                SeniorLocationCard(profile: profile, snapshot: snapshot, navigate: navigate, riskState: riskState)
                     .padding(.bottom, 80)
             }.padding(.horizontal, 20).padding(.top, 4)
         }
@@ -191,8 +291,13 @@ struct LocationPage: View {
         let trailHeight = CLLocation(latitude: minLatitude, longitude: center.longitude)
             .distance(from: CLLocation(latitude: maxLatitude, longitude: center.longitude))
         let visibleMeters = max(640, trailWidth * 1.5, trailHeight * 1.5)
-        camera = .region(MKCoordinateRegion(center: center, latitudinalMeters: visibleMeters,
-                                            longitudinalMeters: visibleMeters))
+        let region = MKCoordinateRegion(center: center, latitudinalMeters: visibleMeters,
+                                        longitudinalMeters: visibleMeters)
+        defaultRegion = region
+        if !showingReset {
+            awaitingBaseline = true
+            camera = .region(region)
+        }
     }
 }
 
@@ -269,9 +374,17 @@ private struct CaregiverSettingsPanel: View {
                     ForEach(CaregiverSettingsItem.allCases) { item in
                         Button { selectedItem = item } label: {
                             HStack(spacing: 17) {
-                                Image(systemName: item.symbol)
-                                    .font(.system(size: 24, weight: .regular))
-                                    .frame(width: 30)
+                                if item == .family {
+                                    Image("FamilyMembers")
+                                        .resizable().interpolation(.high).scaledToFit()
+                                        .frame(width: 30, height: 24)
+                                        .frame(width: 30)
+                                        .accessibilityHidden(true)
+                                } else {
+                                    Image(systemName: item.symbol)
+                                        .font(.system(size: 24, weight: .regular))
+                                        .frame(width: 30)
+                                }
                                 Text(item.rawValue)
                                     .font(.system(size: 16, weight: .medium))
                                     .lineLimit(1)
@@ -328,6 +441,7 @@ private struct SeniorLocationCard: View {
     let profile: ElderProfile
     let snapshot: ElderLocationSnapshot?
     let navigate: () -> Void
+    var riskState: CaregiverRiskState = .normal
     @Environment(\.openURL) private var openURL
     private var canNavigate: Bool { snapshot?.isCurrent == true }
     private var canCall: Bool { PhoneNumber.isValid(profile.phone) }
@@ -339,9 +453,11 @@ private struct SeniorLocationCard: View {
                     Text(profile.name).font(.system(size: 18, weight: .semibold)).lineLimit(1)
                     HStack(spacing: 8) {
                         if snapshot?.isCurrent == true {
-                            Label("Normal", systemImage: "checkmark.shield")
-                                .font(.system(size: 14, weight: .medium)).padding(.horizontal, 9).padding(.vertical, 4)
-                                .background(Color(red: 0.84, green: 0.91, blue: 0.80), in: Capsule())
+                            Label(riskState.label, systemImage: riskState == .normal ? "checkmark.shield" : "exclamationmark.circle")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(riskState == .high ? .white : .black)
+                                .padding(.horizontal, 9).padding(.vertical, 4)
+                                .background(riskState.color, in: Capsule())
                         } else { Text("Location unavailable").font(.caption).foregroundStyle(.secondary) }
                         if let battery = snapshot?.batteryPercent, (0...100).contains(battery) {
                             Label("\(battery)%", systemImage: "battery.100percent")
@@ -353,8 +469,13 @@ private struct SeniorLocationCard: View {
                     guard canCall, let url = URL(string: "tel:\(PhoneNumber.normalized(profile.phone))") else { return }
                     openURL(url)
                 } label: {
-                    Image(systemName: "phone.fill").font(.system(size: 22)).foregroundStyle(.black)
-                        .frame(width: 54, height: 54).background(Color(red: 0.82, green: 0.90, blue: 0.90), in: Circle())
+                    Image(systemName: "phone.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(riskState == .high ? .white : .black)
+                        .frame(width: 54, height: 54)
+                        .background(riskState == .normal ? Color(red: 0.82, green: 0.90, blue: 0.90) : riskState.color, in: Circle())
+                        .padding(riskState == .high ? 5 : 0)
+                        .background(riskState == .high ? riskState.color.opacity(0.35) : .clear, in: Circle())
                 }.disabled(!canCall).accessibilityLabel("Call senior")
             }
             Rectangle().fill(.black.opacity(0.1)).frame(height: 1)

@@ -277,6 +277,7 @@ import CryptoKit
         token = nil
         elder.name = "Li Lan"
         elder.callName = "Li Lan"
+        elder.phone = "+12025550100" // Reserved fictional number for the Debug call handoff.
         elder.bound = true
         location = LocationPreviewData.snapshot()
         clearPasswords()

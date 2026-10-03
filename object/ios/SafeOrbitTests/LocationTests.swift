@@ -15,6 +15,47 @@ import SwiftUI
 }
 
 final class LocationTests: XCTestCase {
+    func testRiskPreviewArgumentsAreExplicit() {
+        XCTAssertEqual(CaregiverRiskState.preview(arguments: []), .normal)
+        XCTAssertEqual(CaregiverRiskState.preview(arguments: ["-safeorbitRiskState", "warning"]), .warning)
+        XCTAssertEqual(CaregiverRiskState.preview(arguments: ["-safeorbitRiskState", "high"]), .high)
+        XCTAssertEqual(CaregiverRiskState.preview(arguments: ["-safeorbitRiskState", "unknown"]), .normal)
+        XCTAssertEqual(CaregiverRiskState.preview(arguments: ["-safeorbitRiskState"]), .normal)
+        XCTAssertEqual(CaregiverRiskState.warning.headline, "Wandering for 7 minutes")
+        XCTAssertEqual(CaregiverRiskState.high.headline, "Wandering for 15 minutes")
+    }
+    @MainActor func testRiskHomeSnapshots() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("FrontendSnapshots")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var profile = ElderProfile()
+        profile.name = "Li Lan"
+        profile.phone = "+12025550100"
+        for risk in [CaregiverRiskState.warning, .high] {
+            let window = UIWindow(windowScene: scene)
+            window.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
+            window.rootViewController = UIHostingController(rootView: ZStack {
+                LocationPage(profile: profile, snapshot: LocationPreviewData.snapshot(), message: nil,
+                             loading: false, refresh: {}, agent: {}, navigate: {}, riskState: risk)
+                VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)) }
+            }.environment(\.colorScheme, .light))
+            window.makeKeyAndVisible()
+            window.rootViewController?.view.frame = window.bounds
+            window.rootViewController?.view.layoutIfNeeded()
+            try await Task.sleep(for: .milliseconds(2500))
+            let image = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in
+                window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+            }
+            let data = try XCTUnwrap(image.pngData())
+            try data.write(to: folder.appendingPathComponent("location-\(risk.rawValue).png"))
+            let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
+            attachment.name = "location-\(risk.rawValue)"; attachment.lifetime = .keepAlways; add(attachment)
+            window.isHidden = true
+            previous?.makeKeyAndVisible()
+        }
+    }
     private func snapshot(age: TimeInterval = 0) -> ElderLocationSnapshot {
         LocationPreviewData.snapshot(recordedAt: Date().addingTimeInterval(-age))
     }
