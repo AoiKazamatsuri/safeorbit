@@ -185,7 +185,7 @@ struct LoginPage: View {
                 SocialLoginButtons(store: store)
                 AccountSwitch(prompt: "Need an account?", title: "Sign up") { store.showAuth(.signup) }
             }.disabled(store.loginInProgress)
-        }.task { await store.prepareLogin() }
+        }.task { if !store.previewAccessEnabled { await store.prepareLogin() } }
     }
 }
 struct SignupPage: View {
@@ -198,7 +198,7 @@ struct SignupPage: View {
                 SocialLoginButtons(store: store)
                 AccountSwitch(prompt: "Already have an account?", title: "Login") { store.showAuth(.login) }
             }.disabled(store.loginInProgress)
-        }.task { await store.prepareLogin() }
+        }.task { if !store.previewAccessEnabled { await store.prepareLogin() } }
     }
 }
 struct EmailSignupPage: View {

@@ -4,7 +4,11 @@ import SwiftUI
     var body: some Scene { WindowGroup { OnboardingRoot() } }
 }
 struct OnboardingRoot: View {
+#if DEBUG
+    @StateObject private var store = OnboardingStore(previewAccessEnabled: true)
+#else
     @StateObject private var store = OnboardingStore()
+#endif
     @State private var payload = ""
     @State private var confirmLogout = false
     var body: some View {
@@ -49,11 +53,15 @@ struct OnboardingRoot: View {
                 }
                 .safeAreaInset(edge: .bottom) {
                     if let message = store.error {
-                        HStack(alignment: .top, spacing: 12) {
+                        HStack(alignment: .center, spacing: 12) {
                             Image(systemName: "exclamationmark.circle").foregroundStyle(OrbitStyle.teal)
                             Text(message).font(.subheadline).frame(maxWidth: .infinity, alignment: .leading)
                             Button { store.error = nil } label: { Image(systemName: "xmark") }.accessibilityLabel("Dismiss message")
-                        }.padding(18).background(OrbitStyle.pale).accessibilityElement(children: .contain)
+                        }
+                        .padding(.horizontal, 18).padding(.vertical, 14)
+                        .background(OrbitStyle.pale.opacity(0.5), in: Capsule())
+                        .padding(.horizontal, 5).padding(.bottom, 6)
+                        .accessibilityElement(children: .contain)
                     }
                 }
                 .confirmationDialog("Sign out on this phone?", isPresented: $confirmLogout, titleVisibility: .visible) {

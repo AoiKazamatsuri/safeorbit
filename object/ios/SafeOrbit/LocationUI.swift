@@ -56,6 +56,19 @@ struct CaregiverHomePage: View {
                 }.offset(y: -30)
             }
             VStack { Spacer(); CaregiverTabBar(selection: $tab).padding(.bottom, 13) }
+#if DEBUG
+            if store.previewSession {
+                VStack {
+                    Button("Exit preview") { Task { await store.signOut() } }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(OrbitStyle.teal)
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .background(.white, in: Capsule())
+                        .padding(.top, 10)
+                    Spacer()
+                }
+            }
+#endif
         }
         .toolbar(.hidden, for: .navigationBar)
         .task { await store.refreshLocation() }

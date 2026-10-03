@@ -6,6 +6,38 @@ import CryptoKit
 @testable import SafeOrbit
 
 final class OnboardingTests: XCTestCase {
+#if DEBUG
+    @MainActor func testDebugEmailPreviewEntersHomeWithoutBackendSession() async {
+        let store = OnboardingStore(previewAccessEnabled: true)
+        store.screen = .login
+        store.email = "invalid"; store.password = "password123"
+        await store.signInWithEmail()
+        XCTAssertEqual(store.screen, .login)
+        store.email = "person@example.com"; store.password = "short"
+        await store.signInWithEmail()
+        XCTAssertEqual(store.screen, .login)
+        store.password = "password123"
+        await store.signInWithEmail()
+        XCTAssertEqual(store.screen, .caregiverHome)
+        XCTAssertTrue(store.previewSession)
+        XCTAssertNil(store.token)
+        XCTAssertNotNil(store.location)
+        await store.refreshLocation()
+        XCTAssertNil(store.locationError)
+        await store.signOut()
+        XCTAssertEqual(store.screen, .role)
+        XCTAssertFalse(store.previewSession)
+
+        store.screen = .emailSignup
+        store.email = "new@example.com"; store.password = "password123"; store.confirmPassword = "different"
+        await store.registerWithEmail()
+        XCTAssertEqual(store.screen, .emailSignup)
+        store.confirmPassword = store.password
+        await store.registerWithEmail()
+        XCTAssertEqual(store.screen, .caregiverHome)
+        XCTAssertNil(store.token)
+    }
+#endif
     func testProfileValidationAndInternationalPhone() {
         var profile = ElderProfile()
         XCTAssertFalse(profile.isValid)
@@ -262,8 +294,13 @@ final class OnboardingTests: XCTestCase {
         StubURLProtocol.handler = { _ in (200, Data(#"{"id":"preview","nonce":"preview-nonce"}"#.utf8)) }
         let authStore = OnboardingStore(api: .init(baseURL: URL(string: "http://localhost")!, session: network))
         await authStore.prepareLogin()
+#if DEBUG
+        let previewStore = OnboardingStore(previewAccessEnabled: true)
+        previewStore.email = "person@example.com"; previewStore.password = "password123"
+        await previewStore.signInWithEmail()
+#endif
         let sampleLocation = LocationPreviewData.snapshot()
-        let pages: [(String, AnyView)] = [
+        var pages: [(String, AnyView)] = [
             ("role", AnyView(RolePage(family: {}, elder: {}))),
             ("login", AnyView(LoginPage(store: authStore))),
             ("signup", AnyView(SignupPage(store: authStore))),
@@ -282,6 +319,9 @@ final class OnboardingTests: XCTestCase {
             ("location-empty", AnyView(ZStack { LocationPage(profile: profile, snapshot: nil, message: nil, loading: false, refresh: {}, agent: {}, navigate: {}); VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)).padding(.bottom, 13) } })),
             ("navigation-unavailable", AnyView(WalkingNavigationPage(snapshot: nil, name: profile.name, end: {})))
         ]
+#if DEBUG
+        pages.append(("location-interactive-preview", AnyView(CaregiverHomePage(store: previewStore))))
+#endif
         let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("FrontendSnapshots")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         for (name, page) in pages {

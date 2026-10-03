@@ -10,7 +10,7 @@ import CryptoKit
     @Published var confirmPassword = ""
     @Published private(set) var resetEmailSent = false
     private var googleState: String?
-    var emailLoginValid: Bool { EmailAddress.isValid(email) && !password.isEmpty }
+    var emailLoginValid: Bool { EmailAddress.isValid(email) && password.count >= 8 }
     var emailSignupValid: Bool { emailLoginValid && password.count >= 8 && password == confirmPassword }
     @Published var busy = false
     @Published var error: String?
@@ -28,11 +28,19 @@ import CryptoKit
     private var tokenRole = "caregiver"
     private let api: OnboardingAPI
     private let vault: SessionVault
+    let previewAccessEnabled: Bool
+    private(set) var previewSession = false
     private var challenge: AuthChallenge?
-    init(api: OnboardingAPI = .init(baseURL: ServerConfiguration.baseURL), vault: SessionVault = .init()) {
+    init(api: OnboardingAPI = .init(baseURL: ServerConfiguration.baseURL), vault: SessionVault = .init(), previewAccessEnabled: Bool = false) {
         self.api = api; self.vault = vault
+#if DEBUG
+        self.previewAccessEnabled = previewAccessEnabled
+#else
+        self.previewAccessEnabled = false
+#endif
     }
     func restore() async {
+        if previewAccessEnabled { return }
         guard let saved = vault.load() else { return }
         token = saved; tokenRole = vault.role() ?? "caregiver"; restoring = true
         await perform { self.route(try await self.api.request("session", token: saved) as AppSession) }
@@ -125,6 +133,9 @@ import CryptoKit
     }
     func signInWithEmail() async {
         guard !loginInProgress, emailLoginValid else { return }
+#if DEBUG
+        if previewAccessEnabled { enterPreviewHome(); return }
+#endif
         await perform {
             let session: AppSession = try await self.api.request("auth/email/login", method: "POST",
                 body: OnboardingAPI.body(["email": EmailAddress.normalized(self.email), "password": self.password]))
@@ -133,6 +144,9 @@ import CryptoKit
     }
     func registerWithEmail() async {
         guard !loginInProgress, emailSignupValid else { return }
+#if DEBUG
+        if previewAccessEnabled { enterPreviewHome(); return }
+#endif
         await perform {
             let session: AppSession = try await self.api.request("auth/email/register", method: "POST",
                 body: OnboardingAPI.body(["email": EmailAddress.normalized(self.email), "password": self.password]))
@@ -226,6 +240,12 @@ import CryptoKit
         reset(); busy = false
     }
     func refreshLocation() async {
+#if DEBUG
+        if previewSession {
+            location = LocationPreviewData.snapshot()
+            return
+        }
+#endif
         guard let token, screen == .caregiverHome, !locationLoading else { return }
         locationLoading = true
         defer { locationLoading = false }
@@ -246,7 +266,22 @@ import CryptoKit
     }
     func reset() {
         vault.clear(); token = nil; elder = .init(); code = nil; challenge = nil
+        previewSession = false
         caregiverPhone = ""; email = ""; clearPasswords(); googleState = nil; resetEmailSent = false
         screen = .role; error = nil; authorizing = false; location = nil; locationError = nil; locationLoading = false
     }
+
+#if DEBUG
+    private func enterPreviewHome() {
+        previewSession = true
+        token = nil
+        elder.name = "Li Lan"
+        elder.callName = "Li Lan"
+        elder.bound = true
+        location = LocationPreviewData.snapshot()
+        clearPasswords()
+        error = nil
+        screen = .caregiverHome
+    }
+#endif
 }
