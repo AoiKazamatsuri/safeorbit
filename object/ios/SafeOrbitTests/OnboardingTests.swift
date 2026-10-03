@@ -303,6 +303,9 @@ final class OnboardingTests: XCTestCase {
         var pages: [(String, AnyView)] = [
             ("role", AnyView(RolePage(family: {}, elder: {}))),
             ("login", AnyView(LoginPage(store: authStore))),
+            ("login-warning", AnyView(LoginPage(store: authStore).safeAreaInset(edge: .bottom) {
+                BottomNotice(message: "Check your connection and try again.", dismiss: {})
+            })),
             ("signup", AnyView(SignupPage(store: authStore))),
             ("email-signup", AnyView(EmailSignupPage(store: OnboardingStore()))),
             ("reset-password", AnyView(ForgotPasswordPage(store: OnboardingStore()))),
@@ -315,12 +318,13 @@ final class OnboardingTests: XCTestCase {
             ("expired", AnyView(FamilyBindingPage(profile: profile, code: .init(token: code.token, expiresAt: .distantPast), busy: false, generate: {}, refresh: {}, edit: {}))),
             ("scan", AnyView(ScanPage(busy: false, payload: .constant(""), bind: { _ in }))),
             ("ready", AnyView(ElderReadyPage(profile: profile))),
-            ("location", AnyView(ZStack { LocationPage(profile: profile, snapshot: sampleLocation, message: nil, loading: false, refresh: {}, agent: {}, navigate: {}); VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)).padding(.bottom, 13) } })),
-            ("location-empty", AnyView(ZStack { LocationPage(profile: profile, snapshot: nil, message: nil, loading: false, refresh: {}, agent: {}, navigate: {}); VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)).padding(.bottom, 13) } })),
+            ("location", AnyView(ZStack { LocationPage(profile: profile, snapshot: sampleLocation, message: nil, loading: false, refresh: {}, agent: {}, navigate: {}); VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)) } })),
+            ("location-empty", AnyView(ZStack { LocationPage(profile: profile, snapshot: nil, message: nil, loading: false, refresh: {}, agent: {}, navigate: {}); VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)) } })),
             ("navigation-unavailable", AnyView(WalkingNavigationPage(snapshot: nil, name: profile.name, end: {})))
         ]
 #if DEBUG
         pages.append(("location-interactive-preview", AnyView(CaregiverHomePage(store: previewStore))))
+        pages.append(("location-settings-preview", AnyView(CaregiverHomePage(store: previewStore, settingsInitiallyOpen: true))))
 #endif
         let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("FrontendSnapshots")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

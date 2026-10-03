@@ -38,13 +38,19 @@ struct CaregiverHomePage: View {
     @ObservedObject var store: OnboardingStore
     @State private var tab: CaregiverTab = .location
     @State private var navigating = false
+    @State private var showingSettings: Bool
+    init(store: OnboardingStore, settingsInitiallyOpen: Bool = false) {
+        self.store = store
+        _showingSettings = State(initialValue: settingsInitiallyOpen)
+    }
     var body: some View {
         ZStack {
             if tab == .location {
                 LocationPage(profile: store.elder, snapshot: store.location,
                              message: store.locationError, loading: store.locationLoading,
                              refresh: { Task { await store.refreshLocation() } },
-                             agent: { tab = .agent }, navigate: { navigating = true })
+                             agent: { tab = .agent }, navigate: { navigating = true },
+                             settings: { showingSettings = true })
             } else {
                 Color.white.ignoresSafeArea()
                 VStack(spacing: 12) {
@@ -55,20 +61,23 @@ struct CaregiverHomePage: View {
                         .font(.footnote).padding(.top, 18)
                 }.offset(y: -30)
             }
-            VStack { Spacer(); CaregiverTabBar(selection: $tab).padding(.bottom, 13) }
-#if DEBUG
-            if store.previewSession {
-                VStack {
-                    Button("Exit preview") { Task { await store.signOut() } }
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(OrbitStyle.teal)
-                        .padding(.horizontal, 12).padding(.vertical, 7)
-                        .background(.white, in: Capsule())
-                        .padding(.top, 10)
-                    Spacer()
+            VStack { Spacer(); CaregiverTabBar(selection: $tab) }
+            if showingSettings {
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Color.black.opacity(0.36).ignoresSafeArea()
+                            .onTapGesture { showingSettings = false }
+                        CaregiverSettingsPanel(
+                            name: store.previewSession ? "Emma Liu" : "Caregiver",
+                            showsPreviewPortrait: store.previewSession,
+                            logout: { Task { await store.signOut(); showingSettings = false } }
+                        )
+                        .frame(width: geometry.size.width * 0.765, height: geometry.size.height)
+                    }
                 }
+                .ignoresSafeArea()
+                .transition(.move(edge: .leading))
             }
-#endif
         }
         .toolbar(.hidden, for: .navigationBar)
         .task { await store.refreshLocation() }
@@ -86,6 +95,7 @@ struct LocationPage: View {
     let refresh: () -> Void
     let agent: () -> Void
     let navigate: () -> Void
+    var settings: () -> Void = {}
     @State private var camera: MapCameraPosition = .automatic
 
     private var point: CLLocationCoordinate2D? { snapshot?.coordinate.isValid == true ? snapshot?.coordinate.appleCoordinate : nil }
@@ -105,7 +115,7 @@ struct LocationPage: View {
                     }
                     if snapshot.trail.count > 1 {
                         MapPolyline(coordinates: snapshot.trail.filter(\.isValid).map(\.appleCoordinate))
-                            .stroke(OrbitStyle.teal, style: StrokeStyle(lineWidth: 4, lineCap: .round, dash: [6, 7]))
+                            .stroke(OrbitStyle.teal, style: StrokeStyle(lineWidth: 2.3, lineCap: .round, dash: [4, 5]))
                     }
                     if let point {
                         Annotation("Senior", coordinate: point) {
@@ -120,12 +130,15 @@ struct LocationPage: View {
             .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
             .ignoresSafeArea()
             VStack(alignment: .leading) {
-                Circle().fill(.white)
-                    .shadow(color: .black.opacity(0.16), radius: 3)
-                    .frame(width: 55, height: 55)
-                    .overlay(Image(systemName: "person.crop.circle.fill").font(.system(size: 48)).foregroundStyle(OrbitStyle.teal))
-                    .offset(y: -8)
-                    .accessibilityLabel("Caregiver profile")
+                Button(action: settings) {
+                    Circle().fill(.white)
+                        .shadow(color: .black.opacity(0.16), radius: 3)
+                        .frame(width: 55, height: 55)
+                        .overlay(Image(systemName: "person.crop.circle.fill").font(.system(size: 48)).foregroundStyle(OrbitStyle.teal))
+                }
+                .buttonStyle(.plain)
+                .offset(y: -8)
+                .accessibilityLabel("Open settings")
                 Spacer(minLength: 0)
                 if let snapshot, snapshot.isCurrent, let status = snapshot.status, !status.isEmpty {
                     Text(status).font(.system(size: 15, weight: .medium))
@@ -156,7 +169,7 @@ struct LocationPage: View {
                         .padding(.bottom, 8)
                 }
                 SeniorLocationCard(profile: profile, snapshot: snapshot, navigate: navigate)
-                    .padding(.bottom, 93)
+                    .padding(.bottom, 80)
             }.padding(.horizontal, 20).padding(.top, 4)
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -180,6 +193,118 @@ struct LocationPage: View {
         let visibleMeters = max(640, trailWidth * 1.5, trailHeight * 1.5)
         camera = .region(MKCoordinateRegion(center: center, latitudinalMeters: visibleMeters,
                                             longitudinalMeters: visibleMeters))
+    }
+}
+
+private enum CaregiverSettingsItem: String, CaseIterable, Identifiable {
+    case account = "Account Settings"
+    case senior = "Senior Profile"
+    case family = "Family Members"
+    case agent = "AI Agent Settings"
+    case location = "Location Settings"
+    case notifications = "Notifications"
+    case help = "Help"
+    var id: String { rawValue }
+    var symbol: String {
+        switch self {
+        case .account: "gearshape"
+        case .senior: "person.crop.circle"
+        case .family: "person.3"
+        case .agent: "sparkles"
+        case .location: "mappin.and.ellipse"
+        case .notifications: "bell"
+        case .help: "questionmark.circle"
+        }
+    }
+}
+
+private struct CaregiverSettingsPanel: View {
+    let name: String
+    let showsPreviewPortrait: Bool
+    let logout: () -> Void
+    @State private var selectedItem: CaregiverSettingsItem?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                Group {
+                    if showsPreviewPortrait {
+                        Image("PreviewCaregiver").resizable().scaledToFill()
+                    } else {
+                        Image(systemName: "person.crop.circle.fill")
+                            .resizable().scaledToFit().foregroundStyle(OrbitStyle.teal)
+                    }
+                }
+                .frame(width: 57, height: 57).clipShape(Circle())
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(name).font(.system(size: 18, weight: .semibold)).lineLimit(1)
+                    Text("Caregiver")
+                        .font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
+                        .padding(.horizontal, 11).padding(.vertical, 4)
+                        .background(OrbitStyle.teal, in: Capsule())
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 13).frame(height: 84)
+            .background(.white, in: Capsule())
+            .padding(.horizontal, 27)
+            .padding(.top, 57)
+
+            if let selectedItem {
+                VStack(alignment: .leading, spacing: 24) {
+                    Button { self.selectedItem = nil } label: {
+                        Label("Settings", systemImage: "chevron.left")
+                            .font(.system(size: 16, weight: .medium))
+                    }
+                    .accessibilityLabel("Back to settings")
+                    Text(selectedItem.rawValue).font(.system(size: 23, weight: .semibold))
+                    Text("Coming soon").font(.system(size: 15)).foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .foregroundStyle(.black)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 38).padding(.top, 44)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(CaregiverSettingsItem.allCases) { item in
+                        Button { selectedItem = item } label: {
+                            HStack(spacing: 17) {
+                                Image(systemName: item.symbol)
+                                    .font(.system(size: 24, weight: .regular))
+                                    .frame(width: 30)
+                                Text(item.rawValue)
+                                    .font(.system(size: 16, weight: .medium))
+                                    .lineLimit(1)
+                                Spacer(minLength: 0)
+                            }
+                            .foregroundStyle(.black)
+                            .frame(height: 52)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 34).padding(.top, 20)
+                Spacer(minLength: 0)
+            }
+
+            Button(action: logout) {
+                Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity).frame(height: 51)
+                    .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
+            }
+            .padding(.horizontal, 28).padding(.bottom, 42)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0,
+                                   bottomTrailingRadius: 37, topTrailingRadius: 37)
+                .fill(Color(red: 0.975, green: 0.982, blue: 0.978))
+                .shadow(color: .black.opacity(0.14), radius: 10, x: 4)
+        }
+        .accessibilityAddTraits(.isModal)
     }
 }
 

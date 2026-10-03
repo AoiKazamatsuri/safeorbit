@@ -2,7 +2,7 @@
 
 打开 `SafeOrbit.xcodeproj`，运行 SafeOrbit scheme。首次启动选择手机使用者：家属进入邮箱/Google/Apple 登录；老人进入二维码扫描。视觉参考路径仍为 `reference/ui/`；页面按最终批准预览采用白底、居中青绿标题、细边框胶囊输入框与浅绿第三方按钮，界面统一使用英文，标题与说明已精简；界面采用与参考图一致的浅色外观。
 
-本阶段只实现前端。用 Xcode 的 Debug 配置运行 App 时，选择 Caregiver，输入格式正确的邮箱和至少 8 位密码即可从 Login 进入 Location 首页；Sign up → Sign up with email 还须确认相同密码。首页显示南京大学鼓楼校区的测试位置，点顶部 Exit preview 可回到身份选择。此预览不创建账号、不保存会话令牌，也不请求登录或位置业务接口。Release 构建仍走真实服务端验证；现有后端只有健康检查，所以真实登录、档案、绑定和位置请求会显示服务不可用。各页面也可在 `SafeOrbitApp.swift` 与 `LocationUI.swift` 的 Canvas 中单独预览。
+本阶段只实现前端。用 Xcode 的 Debug 配置运行 App 时，选择 Caregiver，输入格式正确的邮箱和至少 8 位密码即可从 Login 进入 Location 首页；Sign up → Sign up with email 还须确认相同密码。首页显示南京大学鼓楼校区的测试位置，点左上角头像打开设置面板，点 Log Out 可回到身份选择。此预览不创建账号、不保存会话令牌，也不请求登录或位置业务接口。Release 构建仍走真实服务端验证；现有后端只有健康检查，所以真实登录、档案、绑定和位置请求会显示服务不可用。各页面也可在 `SafeOrbitApp.swift` 与 `LocationUI.swift` 的 Canvas 中单独预览。
 
 ## 已实现的交互
 
@@ -16,8 +16,9 @@
 - 会话凭证放 Keychain，启动时向服务恢复会话；收到 401 清理过期凭证。网络错误不直接销毁凭证。退出会清理本机凭证，即使服务暂时不可用。
 - 二维码使用 `safeorbit://bind?token=...`；只接受固定 scheme、host、单个 43 字符 base64url token。打开分享链接先显示连接页，由用户确认连接，不会自动绑定。
 - 已绑定家属进入 Location 地图首页；Agent 和 Records 共用浮动底栏，当前显示简洁空状态。位置数据只从服务读取；刷新失败保留上次成功值并提示，超过五分钟的老人位置不可用于导航。呼叫按钮仅在档案有有效国际号码时交给系统拨号。
+- 左上角头像打开设置面板；七个设置入口可点开说明页并返回，Log Out 使用现有退出流程。设置业务尚未接入；Debug 示例头像与姓名只供预览。
 - Navigate 在 App 内向 Apple MapKit 请求步行路线；家属本机定位为起点，最近有效的老人位置为终点。展示路线、距离、预计时间和文字步骤，可结束查看。暂不提供语音、自动步骤推进或偏离重算。拒绝权限、过期位置和无路线时显示原因。初次使用需允许本机定位。
-- Location 的 Xcode 预览、Debug 邮箱进入首页和截图测试统一使用南京大学鼓楼校区附近的 WGS-84 样例点；样例只存在于 `#if DEBUG` 的 `LocationPreviewData`，不进入 Release 构建的真实位置读取。截图测试给 MapKit 2.5 秒加载底图；本机 iPhone 模拟器的家属位置设在校区附近，方便后续联调。
+- Location 的 Xcode 预览、Debug 邮箱进入首页和截图测试统一使用南京大学鼓楼校区附近的 WGS-84 样例点；演示虚线沿校区街道取点，真实轨迹仍直接按服务提供的采样点绘制。样例只存在于 `#if DEBUG` 的 `LocationPreviewData`，不进入 Release 构建的真实位置读取。截图测试给 MapKit 2.5 秒加载底图；本机 iPhone 模拟器的家属位置设在校区附近，方便后续联调。
 
 ## 后续后端需要提供的接口
 

@@ -66,12 +66,18 @@ struct ElderLocationSnapshot: Decodable {
 enum LocationPreviewData {
     static let campus = GeoPoint(latitude: 32.05664, longitude: 118.77361)
     static let startingPoint = GeoPoint(latitude: 32.05780, longitude: 118.76940)
-    static let midpoint = GeoPoint(latitude: 32.05720, longitude: 118.77180)
+    // Illustrative sampled walk: turns at campus streets instead of crossing blocks diagonally.
+    static let trail = [startingPoint,
+        GeoPoint(latitude: 32.05778, longitude: 118.77025),
+        GeoPoint(latitude: 32.05778, longitude: 118.77140),
+        GeoPoint(latitude: 32.05784, longitude: 118.77275),
+        GeoPoint(latitude: 32.05668, longitude: 118.77275),
+        campus]
     static let address = "22 Hankou Road, Gulou District, Nanjing"
     static func snapshot(recordedAt: Date = Date()) -> ElderLocationSnapshot {
         ElderLocationSnapshot(coordinate: campus, recordedAt: recordedAt, heading: 120,
             status: "At Nanjing University", batteryPercent: 45, address: address,
-            trail: [startingPoint, midpoint, campus],
+            trail: trail,
             safeZones: [.init(id: "campus", name: "Campus", center: startingPoint, radiusMeters: 100)])
     }
 }

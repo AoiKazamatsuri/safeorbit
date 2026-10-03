@@ -1,22 +1,22 @@
-# 家属登录、老人档案与绑定前端：开发构建交互预览
+# 家属登录前端：底部提醒卡片宽度
 
 ```json
 {
   "id": "T7",
-  "revision": 78,
+  "revision": 84,
   "assignee": "Codex",
   "parent": null,
   "deps": [
     "T6"
   ],
-  "round": 7,
+  "round": 8,
   "status": "交付"
 }
 ```
 
 ## 登记依据
 
-用户要求在后端尚未实现时，输入格式正确的邮箱和密码后能从登录或注册页进入主页面，并要求把无网络连接提示做成更淡的浅绿色最大圆角卡片。此要求只用于 Xcode 开发构建的界面体验；正式构建继续走服务端身份验证。原有家属登录、档案、绑定、英文文案和视觉要求继续有效。
+用户指出登录页底部提醒卡片宽于上方输入卡片，要求两者等宽。原有家属登录、注册、开发构建交互预览和淡绿色胶囊视觉要求继续有效。
 
 ## 任务包
 
@@ -32,6 +32,7 @@
 - [approval-005.md](approval-005.md)
 - [approval-006.md](approval-006.md)
 - [approval-007.md](approval-007.md)
+- [approval-008.md](approval-008.md)
 - [receipt-000043.md](receipt-000043.md)
 - [receipt-000047.md](receipt-000047.md)
 - [receipt-000049.md](receipt-000049.md)
@@ -42,6 +43,7 @@
 - [receipt-000064.md](receipt-000064.md)
 - [receipt-000068.md](receipt-000068.md)
 - [receipt-000078.md](receipt-000078.md)
+- [receipt-000084.md](receipt-000084.md)
 
 ## 过程记录
 
@@ -73,6 +75,9 @@
 - #74｜rework｜Codex｜{"basis": "用户要求开发构建中以有效邮箱密码进入首页，并调整断网提示卡片", "expect": 68, "id": "T7"}
 - #75｜amend｜Codex｜{"authority": {"basis": "用户明确要求无后端时有效邮箱和密码可进入主页面，并调整无网络警告卡片", "by": "用户"}, "expect": 74, "id": "T7", "proposal": {"criteria": "| 编号 | 可观察结果 | 验证方法 | 通过条件 |\n|---|---|---|---|\n| A1 | 开发构建中有效邮箱和密码能从登录及注册进入 Location 首页 | 模拟器自动化测试与交互检查 | 无后端可进入；无效输入不能进入；注册密码确认规则仍有效 |\n| A2 | 预览身份和位置不会成为真实会话 | 状态与网络请求测试、源码检查 | 不保存令牌、不调用登录/位置接口；退出后可重新选择身份；正常构建仍请求真实接口 |\n| A3 | 无网络提示为淡绿色最大圆角卡片 | 模拟器截图与布局检查 | 背景为身份按钮底色与白色各半，文字及关闭按钮清晰 |\n| A4 | 现有前端行为不回退 | 完整 iOS 测试与范围核对 | 测试通过；无后端、truth 或 reference 改动 |\n\n验收安排：执行者实跑并记录原样命令、退出码和输出摘录，标明未独立验证；最终体验由用户验收。", "origin": "用户要求在后端尚未实现时，输入格式正确的邮箱和密码后能从登录或注册页进入主页面，并要求把无网络连接提示做成更淡的浅绿色最大圆角卡片。此要求只用于 Xcode 开发构建的界面体验；正式构建继续走服务端身份验证。原有家属登录、档案、绑定、英文文案和视觉要求继续有效。", "plan": "1. 返工当前交付并一次更新批准范围。\n2. 实现仅在开发构建中启用的邮箱进入首页流程及预览数据，保留真实登录路径供正常构建使用。\n3. 调整底部错误卡片的形状和颜色。\n4. 运行模拟器测试与截图检查，更新前端说明后重新交付。", "scope": "- 要交付：沿用现有邮箱格式、登录非空密码、注册至少 8 位且确认一致的校验；Xcode Debug 运行时登录与注册成功进入家属 Location 主页面，显示明确的预览身份及南京大学鼓楼校区测试位置；预览不生成或保存真实会话令牌，不发登录或位置业务请求，退出后回到身份选择。正常构建仍使用真实接口。断网及其他底部错误提示使用淡绿色胶囊卡片，颜色为身份选择按钮底色与白色的中间色，文字和关闭按钮保持可读。\n- 不包含：后端、数据库、真实账号创建、生产环境绕过身份验证、Apple/Google 登录替身、真机两端绑定、truth 和 reference 修改。\n- 允许修改的位置：object/ios/ 下 SwiftUI 源码、模型、测试、预览与说明；必要时 object/dev/README.md。队列记录只经工具维护。现有两份字符串资源的未提交改动保留，不纳入本任务交付。", "title": "家属登录、老人档案与绑定前端：开发构建交互预览"}}
 - #78｜deliver｜Codex｜{"artifacts": [{"path": "object/ios/README.md", "sha256": "1138d91eaedaf9037e7db3627cb65cb91fca71c45672f79868dd0deacc6e0af5"}, {"path": "object/ios/SafeOrbit/SafeOrbitApp.swift", "sha256": "d1d7d6372a62c382b8ef731b2aed1439b5360b9d34c196a48d31417b5ed46ab6"}, {"path": "object/ios/SafeOrbit/OnboardingStore.swift", "sha256": "9bba083f4ea6e612f9c5221fa190c5dc61349d7f82b060ef9f709aa4b9a7425a"}, {"path": "object/ios/SafeOrbit/OnboardingUI.swift", "sha256": "32a818bbb73416bd9d43ed77f0e946caf07980ac796e2d03a7ff0e474905af8c"}, {"path": "object/ios/SafeOrbitTests/OnboardingTests.swift", "sha256": "5f2725791047cbb7b0e4de1ddc4823eb2de4ff9140c0089aa57785c5fbd82c19"}], "expect": 75, "id": "T7", "receipt": "# T7 开发构建交互预览交付\n\n按用户新指令，Xcode Debug 运行时，Caregiver 的 Login 页面接受格式正确的邮箱与至少 8 位密码；Sign up → Sign up with email 还要求确认密码相同。满足校验后直接进入 Location 主页面，显示顶部 Exit preview 并可退出回到身份选择。预览会话不创建账号、不保存令牌，登录和位置业务接口不被调用；Release 构建保留服务端验证。Google 和 Apple 入口仍按原流程运行。原有家属表单、绑定页面和错误处理保留。\n\n底部网络及其他错误提示改为最大圆角胶囊卡片，底色使用原有身份选择按钮淡绿的 50% 透明度叠在白底上；文字、图标与关闭按钮保留。前端说明已更新。无新增依赖；用户已有的两份字符串资源未提交改动保留，不列入本件工件。未修改后端、truth 或 reference。\n\n## 验证事实（未独立验证）\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -derivedDataPath object/ios/DerivedData CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- -testLanguage en -testRegion US test > /private/tmp/safeorbit-preview-screenshot-final.log 2>&1`。退出码 0；原样输出摘录：`Executed 19 tests, with 0 failures (0 unexpected)`、`** TEST SUCCEEDED **`。新增测试覆盖无效邮箱、短密码、注册确认不一致、进入主页面、无令牌、刷新与退出；已有真实接口测试仍通过。交互首页截图已由测试产出并目视核对。\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath object/ios/DerivedData-Release CODE_SIGNING_ALLOWED=NO build > /private/tmp/safeorbit-preview-release-build.log 2>&1`。退出码 0；摘录：`** BUILD SUCCEEDED **`。构建产物随后清理。\n\n原样命令：`git diff --exit-code -- object/server reference truth`、`git diff --check`，均退出码 0，无输出。`sh object/dev/queue.sh check` 退出码 0，输出 `{\"ok\": true, \"protection\": \"ready\", \"seq\": 77, \"tasks\": 8, \"protocol\": 2}`。以上检查由本执行者自验，未独立验证。\n\n首次模拟器测试在沙箱中无法连接 CoreSimulator，退出码 70；改用允许访问模拟器的环境后通过。后续增加截图时测试文件内条件编译指令放置不当，退出码 65；修正后完整 19 项通过。真实后端账号、位置数据与真机登录仍未验证；预览数据不可视为真实业务结果。用户验收尚未记录。\n", "summary": "Debug 邮箱登录与注册可交互进入主页面；错误提示卡片调整；19 项测试及 Release 构建通过，未独立验证", "verification": "passed"}
+- #80｜rework｜Codex｜{"basis": "用户要求底部提醒卡片与登录页输入卡片等宽", "expect": 78, "id": "T7"}
+- #81｜amend｜Codex｜{"authority": {"basis": "用户明确要求底部提醒卡片宽度与上方卡片相同", "by": "用户"}, "expect": 80, "id": "T7", "proposal": {"criteria": "| 编号 | 可观察结果 | 验证方法 | 通过条件 |\n|---|---|---|---|\n| A1 | 提醒卡片与输入卡片等宽 | 同一模拟器宽度截图比较 | 两侧边界对齐，圆角和淡绿底色保留 |\n| A2 | 提醒可读可关闭 | 模拟器操作与大字截图 | 文字不截断，关闭按钮可点击 |\n| A3 | 原有流程不回退 | iOS 测试与 Release 构建 | 通过且正式身份验证路径保留 |\n\n验收安排：执行者自验并记录原样读数，最终由用户验收。", "origin": "用户指出登录页底部提醒卡片宽于上方输入卡片，要求两者等宽。原有家属登录、注册、开发构建交互预览和淡绿色胶囊视觉要求继续有效。", "plan": "1. 返工当前交付并一次更新范围。\n2. 修正底部提醒布局并截图核对。\n3. 运行检查、重新交付并提交本地，不推送。", "scope": "- 要交付：底部提醒卡片与登录表单内容使用相同水平边距及最大宽度；在窄屏、普通屏和大字下文字及关闭按钮保持可读可点。其他登录、注册、档案与绑定逻辑不变。\n- 不包含：后端、账号服务、truth、reference 修改；不纳入用户原先两份字符串资源的未提交改动。\n- 允许修改的位置：object/ios/ 下 App 入口、相关截图测试和前端说明；队列文件仅经工具维护。", "title": "家属登录前端：底部提醒卡片宽度"}}
+- #84｜deliver｜Codex｜{"artifacts": [{"path": "object/ios/SafeOrbit/SafeOrbitApp.swift", "sha256": "0b56746b49c7720f16205ef9d966fd2f1e3e0159451fb7ba436848067aa93f6b"}, {"path": "object/ios/SafeOrbitTests/OnboardingTests.swift", "sha256": "7c056da2b4d51da242decfd4d5211d739cb8b6116f9f71fead33f9f52859e07e"}, {"path": "object/ios/README.md", "sha256": "b7a2e47498a541083cdcd4d714786a02ca958c22cf611bb0a524e02a9383e921"}], "expect": 81, "id": "T7", "receipt": "# T7 底部提醒宽度返工交付\n\n底部网络/错误提醒现在沿用登录表单的 36 pt 水平边距和 480 pt 最大容器宽度。抽成 BottomNotice 后，登录页与截图测试使用同一组件；浅绿色、胶囊圆角和关闭操作保留。前端使用说明同步更新。未改后端、参考图、长期要求或用户已有的字符串资源改动；无新增依赖。\n\n## 验证事实（未独立验证）\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -derivedDataPath /private/tmp/safeorbit-dd-20261003 CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- -testLanguage en -testRegion US test > /private/tmp/safeorbit-test-final-20261003.log 2>&1`。退出码 0；原样输出摘录：`Executed 19 tests, with 0 failures (0 unexpected)`、`** TEST SUCCEEDED **`。`login-warning` 截图导出到 `/private/tmp/safeorbit-attachments-delivery-20261003/EBEE9D42-E578-457D-BB9B-3804D026EE11.png`；目视核对提醒卡片和上方输入卡片两侧对齐，文字和关闭图标可见。\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/safeorbit-release-20261003 CODE_SIGNING_ALLOWED=NO build > /private/tmp/safeorbit-release-final-20261003.log 2>&1`。退出码 0；原样输出摘录：`** BUILD SUCCEEDED **`。`git diff --check` 退出码 0，无输出。截图与命令由执行者自验，未独立验证；用户视觉验收尚未记录。\n", "summary": "底部提醒与登录输入等宽；19 项测试和 Release 构建通过，未独立验证", "verification": "passed"}
 
 ## 接手说明
 

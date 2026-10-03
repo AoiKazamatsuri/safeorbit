@@ -53,15 +53,7 @@ struct OnboardingRoot: View {
                 }
                 .safeAreaInset(edge: .bottom) {
                     if let message = store.error {
-                        HStack(alignment: .center, spacing: 12) {
-                            Image(systemName: "exclamationmark.circle").foregroundStyle(OrbitStyle.teal)
-                            Text(message).font(.subheadline).frame(maxWidth: .infinity, alignment: .leading)
-                            Button { store.error = nil } label: { Image(systemName: "xmark") }.accessibilityLabel("Dismiss message")
-                        }
-                        .padding(.horizontal, 18).padding(.vertical, 14)
-                        .background(OrbitStyle.pale.opacity(0.5), in: Capsule())
-                        .padding(.horizontal, 5).padding(.bottom, 6)
-                        .accessibilityElement(children: .contain)
+                        BottomNotice(message: message) { store.error = nil }
                     }
                 }
                 .confirmationDialog("Sign out on this phone?", isPresented: $confirmLogout, titleVisibility: .visible) {
@@ -73,6 +65,24 @@ struct OnboardingRoot: View {
                 guard store.token == nil, url.host != "oauth" else { return }
                 store.screen = .scan; payload = url.absoluteString
             }
+    }
+}
+struct BottomNotice: View {
+    let message: String
+    let dismiss: () -> Void
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "exclamationmark.circle").foregroundStyle(OrbitStyle.teal)
+            Text(message).font(.subheadline).frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: dismiss) { Image(systemName: "xmark") }
+                .accessibilityLabel("Dismiss message")
+        }
+        .padding(.horizontal, 18).padding(.vertical, 14)
+        .background(OrbitStyle.pale.opacity(0.5), in: Capsule())
+        .padding(.horizontal, 36).padding(.bottom, 6)
+        .frame(maxWidth: 480)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
     }
 }
 #if DEBUG

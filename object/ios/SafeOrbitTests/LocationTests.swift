@@ -6,7 +6,7 @@ import SwiftUI
 @MainActor private final class RouteStub: WalkingRouteProvider {
     var origin: GeoPoint? = LocationPreviewData.startingPoint
     var result: WalkingRoute? = WalkingRoute(coordinates: [LocationPreviewData.startingPoint.appleCoordinate,
-        LocationPreviewData.midpoint.appleCoordinate, LocationPreviewData.campus.appleCoordinate],
+        LocationPreviewData.trail[3].appleCoordinate, LocationPreviewData.campus.appleCoordinate],
         distanceMeters: 210, expectedSeconds: 180, steps: ["Continue toward Hankou Road", "Arrive at Nanjing University"])
     var error: NavigationIssue?
     var calls = 0
@@ -29,6 +29,9 @@ final class LocationTests: XCTestCase {
         XCTAssertFalse(GeoPoint(latitude: 91, longitude: 10).isValid)
         XCTAssertTrue(snapshot().isCurrent)
         XCTAssertFalse(snapshot(age: 301).isCurrent)
+        XCTAssertEqual(LocationPreviewData.trail.first, LocationPreviewData.startingPoint)
+        XCTAssertEqual(LocationPreviewData.trail.last, LocationPreviewData.campus)
+        XCTAssertGreaterThan(LocationPreviewData.trail.count, 3)
     }
     @MainActor func testWalkingRouteSuccessAndFailure() async {
         let stub = RouteStub()

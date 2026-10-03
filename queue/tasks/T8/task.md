@@ -1,22 +1,22 @@
-# 家属端 Location 首页与应用内步行导航：开发构建首页预览
+# 家属端 Location：步行轨迹、底栏和设置面板
 
 ```json
 {
   "id": "T8",
-  "revision": 79,
+  "revision": 85,
   "assignee": "Codex",
   "parent": null,
   "deps": [
     "T6"
   ],
-  "round": 2,
+  "round": 3,
   "status": "交付"
 }
 ```
 
 ## 登记依据
 
-用户要求后端尚未实现时，通过有效格式邮箱和密码进入主页面查看已开发前端。Location 首页需要在 Xcode Debug 运行中显示预览位置。原有 Location 地图、导航与视觉要求继续有效。
+用户指出 Location 虚线太粗且穿过建筑、底部导航栏离屏幕底端过远，并要求头像打开参考图 `reference/ui/01-location-settings@2x.png` 的设置页；设置页图标采用相近 SF Symbols。原有地图首页、开发构建预览和步行导航要求继续有效。
 
 ## 任务包
 
@@ -27,11 +27,13 @@
 
 - [approval-001.md](approval-001.md)
 - [approval-002.md](approval-002.md)
+- [approval-003.md](approval-003.md)
 - [receipt-000065.md](receipt-000065.md)
 - [receipt-000069.md](receipt-000069.md)
 - [receipt-000071.md](receipt-000071.md)
 - [receipt-000073.md](receipt-000073.md)
 - [receipt-000079.md](receipt-000079.md)
+- [receipt-000085.md](receipt-000085.md)
 
 ## 过程记录
 
@@ -47,6 +49,9 @@
 - #76｜rework｜Codex｜{"basis": "用户要求在后端尚未实现时进入主页面查看，开发构建接入 Location 预览位置", "expect": 73, "id": "T8"}
 - #77｜amend｜Codex｜{"authority": {"basis": "用户要求无后端时通过有效邮箱和密码进入已开发主页面查看", "by": "用户"}, "expect": 76, "id": "T8", "proposal": {"criteria": "| 编号 | 可观察结果 | 验证方法 | 通过条件 |\n|---|---|---|---|\n| A1 | 开发构建中邮箱预览会话显示已开发 Location 首页 | 模拟器测试、地图截图 | 首页可达，测试点可见，Preview 标记可见 |\n| A2 | 正常位置读取与导航不回退 | 原有模拟器测试与源码核对 | 非预览会话仍请求真实位置；原有导航错误处理保留 |\n| A3 | 工程可构建且测试通过 | xcodebuild 模拟器测试 | 无失败，记录未独立验证 |\n\n验收安排：执行者代跑检查并记录原样命令、退出码和输出摘录；用户最终验收。", "origin": "用户要求后端尚未实现时，通过有效格式邮箱和密码进入主页面查看已开发前端。Location 首页需要在 Xcode Debug 运行中显示预览位置。原有 Location 地图、导航与视觉要求继续有效。", "plan": "1. 返工并更新批准范围，核对与 T7 的共用文件。\n2. 接入 Debug 首页预览标记和测试位置。\n3. 运行模拟器测试，记录限制并重交。", "scope": "- 要交付：原有 Location 首页、底栏和 MapKit 步行导航；仅在 Xcode Debug 邮箱预览会话中显示南京大学鼓楼校区测试位置及 Preview 标记，刷新继续使用该测试位置；无预览会话及 Release 构建继续从服务读取真实位置。登录与退出由 T7 范围负责，T8 只接入主页面预览显示。\n- 不包含：后端业务实现、生产演示数据、真实路线替身、真机位置证明、truth 或 reference 修改。\n- 允许修改的位置：object/ios/ 下现有家属首页、位置模型、测试和说明；与 T7 共用的入口和状态文件由两任务分别重交指纹；队列记录只经工具维护。", "title": "家属端 Location 首页与应用内步行导航：开发构建首页预览"}}
 - #79｜deliver｜Codex｜{"artifacts": [{"path": "object/ios/README.md", "sha256": "1138d91eaedaf9037e7db3627cb65cb91fca71c45672f79868dd0deacc6e0af5"}, {"path": "object/ios/SafeOrbit/SafeOrbitApp.swift", "sha256": "d1d7d6372a62c382b8ef731b2aed1439b5360b9d34c196a48d31417b5ed46ab6"}, {"path": "object/ios/SafeOrbit/OnboardingStore.swift", "sha256": "9bba083f4ea6e612f9c5221fa190c5dc61349d7f82b060ef9f709aa4b9a7425a"}, {"path": "object/ios/SafeOrbit/LocationUI.swift", "sha256": "c9c59c9a8db0552ed7b757fa5579f8ec1ebcec9b278fb8466073d190ac012c4b"}, {"path": "object/ios/SafeOrbitTests/OnboardingTests.swift", "sha256": "5f2725791047cbb7b0e4de1ddc4823eb2de4ff9140c0089aa57785c5fbd82c19"}], "expect": 77, "id": "T8", "receipt": "# T8 Location 开发构建预览交付\n\n按用户要求，在 T7 的 Xcode Debug 邮箱预览会话中，Location 首页显示南京大学鼓楼校区的测试位置、轨迹和底栏，并在顶部提供 Exit preview 按钮。刷新继续使用新时间戳的测试快照；无预览会话时原有服务位置读取与导航逻辑保留。测试数据仍只在 Debug 编译条件下存在，Release 构建不包含该入口。无新增依赖；未修改后端、truth 或 reference。\n\n## 验证事实（未独立验证）\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -derivedDataPath object/ios/DerivedData CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- -testLanguage en -testRegion US test > /private/tmp/safeorbit-preview-screenshot-final.log 2>&1`。退出码 0；原样输出摘录：`Executed 19 tests, with 0 failures (0 unexpected)`、`** TEST SUCCEEDED **`。原有位置和导航测试仍通过。新增的 `location-interactive-preview` 截图已从测试结果导出并目视核对：街道底图、测试轨迹、人物卡、底栏和顶部退出按钮均可见。截图测试是模拟器运行，不是用户独立验收。\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath object/ios/DerivedData-Release CODE_SIGNING_ALLOWED=NO build > /private/tmp/safeorbit-preview-release-build.log 2>&1`。退出码 0；摘录：`** BUILD SUCCEEDED **`。`git diff --exit-code -- object/server reference truth` 与 `git diff --check` 均退出码 0，无输出。`sh object/dev/queue.sh check` 退出码 0，输出 `{\"ok\": true, \"protection\": \"ready\", \"seq\": 77, \"tasks\": 8, \"protocol\": 2}`。\n\n真机定位、实际 MapKit 路线、真实服务位置数据仍未验证。用户验收尚未记录。\n", "summary": "Debug 邮箱预览进入 Location 首页，带鼓楼校区测试位置与退出按钮；19 项测试通过，未独立验证", "verification": "passed"}
+- #82｜rework｜Codex｜{"basis": "用户要求修正步行虚线、底栏位置并由头像打开设置页", "expect": 79, "id": "T8"}
+- #83｜amend｜Codex｜{"authority": {"basis": "用户明确要求步行虚线沿道路且更细、底栏下移、头像打开按参考图还原的设置页", "by": "用户"}, "expect": 82, "id": "T8", "proposal": {"criteria": "| 编号 | 可观察结果 | 验证方法 | 通过条件 |\n|---|---|---|---|\n| A1 | 开发预览轨迹沿道路转折且更细 | 同尺寸模拟器地图截图与测试点核对 | 不穿建筑，虚线清晰但比前版细 |\n| A2 | 底栏靠近屏幕底端 | 同尺寸截图比较 | 下移且不遮住系统操作区或人物卡 |\n| A3 | 设置面板符合参考图 | 参考图与模拟器同尺寸截图对照 | 左侧面板比例、人物卡、七项入口、右侧变暗地图和底部退出按钮相符，SF Symbols 可见 |\n| A4 | 头像、菜单、退出可操作 | 模拟器交互测试 | 可打开/关闭，菜单有响应，退出回身份选择 |\n| A5 | 现有定位与导航逻辑不回退 | iOS 测试与 Release 构建 | 测试和构建通过，预览数据不进入正式路径 |\n\n验收安排：执行者实跑并记录原样命令、退出码和摘录，标未独立验证；用户最终验收。", "origin": "用户指出 Location 虚线太粗且穿过建筑、底部导航栏离屏幕底端过远，并要求头像打开参考图 `reference/ui/01-location-settings@2x.png` 的设置页；设置页图标采用相近 SF Symbols。原有地图首页、开发构建预览和步行导航要求继续有效。", "plan": "1. 返工并一次更新批准范围，核对参考图与现有截图。\n2. 调整轨迹和底栏，开发设置面板及预览头像。\n3. 用模拟器截图对比参考，修复明显偏差，完成交互和回归测试。\n4. 重新交付并提交本地，不推送。", "scope": "- 要交付：将虚线笔画减细；开发预览的步行轨迹沿地图道路转折显示，不用起终点直线充当路线；真实位置数据仍保持原采样轨迹含义，不伪称路网推算是实际走过的位置；底栏靠近屏幕底部且不压住系统操作区；点击左上角头像打开与参考图相符的左侧设置面板，包含人物卡、Account Settings、Senior Profile、Family Members、AI Agent Settings、Location Settings、Notifications、Help 和底部 Log Out，右侧地图变暗，点击背景关闭。图标使用 SF Symbols，菜单点击有可见响应，Log Out 使用现有退出流程。开发预览可用示例头像，正式构建不把示例身份当真实用户。\n- 不包含：后端接口、真实家庭成员或通知配置、真机定位证明、truth 与 reference 修改；本件不实现七个设置子页的业务能力。\n- 允许修改的位置：object/ios/ 下 Location SwiftUI、位置预览模型、测试、素材、前端说明与视觉核对记录；必要时工程文件及 object/dev/generate-ios.mjs。与 T7 共用文件分别重交指纹。队列记录只经工具维护。", "title": "家属端 Location：步行轨迹、底栏和设置面板"}}
+- #85｜deliver｜Codex｜{"artifacts": [{"path": "object/ios/SafeOrbit/LocationUI.swift", "sha256": "46a251d885d691eb6614c764e40a2f43b2646ad6f898da4369998fd23434c6ab"}, {"path": "object/ios/SafeOrbit/LocationModels.swift", "sha256": "c8cab647f72f16bbe8604b8ddc996dc0c30dfd255d65c48e249253441542a88d"}, {"path": "object/ios/SafeOrbitTests/LocationTests.swift", "sha256": "270dcd6669bd9d170b2947dba05d60c6cd01d822ab0e57dc6db03e121a1a447f"}, {"path": "object/ios/SafeOrbitTests/OnboardingTests.swift", "sha256": "7c056da2b4d51da242decfd4d5211d739cb8b6116f9f71fead33f9f52859e07e"}, {"path": "object/ios/SafeOrbit/Assets.xcassets/PreviewCaregiver.imageset/portrait.png", "sha256": "a85e3169a7f41ad87afc4d393ed13949421a0895b72a530a6e20a3426ed62420"}, {"path": "object/ios/SafeOrbit/Assets.xcassets/PreviewCaregiver.imageset/Contents.json", "sha256": "6ba25e2091125184e9f144776949a4f86f14596715d5d10193b197895f47b497"}, {"path": "object/ios/README.md", "sha256": "b7a2e47498a541083cdcd4d714786a02ca958c22cf611bb0a524e02a9383e921"}, {"path": "object/ios/location-qa.md", "sha256": "8b1ccd2229dce4586b8bc7919fc5e293de105d4d5a10f1577cf176002a978c12"}], "expect": 83, "id": "T8", "receipt": "# T8 Location 视觉与交互返工交付\n\n地图轨迹虚线由 4 pt 改为 2.3 pt，开发预览样例沿 Nanxiucun 和 Pingcang Alley 附近可见道路转折，不再斜穿街区。真实位置仍逐点绘制服务端采样轨迹，不把路网猜测当成已经走过的路线。底栏下移 13 pt，人物卡同步下移。点击头像打开左侧设置面板；顶部示例人物卡、七个入口、右侧暗色遮罩和底部 Log Out 按参考图实现，图标使用 SF Symbols。菜单进入标注 Coming soon 的说明页并可返回，点击右侧暗处关闭，Log Out 调用现有退出流程。示例人物图片仅在 Debug 预览会话显示，Release 使用通用头像。前端说明与视觉核对记录同步更新。未改后端、参考图或长期要求；无新增依赖。\n\n## 验证事实（未独立验证）\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -derivedDataPath /private/tmp/safeorbit-dd-20261003 CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- -testLanguage en -testRegion US test > /private/tmp/safeorbit-test-final-20261003.log 2>&1`。退出码 0；原样输出摘录：`Executed 19 tests, with 0 failures (0 unexpected)`、`** TEST SUCCEEDED **`。截图已导出到 `/private/tmp/safeorbit-attachments-delivery-20261003/`；目视比较 `location-interactive-preview`、`location-settings-preview` 与 `reference/ui/01-location-settings@2x.png`，核对街道转弯、细线、底栏位置和设置面板布局。\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/safeorbit-release-20261003 CODE_SIGNING_ALLOWED=NO build > /private/tmp/safeorbit-release-final-20261003.log 2>&1`。退出码 0；原样输出摘录：`** BUILD SUCCEEDED **`。`git diff --check` 与 `git diff --exit-code -- object/server reference truth` 均退出码 0，无输出。实际 GPS 步行轨迹、真机地图坐标和七项设置业务尚未验证或实现；上述检查由执行者自验，未独立验证，用户验收尚未记录。\n", "summary": "Location 细虚线沿演示道路转折、底栏下移、头像打开参考设置面板；19 项测试与 Release 构建通过，未独立验证", "verification": "passed"}
 
 ## 接手说明
 
