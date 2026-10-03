@@ -38,6 +38,18 @@ enum MainlandCoordinates {
         lon = lon * 180 / (6378245 / root * cos(rad) * pi)
         return GeoPoint(latitude: p.latitude + lat, longitude: p.longitude + lon)
     }
+
+    /// Undo the display conversion for a point selected on the Apple map.
+    static func toWGS84(_ point: GeoPoint) -> GeoPoint {
+        guard applies(to: point) else { return point }
+        var estimate = point
+        for _ in 0..<6 {
+            let projected = toGCJ02(estimate)
+            estimate = GeoPoint(latitude: estimate.latitude + point.latitude - projected.latitude,
+                                longitude: estimate.longitude + point.longitude - projected.longitude)
+        }
+        return estimate
+    }
 }
 
 struct SafeZone: Decodable, Identifiable {
@@ -45,6 +57,7 @@ struct SafeZone: Decodable, Identifiable {
     let name: String
     let center: GeoPoint
     let radiusMeters: Double
+    var renderKey: String { "\(id):\(name):\(center.latitude):\(center.longitude):\(radiusMeters)" }
 }
 
 struct ElderLocationSnapshot: Decodable {
@@ -62,23 +75,28 @@ struct ElderLocationSnapshot: Decodable {
 }
 
 #if DEBUG
-/// WGS-84 sample near the center of Nanjing University's Gulou Campus; never used by the live location flow.
+/// Illustrative road-aligned sample near Nanjing University's Gulou Campus; never used by the live location flow.
 enum LocationPreviewData {
-    static let campus = GeoPoint(latitude: 32.05664, longitude: 118.77361)
-    static let startingPoint = GeoPoint(latitude: 32.05780, longitude: 118.76940)
-    // Illustrative sampled walk: turns at campus streets instead of crossing blocks diagonally.
-    static let trail = [startingPoint,
-        GeoPoint(latitude: 32.05778, longitude: 118.77025),
-        GeoPoint(latitude: 32.05778, longitude: 118.77140),
-        GeoPoint(latitude: 32.05784, longitude: 118.77275),
-        GeoPoint(latitude: 32.05668, longitude: 118.77275),
-        campus]
-    static let address = "22 Hankou Road, Gulou District, Nanjing"
+    // Fixed illustrative points checked against visible Beijing West Road and
+    // Ninghai Road at several zoom levels. MapKit coordinates are converted to
+    // the WGS-84 form used by snapshots and the live API.
+    private static let walkingMapGeometry = [
+        GeoPoint(latitude: 32.0600471, longitude: 118.7665265),
+        GeoPoint(latitude: 32.0599101, longitude: 118.7677551),
+        GeoPoint(latitude: 32.0597504, longitude: 118.7689515),
+        GeoPoint(latitude: 32.0595408, longitude: 118.7706009),
+        GeoPoint(latitude: 32.0587606, longitude: 118.7709242),
+        GeoPoint(latitude: 32.0576466, longitude: 118.7712769),
+        GeoPoint(latitude: 32.0564731, longitude: 118.7718559)]
+    static let trail = walkingMapGeometry.map(MainlandCoordinates.toWGS84)
+    static let startingPoint = trail[0]
+    static let campus = trail[trail.count - 1]
+    static let address = "Ninghai Road, Gulou District, Nanjing"
     static func snapshot(recordedAt: Date = Date()) -> ElderLocationSnapshot {
         ElderLocationSnapshot(coordinate: campus, recordedAt: recordedAt, heading: 120,
             status: "At Nanjing University", batteryPercent: 45, address: address,
             trail: trail,
-            safeZones: [.init(id: "campus", name: "Campus", center: startingPoint, radiusMeters: 100)])
+            safeZones: [.init(id: "campus", name: "Campus", center: startingPoint, radiusMeters: 200)])
     }
 }
 #endif

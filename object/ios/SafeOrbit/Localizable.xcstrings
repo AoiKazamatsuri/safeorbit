@@ -1,5 +1,174 @@
 {
-  "sourceLanguage": "en",
-  "strings": {},
-  "version": "1.0"
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ · %lld min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld min"
+          }
+        }
+      }
+    },
+    "%@ (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "%lld." : {
+
+    },
+    "%lld%%" : {
+
+    },
+    "Back" : {
+
+    },
+    "Back to login" : {
+
+    },
+    "Back to settings" : {
+
+    },
+    "Call senior" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Caregiver" : {
+
+    },
+    "Check connection" : {
+
+    },
+    "Check your email for a reset link." : {
+
+    },
+    "Choose a photo" : {
+
+    },
+    "Close navigation" : {
+
+    },
+    "Code expired" : {
+
+    },
+    "Coming soon" : {
+
+    },
+    "Connection link" : {
+
+    },
+    "Country or region: %@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Country or region: %1$@, %2$@"
+          }
+        }
+      }
+    },
+    "Dismiss message" : {
+
+    },
+    "Edit profile" : {
+
+    },
+    "End navigation" : {
+
+    },
+    "Enter a valid phone number." : {
+
+    },
+    "Enter a valid SafeOrbit link." : {
+
+    },
+    "Finding a walking route…" : {
+
+    },
+    "Follow the highlighted route." : {
+
+    },
+    "Forgot password?" : {
+
+    },
+    "Hide password" : {
+
+    },
+    "Location unavailable" : {
+
+    },
+    "Log Out" : {
+
+    },
+    "Navigate" : {
+
+    },
+    "Normal" : {
+
+    },
+    "Open settings" : {
+
+    },
+    "Open Settings" : {
+
+    },
+    "or" : {
+
+    },
+    "Passwords don't match." : {
+
+    },
+    "Paste link" : {
+
+    },
+    "Phone connection QR code" : {
+
+    },
+    "Phone number" : {
+
+    },
+    "Remove photo" : {
+
+    },
+    "Restoring your connection…" : {
+
+    },
+    "Scan code" : {
+
+    },
+    "Settings" : {
+
+    },
+    "Share link" : {
+
+    },
+    "Show password" : {
+
+    },
+    "Sign out" : {
+
+    },
+    "Sign out on this phone?" : {
+
+    },
+    "Try again" : {
+
+    },
+    "Use at least 8 characters." : {
+
+    },
+    "Walking to %@" : {
+
+    }
+  },
+  "version" : "1.0"
 }

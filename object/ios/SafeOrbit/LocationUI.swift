@@ -1,5 +1,35 @@
 import SwiftUI
 import MapKit
+import CoreLocation
+
+@MainActor final class SafeZoneSessionStore: ObservableObject {
+    @Published private(set) var edits: [String: SafeZone] = [:]
+    @Published private(set) var removed: Set<String> = []
+
+    func visibleZones(in snapshot: ElderLocationSnapshot?) -> [SafeZone] {
+        let original = snapshot?.safeZones ?? []
+        let originalIDs = Set(original.map(\.id))
+        return original.compactMap { zone in
+            removed.contains(zone.id) ? nil : (edits[zone.id] ?? zone)
+        } + edits.values.filter { !originalIDs.contains($0.id) && !removed.contains($0.id) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    func save(_ zone: SafeZone) {
+        removed.remove(zone.id)
+        edits[zone.id] = zone
+    }
+
+    func delete(_ zone: SafeZone) {
+        edits.removeValue(forKey: zone.id)
+        removed.insert(zone.id)
+    }
+}
+
+private struct SafeZoneEditorSelection: Identifiable {
+    let zone: SafeZone?
+    var id: String { zone?.id ?? "new" }
+}
 
 enum CaregiverTab: String, CaseIterable {
     case location = "Location", agent = "Agent", records = "Records"
@@ -69,6 +99,7 @@ struct CaregiverTabBar: View {
 
 struct CaregiverHomePage: View {
     @ObservedObject var store: OnboardingStore
+    @StateObject private var zoneStore = SafeZoneSessionStore()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tab: CaregiverTab = .location
     @State private var navigating = false
@@ -93,7 +124,8 @@ struct CaregiverHomePage: View {
                              message: store.locationError, loading: store.locationLoading,
                              refresh: { Task { await store.refreshLocation() } },
                              agent: { tab = .agent }, navigate: { navigating = true },
-                             settings: { setSettings(true) }, riskState: riskState)
+                             settings: { setSettings(true) }, riskState: riskState,
+                             zoneStore: zoneStore, usesPreviewTrail: store.previewSession)
             } else {
                 Color.white.ignoresSafeArea()
                 VStack(spacing: 12) {
@@ -143,37 +175,62 @@ struct LocationPage: View {
     let navigate: () -> Void
     var settings: () -> Void = {}
     var riskState: CaregiverRiskState = .normal
+    @ObservedObject var zoneStore = SafeZoneSessionStore()
+    var usesPreviewTrail = false
     @State private var camera: MapCameraPosition = .automatic
     @State private var defaultRegion: MKCoordinateRegion?
     @State private var baselineVisibleRegion: MKCoordinateRegion?
     @State private var awaitingBaseline = true
     @State private var showingReset = false
+    @State private var visibleRegion: MKCoordinateRegion?
+    @State private var zoneEditor: SafeZoneEditorSelection?
 
     private var point: CLLocationCoordinate2D? { snapshot?.coordinate.isValid == true ? snapshot?.coordinate.appleCoordinate : nil }
     var body: some View {
         ZStack(alignment: .top) {
             Map(position: $camera) {
-                if let snapshot {
-                    ForEach(snapshot.safeZones.filter { $0.center.isValid && $0.radiusMeters > 0 }, id: \.id) { zone in
+                ForEach(zoneStore.visibleZones(in: snapshot).filter { $0.center.isValid && $0.radiusMeters.isFinite && $0.radiusMeters > 0 }, id: \.renderKey) { zone in
                         MapCircle(center: zone.center.appleCoordinate, radius: zone.radiusMeters)
                             .foregroundStyle(OrbitStyle.teal.opacity(0.10))
                             .stroke(OrbitStyle.teal.opacity(0.35), lineWidth: 1)
                         Annotation(zone.name, coordinate: zone.center.appleCoordinate, anchor: .bottom) {
-                            Image(systemName: zone.name.lowercased() == "home" ? "house.fill" : "storefront.fill")
-                                .font(.system(size: 21)).foregroundStyle(.white)
-                                .frame(width: 39, height: 39).background(OrbitStyle.teal, in: Circle())
+                            Button { zoneEditor = SafeZoneEditorSelection(zone: zone) } label: {
+                                Image(systemName: zone.name.lowercased() == "home" ? "house.fill" : "storefront.fill")
+                                    .font(.system(size: 21)).foregroundStyle(.white)
+                                    .frame(width: 39, height: 39).background(OrbitStyle.teal, in: Circle())
+                            }
+                            .accessibilityLabel("Edit \(zone.name) safe zone")
                         }
-                    }
-                    if snapshot.trail.count > 1 {
+                }
+                if let snapshot {
+                    if usesPreviewTrail && snapshot.trail.count > 1 {
                         MapPolyline(coordinates: snapshot.trail.filter(\.isValid).map(\.appleCoordinate))
                             .stroke(OrbitStyle.teal, style: StrokeStyle(lineWidth: 2.3, lineCap: .round, dash: [4, 5]))
+                    } else if !usesPreviewTrail {
+                        ForEach(Array(snapshot.trail.filter(\.isValid).enumerated()), id: \.offset) { _, sample in
+                            MapCircle(center: sample.appleCoordinate, radius: 2.5)
+                                .foregroundStyle(OrbitStyle.teal)
+                        }
                     }
                     if let point {
                         Annotation("Senior", coordinate: point) {
-                            Image(systemName: "location.north.fill")
-                                .font(.system(size: 31, weight: .bold))
-                                .rotationEffect(.degrees(snapshot.validHeading ?? 0))
-                                .foregroundStyle(OrbitStyle.teal)
+                            ZStack {
+                                Image(systemName: "location.north.fill")
+                                    .font(.system(size: 31, weight: .bold))
+                                    .rotationEffect(.degrees(snapshot.validHeading ?? 0))
+                                    .foregroundStyle(OrbitStyle.teal)
+                                if let headline = riskState.headline, snapshot.isCurrent {
+                                    Text(headline)
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundStyle(riskState == .high ? .white : .black)
+                                        .padding(.horizontal, 17).padding(.vertical, 9)
+                                        .background(riskState.color, in: Capsule())
+                                        .shadow(color: .black.opacity(0.22), radius: 5, y: 3)
+                                        .fixedSize()
+                                        .offset(y: -49)
+                                        .accessibilityLabel(headline)
+                                }
+                            }
                         }
                     }
                 }
@@ -181,6 +238,7 @@ struct LocationPage: View {
             .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
             .mapControlVisibility(.hidden)
             .onMapCameraChange(frequency: .onEnd) { context in
+                visibleRegion = context.region
                 guard defaultRegion != nil else { return }
                 if awaitingBaseline || baselineVisibleRegion == nil {
                     baselineVisibleRegion = context.region
@@ -197,19 +255,6 @@ struct LocationPage: View {
                 }
             }
             .ignoresSafeArea()
-            if let headline = riskState.headline, snapshot?.isCurrent == true {
-                GeometryReader { geometry in
-                    Text(headline)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(riskState == .high ? .white : .black)
-                        .padding(.horizontal, 17).padding(.vertical, 9)
-                        .background(riskState.color, in: Capsule())
-                        .shadow(color: .black.opacity(0.22), radius: 5, y: 3)
-                        .position(x: geometry.size.width / 2, y: geometry.size.height * 0.34)
-                        .accessibilityLabel(headline)
-                }
-                .allowsHitTesting(false)
-            }
             VStack(alignment: .leading) {
                 HStack(alignment: .top) {
                     Button(action: settings) {
@@ -219,7 +264,7 @@ struct LocationPage: View {
                             .overlay(Image(systemName: "person.crop.circle.fill").font(.system(size: 48)).foregroundStyle(OrbitStyle.teal))
                     }
                     .buttonStyle(.plain)
-                    .offset(y: -8)
+                    .offset(y: 10)
                     .accessibilityLabel("Open settings")
                     Spacer(minLength: 0)
                 }
@@ -255,8 +300,9 @@ struct LocationPage: View {
                     Spacer()
                     VStack(spacing: 12) {
                         FloatingMapButton(symbol: "sparkle", label: "Agent", action: agent)
-                        FloatingMapButton(symbol: "plus", label: "Add safe zone", action: {})
-                            .disabled(true)
+                        FloatingMapButton(symbol: "plus", label: "Add safe zone") {
+                            zoneEditor = SafeZoneEditorSelection(zone: nil)
+                        }
                         FloatingMapButton(symbol: "arrow.clockwise", label: "Refresh location", action: refresh)
                             .disabled(loading)
                     }
@@ -275,6 +321,16 @@ struct LocationPage: View {
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: snapshot?.recordedAt) { _, _ in focusOnSenior() }
         .onAppear { focusOnSenior() }
+        .fullScreenCover(item: $zoneEditor) { selection in
+            SafeZoneEditorPage(
+                zone: selection.zone,
+                initialCenter: selection.zone?.center ?? visibleRegion.map {
+                    MainlandCoordinates.toWGS84(GeoPoint(latitude: $0.center.latitude, longitude: $0.center.longitude))
+                } ?? snapshot?.coordinate ?? GeoPoint(latitude: 32.05664, longitude: 118.77361),
+                nearbyZones: zoneStore.visibleZones(in: snapshot),
+                save: { zoneStore.save($0) }, delete: { zoneStore.delete($0) }
+            )
+        }
     }
     private func focusOnSenior() {
         guard let point else { return }
@@ -284,13 +340,16 @@ struct LocationPage: View {
         let longitudes = coordinates.map(\.longitude)
         guard let minLatitude = latitudes.min(), let maxLatitude = latitudes.max(),
               let minLongitude = longitudes.min(), let maxLongitude = longitudes.max() else { return }
-        let center = CLLocationCoordinate2D(latitude: (minLatitude + maxLatitude) / 2,
-                                            longitude: (minLongitude + maxLongitude) / 2 + (maxLongitude - minLongitude) * 0.03)
-        let trailWidth = CLLocation(latitude: center.latitude, longitude: minLongitude)
-            .distance(from: CLLocation(latitude: center.latitude, longitude: maxLongitude))
-        let trailHeight = CLLocation(latitude: minLatitude, longitude: center.longitude)
-            .distance(from: CLLocation(latitude: maxLatitude, longitude: center.longitude))
-        let visibleMeters = max(640, trailWidth * 1.5, trailHeight * 1.5)
+        let eastWest = max(abs(point.longitude - minLongitude), abs(maxLongitude - point.longitude))
+        let horizontalMeters = CLLocation(latitude: point.latitude, longitude: point.longitude)
+            .distance(from: CLLocation(latitude: point.latitude, longitude: point.longitude + eastWest))
+        let northMeters = CLLocation(latitude: point.latitude, longitude: point.longitude)
+            .distance(from: CLLocation(latitude: maxLatitude, longitude: point.longitude))
+        let southMeters = CLLocation(latitude: point.latitude, longitude: point.longitude)
+            .distance(from: CLLocation(latitude: minLatitude, longitude: point.longitude))
+        let visibleMeters = max(640, horizontalMeters * 2.2, northMeters / 0.32, southMeters / 0.62)
+        let center = CLLocationCoordinate2D(latitude: point.latitude - visibleMeters * 0.15 / 111_320,
+                                            longitude: point.longitude)
         let region = MKCoordinateRegion(center: center, latitudinalMeters: visibleMeters,
                                         longitudinalMeters: visibleMeters)
         defaultRegion = region
@@ -421,6 +480,217 @@ private struct CaregiverSettingsPanel: View {
     }
 }
 
+struct SafeZoneEditorPage: View {
+    let zone: SafeZone?
+    let nearbyZones: [SafeZone]
+    let save: (SafeZone) -> Void
+    let delete: (SafeZone) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var camera: MapCameraPosition
+    @State private var selectedCenter: GeoPoint
+    @State private var tag: String
+    @State private var radius: Int
+    @State private var address = ""
+    @State private var newTag = ""
+    @State private var showingNewTag = false
+    @State private var confirmingDelete = false
+    private let radii = [100, 200, 500, 1000, 2000]
+    private let presets = ["Home", "Market", "Hospital"]
+    private let mapTop: CGFloat = 65
+    private let pinFraction = 0.36
+
+    init(zone: SafeZone?, initialCenter: GeoPoint, nearbyZones: [SafeZone],
+         save: @escaping (SafeZone) -> Void, delete: @escaping (SafeZone) -> Void) {
+        self.zone = zone; self.nearbyZones = nearbyZones
+        self.save = save; self.delete = delete
+        let point = zone?.center ?? initialCenter
+        let mapPoint = point.appleCoordinate
+        let region = MKCoordinateRegion(center: CLLocationCoordinate2D(
+            latitude: mapPoint.latitude - 950 * 0.14 / 111_320,
+            longitude: mapPoint.longitude), latitudinalMeters: 950, longitudinalMeters: 950)
+        _camera = State(initialValue: .region(region))
+        _selectedCenter = State(initialValue: point)
+        _tag = State(initialValue: zone?.name ?? "Home")
+        let savedRadius = zone?.radiusMeters ?? 200
+        _radius = State(initialValue: savedRadius.isFinite && (1...20_000).contains(savedRadius)
+            ? Int(savedRadius.rounded()) : 200)
+    }
+
+    private var coordinateText: String {
+        String(format: "%.5f, %.5f", selectedCenter.latitude, selectedCenter.longitude)
+    }
+    private var tagChoices: [String] { presets.contains(tag) ? presets : presets + [tag] }
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .top) {
+                OrbitStyle.teal.ignoresSafeArea()
+                Map(position: $camera) {
+                    ForEach(nearbyZones.filter { $0.id != zone?.id && $0.center.isValid }, id: \.renderKey) { item in
+                        Annotation(item.name, coordinate: item.center.appleCoordinate, anchor: .bottom) {
+                            Image(systemName: item.name.lowercased() == "home" ? "house.fill" : "storefront.fill")
+                                .font(.system(size: 18)).foregroundStyle(.white)
+                                .frame(width: 36, height: 36).background(OrbitStyle.teal, in: Circle())
+                        }
+                    }
+                    MapCircle(center: selectedCenter.appleCoordinate, radius: Double(radius))
+                        .foregroundStyle(OrbitStyle.teal.opacity(0.32))
+                        .stroke(OrbitStyle.teal.opacity(0.42), lineWidth: 1)
+                }
+                .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+                .mapControlVisibility(.hidden)
+                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 34, topTrailingRadius: 34))
+                .padding(.top, mapTop)
+                .onMapCameraChange(frequency: .continuous) { context in
+                    let mapPoint = GeoPoint(
+                        latitude: context.region.center.latitude + context.region.span.latitudeDelta * (0.5 - pinFraction),
+                        longitude: context.region.center.longitude)
+                    if mapPoint.isValid { selectedCenter = MainlandCoordinates.toWGS84(mapPoint) }
+                }
+                .onMapCameraChange(frequency: .onEnd) { _ in
+                    address = ""
+                    Task { await resolveAddress() }
+                }
+
+                VStack(spacing: 0) {
+                    Circle().stroke(.black, lineWidth: 8).background(.white, in: Circle())
+                        .frame(width: 22, height: 22)
+                    Rectangle().fill(.black).frame(width: 4, height: 19)
+                    Circle().fill(.black).frame(width: 8, height: 8)
+                }
+                .position(x: geometry.size.width / 2,
+                          y: mapTop + (geometry.size.height - mapTop) * pinFraction)
+                .accessibilityLabel("Selected safe zone center")
+                .allowsHitTesting(false)
+
+                VStack(spacing: 0) {
+                    HStack {
+                        Button { dismiss() } label: {
+                            Label("Back", systemImage: "chevron.left")
+                                .font(.system(size: 21, weight: .medium)).foregroundStyle(.white)
+                        }
+                        .accessibilityLabel("Back")
+                        Spacer()
+                    }
+                    .padding(.horizontal, 26).frame(height: mapTop)
+                    Spacer(minLength: 0)
+                    HStack(spacing: 12) {
+                        Text(address.isEmpty ? coordinateText : address)
+                            .font(.system(size: 16)).lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: 29)).foregroundStyle(.black)
+                            .frame(width: 46, height: 46)
+                            .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Circle())
+                    }
+                    .padding(.leading, 23).padding(.trailing, 8).frame(height: 60)
+                    .background(.white, in: Capsule())
+                    .shadow(color: .black.opacity(0.13), radius: 5, y: 2)
+                    .padding(.bottom, 10)
+
+                    VStack(alignment: .leading, spacing: 17) {
+                        Text("Tag").font(.system(size: 17, weight: .semibold))
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 7) {
+                                ForEach(tagChoices, id: \.self) { choice in
+                                    Button("#\(choice)") { tag = choice }
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(tag == choice ? .white : .black)
+                                        .padding(.horizontal, 12).frame(height: 31)
+                                        .background(tag == choice ? OrbitStyle.teal : Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
+                                }
+                                Button("＋ New Tag") { newTag = ""; showingNewTag = true }
+                                    .font(.system(size: 14)).foregroundStyle(.black)
+                                    .padding(.horizontal, 11).frame(height: 31)
+                                    .overlay(Capsule().stroke(.black, lineWidth: 1))
+                            }
+                        }
+                        Text("Safe Zone Radius").font(.system(size: 17, weight: .semibold))
+                            .padding(.top, 2)
+                        HStack(alignment: .center, spacing: 4) {
+                            HStack(spacing: 0) {
+                                ForEach(radii, id: \.self) { value in
+                                    Button { radius = value } label: {
+                                        VStack(spacing: 5) {
+                                            Circle().fill(radius == value ? OrbitStyle.teal : Color(red: 0.82, green: 0.90, blue: 0.90))
+                                                .frame(width: radius == value ? 16 : 10, height: radius == value ? 16 : 10)
+                                                .frame(height: 16)
+                                            Text("\(value)m")
+                                                .font(.system(size: 10)).foregroundStyle(.secondary)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                    }
+                                    .accessibilityLabel("\(value) meters")
+                                }
+                            }
+                            .background(alignment: .top) {
+                                Rectangle().fill(Color(red: 0.82, green: 0.90, blue: 0.90))
+                                    .frame(height: 3).padding(.top, 7)
+                            }
+                            Text("\(radius)m")
+                                .font(.system(size: 13, weight: .medium))
+                                .frame(width: 57, height: 27)
+                                .background(Color(red: 0.82, green: 0.90, blue: 0.90), in: Capsule())
+                        }
+                        Text("Changes last until you leave this session.")
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                        HStack(spacing: 12) {
+                            Button("Cancel") { dismiss() }
+                                .foregroundStyle(.black)
+                                .frame(maxWidth: .infinity).frame(height: 49)
+                                .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
+                            Button(zone == nil ? "Create Safe Zone" : "Save Changes") {
+                                let value = SafeZone(id: zone?.id ?? UUID().uuidString, name: tag,
+                                                     center: selectedCenter, radiusMeters: Double(radius))
+                                save(value); dismiss()
+                            }
+                            .disabled(!selectedCenter.isValid)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, maxHeight: 49)
+                            .background(OrbitStyle.teal, in: Capsule())
+                        }
+                        .font(.system(size: 16, weight: .medium))
+                        if zone != nil {
+                            Button("Delete Safe Zone", role: .destructive) { confirmingDelete = true }
+                                .font(.system(size: 12)).frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding(19)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 28))
+                    .shadow(color: .black.opacity(0.14), radius: 8, y: 3)
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+        .background(OrbitStyle.teal)
+        .alert("New Tag", isPresented: $showingNewTag) {
+            TextField("Tag name", text: $newTag)
+            Button("Add") {
+                let value = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+                if !value.isEmpty { tag = String(value.prefix(24)) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Enter a name for this safe zone.") }
+        .confirmationDialog("Delete this safe zone?", isPresented: $confirmingDelete) {
+            if let zone {
+                Button("Delete Safe Zone", role: .destructive) { delete(zone); dismiss() }
+            }
+        } message: { Text("This change lasts only until you leave this session.") }
+    }
+
+    private func resolveAddress() async {
+        let point = selectedCenter
+        let geocoder = CLGeocoder()
+        let mapPoint = point.appleCoordinate
+        guard let placemark = try? await geocoder.reverseGeocodeLocation(
+            CLLocation(latitude: mapPoint.latitude, longitude: mapPoint.longitude)).first,
+              selectedCenter == point else { return }
+        address = [placemark.thoroughfare, placemark.subLocality, placemark.locality]
+            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+}
+
 private struct FloatingMapButton: View {
     let symbol: String
     let label: String
@@ -446,9 +716,9 @@ private struct SeniorLocationCard: View {
     private var canNavigate: Bool { snapshot?.isCurrent == true }
     private var canCall: Bool { PhoneNumber.isValid(profile.phone) }
     var body: some View {
-        VStack(alignment: .leading, spacing: 15) {
+        VStack(alignment: .leading, spacing: 11) {
             HStack(spacing: 14) {
-                ProfileAvatar(photo: profile.photo, size: 65)
+                ProfileAvatar(photo: profile.photo, size: 60)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(profile.name).font(.system(size: 18, weight: .semibold)).lineLimit(1)
                     HStack(spacing: 8) {
@@ -492,7 +762,7 @@ private struct SeniorLocationCard: View {
                 }.disabled(!canNavigate)
             }
         }
-        .padding(13)
+        .padding(11)
         .background {
             RoundedRectangle(cornerRadius: 23).fill(.white)
                 .shadow(color: .black.opacity(0.168), radius: 8, y: 4)

@@ -38,7 +38,8 @@ final class LocationTests: XCTestCase {
             window.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
             window.rootViewController = UIHostingController(rootView: ZStack {
                 LocationPage(profile: profile, snapshot: LocationPreviewData.snapshot(), message: nil,
-                             loading: false, refresh: {}, agent: {}, navigate: {}, riskState: risk)
+                             loading: false, refresh: {}, agent: {}, navigate: {}, riskState: risk,
+                             usesPreviewTrail: true)
                 VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)) }
             }.environment(\.colorScheme, .light))
             window.makeKeyAndVisible()
@@ -52,6 +53,39 @@ final class LocationTests: XCTestCase {
             try data.write(to: folder.appendingPathComponent("location-\(risk.rawValue).png"))
             let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
             attachment.name = "location-\(risk.rawValue)"; attachment.lifetime = .keepAlways; add(attachment)
+            window.isHidden = true
+            previous?.makeKeyAndVisible()
+        }
+    }
+    @MainActor func testSafeZoneEditorSnapshots() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("FrontendSnapshots")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for (name, size, type) in [
+            ("safe-zone-add", CGSize(width: 393, height: 852), DynamicTypeSize.large),
+            ("safe-zone-edit-small-large-text", CGSize(width: 375, height: 812), DynamicTypeSize.accessibility1)
+        ] {
+            let window = UIWindow(windowScene: scene)
+            window.frame = CGRect(origin: .zero, size: size)
+            window.rootViewController = UIHostingController(rootView: SafeZoneEditorPage(
+                zone: name == "safe-zone-add" ? nil : LocationPreviewData.snapshot().safeZones[0],
+                initialCenter: LocationPreviewData.campus,
+                nearbyZones: LocationPreviewData.snapshot().safeZones,
+                save: { _ in }, delete: { _ in }
+            ).environment(\.dynamicTypeSize, type).environment(\.colorScheme, .light))
+            window.makeKeyAndVisible()
+            window.rootViewController?.view.frame = window.bounds
+            window.rootViewController?.view.layoutIfNeeded()
+            try await Task.sleep(for: .milliseconds(2500))
+            let image = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in
+                window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+            }
+            let data = try XCTUnwrap(image.pngData())
+            try data.write(to: folder.appendingPathComponent("\(name).png"))
+            let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
+            attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
             window.isHidden = true
             previous?.makeKeyAndVisible()
         }
@@ -73,6 +107,25 @@ final class LocationTests: XCTestCase {
         XCTAssertEqual(LocationPreviewData.trail.first, LocationPreviewData.startingPoint)
         XCTAssertEqual(LocationPreviewData.trail.last, LocationPreviewData.campus)
         XCTAssertGreaterThan(LocationPreviewData.trail.count, 3)
+        XCTAssertEqual(snapshot().safeZones.first?.radiusMeters, 200)
+        let displayed = nanjing.appleCoordinate
+        let recovered = MainlandCoordinates.toWGS84(GeoPoint(latitude: displayed.latitude, longitude: displayed.longitude))
+        XCTAssertLessThan(CLLocation(latitude: recovered.latitude, longitude: recovered.longitude)
+            .distance(from: CLLocation(latitude: nanjing.latitude, longitude: nanjing.longitude)), 1)
+    }
+    @MainActor func testSafeZoneChangesLastOnlyForSession() {
+        let original = snapshot()
+        let store = SafeZoneSessionStore()
+        XCTAssertEqual(store.visibleZones(in: original).first?.radiusMeters, 200)
+        let changed = SafeZone(id: "campus", name: "Market", center: LocationPreviewData.campus, radiusMeters: 500)
+        store.save(changed)
+        XCTAssertEqual(store.visibleZones(in: original).first?.name, "Market")
+        let added = SafeZone(id: "new", name: "Home", center: LocationPreviewData.startingPoint, radiusMeters: 200)
+        store.save(added)
+        XCTAssertEqual(store.visibleZones(in: original).count, 2)
+        store.delete(changed)
+        XCTAssertEqual(store.visibleZones(in: original).map(\.id), ["new"])
+        XCTAssertEqual(SafeZoneSessionStore().visibleZones(in: original).map(\.id), ["campus"])
     }
     @MainActor func testWalkingRouteSuccessAndFailure() async {
         let stub = RouteStub()
