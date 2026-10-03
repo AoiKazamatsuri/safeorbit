@@ -117,8 +117,13 @@ struct AuthInput: View {
         HStack(spacing: 12) {
             Image(systemName: symbol).foregroundStyle(OrbitStyle.secondary).frame(width: 20)
             Group {
-                if password && !visible { SecureField(title, text: $text, prompt: Text(title).foregroundStyle(OrbitStyle.secondary)) }
-                else { TextField(title, text: $text, prompt: Text(title).foregroundStyle(OrbitStyle.secondary)).keyboardType(password ? .default : .emailAddress) }
+                if newPassword {
+                    SignupPasswordField(title: title, text: $text, visible: visible)
+                } else if password && !visible {
+                    SecureField(title, text: $text, prompt: Text(title).foregroundStyle(OrbitStyle.secondary))
+                } else {
+                    TextField(title, text: $text, prompt: Text(title).foregroundStyle(OrbitStyle.secondary)).keyboardType(password ? .default : .emailAddress)
+                }
             }.textInputAutocapitalization(.never).autocorrectionDisabled()
                 .textContentType(password ? (newPassword ? .newPassword : .password) : .emailAddress)
                 .accessibilityLabel(title)
@@ -129,6 +134,114 @@ struct AuthInput: View {
             }
         }.font(.subheadline).padding(.horizontal, 18).padding(.vertical, 14).frame(minHeight: 48)
             .overlay(Capsule().stroke(OrbitStyle.border, lineWidth: 1))
+    }
+}
+
+// UIKit keeps the registration text input alive while secure entry is toggled.
+// Password AutoFill can clear its displayed text when its suggestion is dismissed;
+// only a user edit reported by the delegate is allowed to clear the draft.
+struct SignupPasswordField: UIViewRepresentable {
+    let title: String
+    @Binding var text: String
+    let visible: Bool
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> UITextField {
+        let field = UITextField()
+        field.delegate = context.coordinator
+        field.addTarget(context.coordinator, action: #selector(Coordinator.textChanged(_:)), for: .editingChanged)
+        field.font = .preferredFont(forTextStyle: .subheadline)
+        field.placeholder = title
+        field.accessibilityLabel = title
+        field.textContentType = .newPassword
+        field.autocapitalizationType = .none
+        field.autocorrectionType = .no
+        field.spellCheckingType = .no
+        field.isSecureTextEntry = true
+        field.text = text
+        context.coordinator.draft = text
+        context.coordinator.field = field
+        return field
+    }
+
+    func updateUIView(_ field: UITextField, context: Context) {
+        let coordinator = context.coordinator
+        coordinator.parent = self
+        if field.isSecureTextEntry == visible {
+            let selection = field.selectedTextRange
+            field.isSecureTextEntry = !visible
+            // UIKit may reset the text or selection when secure entry changes.
+            field.text = coordinator.draft
+            if let selection { field.selectedTextRange = selection }
+        }
+        if text != coordinator.draft {
+            coordinator.draft = text
+            field.text = text
+        } else if field.text != coordinator.draft {
+            field.text = coordinator.draft
+        }
+    }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: SignupPasswordField
+        var draft = ""
+        weak var field: UITextField?
+        private var expectedUserText: String?
+        private var keyboardObserver: NSObjectProtocol?
+
+        init(_ parent: SignupPasswordField) {
+            self.parent = parent
+            super.init()
+            keyboardObserver = NotificationCenter.default.addObserver(
+                forName: UIResponder.keyboardDidShowNotification, object: nil, queue: .main
+            ) { [weak self] _ in self?.restoreSystemClearedText() }
+        }
+
+        deinit {
+            if let keyboardObserver { NotificationCenter.default.removeObserver(keyboardObserver) }
+        }
+
+        private func restoreSystemClearedText() {
+            guard let field, field.window != nil, (field.text ?? "").isEmpty, !draft.isEmpty else { return }
+            field.text = draft
+        }
+
+        func textField(_ field: UITextField, shouldChangeCharactersIn range: NSRange, replacementString replacement: String) -> Bool {
+            if let current = field.text, let swiftRange = Range(range, in: current) {
+                expectedUserText = current.replacingCharacters(in: swiftRange, with: replacement)
+            } else {
+                expectedUserText = nil
+            }
+            return true
+        }
+
+        @objc func textChanged(_ field: UITextField) {
+            let current = field.text ?? ""
+            if current.isEmpty && !draft.isEmpty && expectedUserText != "" {
+                field.text = draft
+                expectedUserText = nil
+                if !field.isFirstResponder { field.becomeFirstResponder() }
+                return
+            }
+            expectedUserText = nil
+            draft = current
+            parent.text = current
+        }
+
+        func textFieldDidChangeSelection(_ field: UITextField) {
+            if expectedUserText != "" { restoreSystemClearedText() }
+        }
+
+        func textFieldDidEndEditing(_ field: UITextField) {
+            if (field.text ?? "").isEmpty && !draft.isEmpty {
+                field.text = draft
+                DispatchQueue.main.async { [weak field] in
+                    guard let field, field.window != nil else { return }
+                    field.becomeFirstResponder()
+                }
+            }
+        }
     }
 }
 struct SocialLoginButtons: View {

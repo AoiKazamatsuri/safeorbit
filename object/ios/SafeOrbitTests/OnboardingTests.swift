@@ -6,6 +6,44 @@ import CryptoKit
 @testable import SafeOrbit
 
 final class OnboardingTests: XCTestCase {
+    @MainActor func testSignupPasswordDraftRestoresUnexpectedClearButAllowsUserDelete() {
+        var password = "sample"
+        let input = SignupPasswordField(title: "Password", text: Binding(get: { password }, set: { password = $0 }), visible: false)
+        let coordinator = input.makeCoordinator()
+        let field = UITextField()
+        coordinator.draft = password
+        field.text = ""
+        coordinator.textChanged(field)
+        XCTAssertEqual(field.text?.count, 6)
+        XCTAssertEqual(password.count, 6)
+
+        field.text = password
+        XCTAssertTrue(coordinator.textField(field, shouldChangeCharactersIn: NSRange(location: 0, length: 6), replacementString: ""))
+        field.text = ""
+        coordinator.textChanged(field)
+        XCTAssertEqual(password.count, 0)
+        XCTAssertEqual(field.text?.count, 0)
+    }
+    @MainActor func testSignupPasswordRestoresSystemClearedDisplayWithoutChangingDraft() {
+        var password = "sample"
+        let input = SignupPasswordField(title: "Password", text: Binding(get: { password }, set: { password = $0 }), visible: false)
+        let coordinator = input.makeCoordinator()
+        let window = UIWindow()
+        let field = UITextField()
+        window.addSubview(field)
+        coordinator.field = field
+        coordinator.draft = password
+
+        field.text = ""
+        coordinator.textFieldDidChangeSelection(field)
+        XCTAssertEqual(field.text?.count, 6)
+        XCTAssertEqual(password.count, 6)
+
+        field.text = ""
+        NotificationCenter.default.post(name: UIResponder.keyboardDidShowNotification, object: nil)
+        XCTAssertEqual(field.text?.count, 6)
+        XCTAssertEqual(password.count, 6)
+    }
 #if DEBUG
     @MainActor func testDebugEmailPreviewEntersHomeWithoutBackendSession() async {
         let store = OnboardingStore(previewAccessEnabled: true)

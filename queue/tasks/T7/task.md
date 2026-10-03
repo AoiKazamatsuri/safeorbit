@@ -1,22 +1,22 @@
-# 家属登录前端：底部提醒卡片宽度
+# 注册页密码输入中断返工
 
 ```json
 {
   "id": "T7",
-  "revision": 84,
+  "revision": 88,
   "assignee": "Codex",
   "parent": null,
   "deps": [
     "T6"
   ],
-  "round": 8,
+  "round": 9,
   "status": "交付"
 }
 ```
 
 ## 登记依据
 
-用户指出登录页底部提醒卡片宽于上方输入卡片，要求两者等宽。原有家属登录、注册、开发构建交互预览和淡绿色胶囊视觉要求继续有效。
+用户在 iPhone 18 Pro、iOS 27 的注册页发现：输入首个密码字符时弹出系统强密码建议，关闭后首字符消失，必须重新输入。用户明确要求实施既定修复方案：保留系统强密码建议，但关闭后保留已输入字符并能继续输入。本件继续属于家属登录前端 T7。
 
 ## 任务包
 
@@ -33,6 +33,7 @@
 - [approval-006.md](approval-006.md)
 - [approval-007.md](approval-007.md)
 - [approval-008.md](approval-008.md)
+- [approval-009.md](approval-009.md)
 - [receipt-000043.md](receipt-000043.md)
 - [receipt-000047.md](receipt-000047.md)
 - [receipt-000049.md](receipt-000049.md)
@@ -44,6 +45,7 @@
 - [receipt-000068.md](receipt-000068.md)
 - [receipt-000078.md](receipt-000078.md)
 - [receipt-000084.md](receipt-000084.md)
+- [receipt-000088.md](receipt-000088.md)
 
 ## 过程记录
 
@@ -78,6 +80,9 @@
 - #80｜rework｜Codex｜{"basis": "用户要求底部提醒卡片与登录页输入卡片等宽", "expect": 78, "id": "T7"}
 - #81｜amend｜Codex｜{"authority": {"basis": "用户明确要求底部提醒卡片宽度与上方卡片相同", "by": "用户"}, "expect": 80, "id": "T7", "proposal": {"criteria": "| 编号 | 可观察结果 | 验证方法 | 通过条件 |\n|---|---|---|---|\n| A1 | 提醒卡片与输入卡片等宽 | 同一模拟器宽度截图比较 | 两侧边界对齐，圆角和淡绿底色保留 |\n| A2 | 提醒可读可关闭 | 模拟器操作与大字截图 | 文字不截断，关闭按钮可点击 |\n| A3 | 原有流程不回退 | iOS 测试与 Release 构建 | 通过且正式身份验证路径保留 |\n\n验收安排：执行者自验并记录原样读数，最终由用户验收。", "origin": "用户指出登录页底部提醒卡片宽于上方输入卡片，要求两者等宽。原有家属登录、注册、开发构建交互预览和淡绿色胶囊视觉要求继续有效。", "plan": "1. 返工当前交付并一次更新范围。\n2. 修正底部提醒布局并截图核对。\n3. 运行检查、重新交付并提交本地，不推送。", "scope": "- 要交付：底部提醒卡片与登录表单内容使用相同水平边距及最大宽度；在窄屏、普通屏和大字下文字及关闭按钮保持可读可点。其他登录、注册、档案与绑定逻辑不变。\n- 不包含：后端、账号服务、truth、reference 修改；不纳入用户原先两份字符串资源的未提交改动。\n- 允许修改的位置：object/ios/ 下 App 入口、相关截图测试和前端说明；队列文件仅经工具维护。", "title": "家属登录前端：底部提醒卡片宽度"}}
 - #84｜deliver｜Codex｜{"artifacts": [{"path": "object/ios/SafeOrbit/SafeOrbitApp.swift", "sha256": "0b56746b49c7720f16205ef9d966fd2f1e3e0159451fb7ba436848067aa93f6b"}, {"path": "object/ios/SafeOrbitTests/OnboardingTests.swift", "sha256": "7c056da2b4d51da242decfd4d5211d739cb8b6116f9f71fead33f9f52859e07e"}, {"path": "object/ios/README.md", "sha256": "b7a2e47498a541083cdcd4d714786a02ca958c22cf611bb0a524e02a9383e921"}], "expect": 81, "id": "T7", "receipt": "# T7 底部提醒宽度返工交付\n\n底部网络/错误提醒现在沿用登录表单的 36 pt 水平边距和 480 pt 最大容器宽度。抽成 BottomNotice 后，登录页与截图测试使用同一组件；浅绿色、胶囊圆角和关闭操作保留。前端使用说明同步更新。未改后端、参考图、长期要求或用户已有的字符串资源改动；无新增依赖。\n\n## 验证事实（未独立验证）\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -derivedDataPath /private/tmp/safeorbit-dd-20261003 CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- -testLanguage en -testRegion US test > /private/tmp/safeorbit-test-final-20261003.log 2>&1`。退出码 0；原样输出摘录：`Executed 19 tests, with 0 failures (0 unexpected)`、`** TEST SUCCEEDED **`。`login-warning` 截图导出到 `/private/tmp/safeorbit-attachments-delivery-20261003/EBEE9D42-E578-457D-BB9B-3804D026EE11.png`；目视核对提醒卡片和上方输入卡片两侧对齐，文字和关闭图标可见。\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/safeorbit-release-20261003 CODE_SIGNING_ALLOWED=NO build > /private/tmp/safeorbit-release-final-20261003.log 2>&1`。退出码 0；原样输出摘录：`** BUILD SUCCEEDED **`。`git diff --check` 退出码 0，无输出。截图与命令由执行者自验，未独立验证；用户视觉验收尚未记录。\n", "summary": "底部提醒与登录输入等宽；19 项测试和 Release 构建通过，未独立验证", "verification": "passed"}
+- #86｜rework｜Codex｜{"basis": "用户要求修复注册密码输入时关闭系统强密码建议后草稿消失", "expect": 84, "id": "T7"}
+- #87｜amend｜Codex｜{"authority": {"basis": "用户明确要求实施注册密码输入修复方案，保留系统强密码建议且关闭后可续输", "by": "用户"}, "expect": 86, "id": "T7", "proposal": {"criteria": "| 编号 | 可观察结果 | 验证方法 | 通过条件 |\n|---|---|---|---|\n| A1 | 系统建议取消后手动草稿仍在且能续输 | iPhone 18 Pro、iOS 27 模拟器首字、弹窗、关闭、续输实跑 | 不需重输首字或重新聚焦；不记录明文密码 |\n| A2 | 主动删除、眼睛按钮、确认密码与系统生成密码可用 | 模拟器交互及前端测试 | 主动清空不会被误恢复；切换显示不丢字；既有校验正确 |\n| A3 | 其他登录与正式构建不回退 | 完整 iOS 测试、Release 构建、范围核对 | 测试和构建通过；不改后端、truth、reference 或用户已有字符串资源 |\n\n验收安排：执行者代跑并记录原样命令、退出码与观察，标未独立验证；用户最终验收。若 iOS 自身清空无法在保留系统建议的前提下稳定拦截，回执如实标未通过，不以构建成功代替交互成功。", "origin": "用户在 iPhone 18 Pro、iOS 27 的注册页发现：输入首个密码字符时弹出系统强密码建议，关闭后首字符消失，必须重新输入。用户明确要求实施既定修复方案：保留系统强密码建议，但关闭后保留已输入字符并能继续输入。本件继续属于家属登录前端 T7。", "plan": "1. 返工 T7 并一次更新批准基线；复现和定位输入、焦点变化，不记录密码内容。\n2. 仅替换注册密码控件，保留系统强密码建议，保护手动草稿及焦点。\n3. 实跑取消、续输、主动删除、显示切换、确认及强密码接受路径；运行完整测试与 Release 构建。\n4. 记录结果并在验证通过时交付，同批本地提交；不推送。", "scope": "- 要交付：注册页的密码与确认密码使用身份稳定的输入控件，继续标记新密码以保留 iOS 强密码建议；显示/隐藏不重建输入控件；系统提示取消后的非用户主动清空不丢失草稿，焦点可以继续输入；用户主动删除仍正常；邮箱、长度和确认一致校验、Debug 预览登录、Release 真正登录路径保持原有行为。\n- 不包含：后端、账号、证书、系统密码管理器设置、登录页现有密码输入方式、truth 与 reference 改动；不纳入已有两份字符串资源的工作区修改。\n- 允许修改的位置：object/ios/ 下注册输入 SwiftUI 源码、相关测试与使用说明；必要时既有 Xcode 工程及源码生成清单。队列记录只经工具维护。", "title": "注册页密码输入中断返工"}}
+- #88｜deliver｜Codex｜{"artifacts": [{"path": "object/ios/SafeOrbit/OnboardingUI.swift", "sha256": "ed1d00a85b3c30b0ed7ec19c864f355e42d929d8c113744a148d8c0305540602"}, {"path": "object/ios/SafeOrbitTests/OnboardingTests.swift", "sha256": "988ebb2086da4dca2c21ec08741b8697be0039164c1b2eb2707b04eb59376210"}], "expect": 87, "id": "T7", "receipt": "# T7 注册密码输入返工回执\n\n注册页两个新密码框改用同一实例的 UIKit 输入控件，保留 `.newPassword`。眼睛按钮只切换安全输入状态；手动草稿与控件显示分开保存，普通编辑事件、选择变化和系统键盘恢复时核对意外清空。登录页控件、表单校验和注册接口未改。没有新增依赖；两份原有 `.xcstrings` 工作区修改未纳入工件。\n\n## 验证事实（未独立验证）\n\n在 iPhone 18 Pro、iOS 27 模拟器观察到系统强密码建议出现，首字输入后主密码和确认密码均显示 1 个字符；点击建议的叉后，两个控件显示均被系统清空，但应用的密码草稿未清空，点击眼睛按钮可恢复显示。此发现促成对系统清空显示的额外恢复处理。之后在同一模拟器验证了首字输入、眼睛按钮往返及主动删除；建议被取消后，换邮箱、重启应用及重启模拟器均未再次出现，因此最终补丁下的“点叉后无需重新聚焦即可续输”和“接受系统强密码”两条交互路径尚未实测通过，不能据此宣称 A1/A2 全部通过。排查只记录字符数和焦点/控件状态，不记录真实密码内容。\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -derivedDataPath /private/tmp/safeorbit-password-test-dd CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- -testLanguage en -testRegion US test > /private/tmp/safeorbit-password-test.log 2>&1`。退出码 0；原样输出摘录：`Executed 21 tests, with 0 failures (0 unexpected)`、`** TEST SUCCEEDED **`。新增测试覆盖意外清空的草稿恢复、用户主动删除及系统清空显示后的回填。\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/safeorbit-password-release-dd CODE_SIGNING_ALLOWED=NO build > /private/tmp/safeorbit-password-release.log 2>&1`。退出码 0；原样输出摘录：`** BUILD SUCCEEDED **`。`git diff --check` 退出码 0，无输出。\n\n下一步需在系统再次出现强密码建议时实走首字、点叉、续输、确认和接受建议，再由用户决定是否验收。本次申报未验证，不能记通过。\n", "summary": "注册密码控件与系统清空恢复已实现；测试及构建通过，最终系统建议取消交互待复现", "verification": "unverified"}
 
 ## 接手说明
 
