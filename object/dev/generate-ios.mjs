@@ -17,8 +17,8 @@ function add(isa, name, data) {
   objects[isa][id(name) + '_comment'] = name;
   return id(name);
 }
-const sources = ['SafeOrbit/SafeOrbitApp.swift', 'SafeOrbit/ServerConfiguration.swift', 'SafeOrbit/OnboardingModels.swift', 'SafeOrbit/OnboardingAPI.swift', 'SafeOrbit/OnboardingStore.swift', 'SafeOrbit/OnboardingUI.swift', 'SafeOrbit/QRScanner.swift', 'SafeOrbit/LocationModels.swift', 'SafeOrbit/LocationUI.swift', 'SafeOrbit/WalkingNavigation.swift'];
-const tests = ['SafeOrbitTests/ServerConfigurationTests.swift', 'SafeOrbitTests/OnboardingTests.swift', 'SafeOrbitTests/LocationTests.swift'];
+const sources = ['SafeOrbit/SafeOrbitApp.swift', 'SafeOrbit/ServerConfiguration.swift', 'SafeOrbit/OnboardingModels.swift', 'SafeOrbit/OnboardingAPI.swift', 'SafeOrbit/OnboardingStore.swift', 'SafeOrbit/OnboardingUI.swift', 'SafeOrbit/QRScanner.swift', 'SafeOrbit/LocationModels.swift', 'SafeOrbit/LocationUI.swift', 'SafeOrbit/WalkingNavigation.swift', 'SafeOrbit/RecordsDemoData.swift', 'SafeOrbit/RecordsUI.swift', 'SafeOrbit/AgentChatUI.swift', 'SafeOrbit/SpeechInput.swift'];
+const tests = ['SafeOrbitTests/ServerConfigurationTests.swift', 'SafeOrbitTests/OnboardingTests.swift', 'SafeOrbitTests/LocationTests.swift', 'SafeOrbitTests/RecordsTests.swift'];
 const resources = ['SafeOrbit/Assets.xcassets', 'SafeOrbit/Localizable.xcstrings', 'SafeOrbit/InfoPlist.xcstrings'];
 const files = [...sources, ...tests, ...resources, 'SafeOrbit/SafeOrbit.entitlements', 'SafeOrbit/Info.plist', 'Config/Debug.xcconfig', 'Config/Release.xcconfig'];
 for (const file of files) {

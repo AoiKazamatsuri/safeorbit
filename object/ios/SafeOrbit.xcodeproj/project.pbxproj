@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D9239BCEB476D34C1EE938F2 /* SafeOrbitTests/RecordsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F8F6174CEB43AB9F458F407 /* SafeOrbitTests/RecordsTests.swift */; };
+		F588D6903A4F478322A36064 /* SafeOrbit/RecordsDemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACAA506A3F96B16CEF9A2AC6 /* SafeOrbit/RecordsDemoData.swift */; };
+		BF5EE4F8FAF460EEDC28CC18 /* SafeOrbit/RecordsUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA53952549CDCA05340C60F9 /* SafeOrbit/RecordsUI.swift */; };
+		321A60DCBB9E709B352A2238 /* SafeOrbit/AgentChatUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB4F603B5486041FEBA35ACC /* SafeOrbit/AgentChatUI.swift */; };
+		28253C904530F4D2D868CCA0 /* SafeOrbit/SpeechInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ACB9C79C3916CFE444EAF9A /* SafeOrbit/SpeechInput.swift */; };
 		07847ED970BE051D143FB891 /* SafeOrbit/OnboardingAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38AD48EA6F376F2130580E69 /* SafeOrbit/OnboardingAPI.swift */; };
 		09A74B74C46451ABC6862DE0 /* SafeOrbit/ServerConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366EE99968210FA8F05B566B /* SafeOrbit/ServerConfiguration.swift */; };
 		12AE4209B019D95CC96587FE /* SafeOrbit/SafeOrbitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB2BD550F06A795A4AB7FF4 /* SafeOrbit/SafeOrbitApp.swift */; };
@@ -36,6 +41,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		7F8F6174CEB43AB9F458F407 /* SafeOrbitTests/RecordsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbitTests/RecordsTests.swift; sourceTree = "<group>"; };
+		ACAA506A3F96B16CEF9A2AC6 /* SafeOrbit/RecordsDemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/RecordsDemoData.swift; sourceTree = "<group>"; };
+		DA53952549CDCA05340C60F9 /* SafeOrbit/RecordsUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/RecordsUI.swift; sourceTree = "<group>"; };
+		BB4F603B5486041FEBA35ACC /* SafeOrbit/AgentChatUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/AgentChatUI.swift; sourceTree = "<group>"; };
+		0ACB9C79C3916CFE444EAF9A /* SafeOrbit/SpeechInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/SpeechInput.swift; sourceTree = "<group>"; };
 		2BD199390D0C58BE5786949D /* SafeOrbitTests/OnboardingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbitTests/OnboardingTests.swift; sourceTree = "<group>"; };
 		323B5140B8E0B7C06560E7E1 /* Config/Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Release.xcconfig; sourceTree = "<group>"; };
 		324AEABB7D6A4A7CFBDD6017 /* SafeOrbit/LocationUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/LocationUI.swift; sourceTree = "<group>"; };
@@ -91,9 +101,14 @@
 				A9A3FE8E397BF12CB48B73AB /* SafeOrbit/LocationModels.swift */,
 				324AEABB7D6A4A7CFBDD6017 /* SafeOrbit/LocationUI.swift */,
 				4EBAAC5DA9374795DDAA30B0 /* SafeOrbit/WalkingNavigation.swift */,
+				ACAA506A3F96B16CEF9A2AC6 /* SafeOrbit/RecordsDemoData.swift */,
+				DA53952549CDCA05340C60F9 /* SafeOrbit/RecordsUI.swift */,
+				BB4F603B5486041FEBA35ACC /* SafeOrbit/AgentChatUI.swift */,
+				0ACB9C79C3916CFE444EAF9A /* SafeOrbit/SpeechInput.swift */,
 				83308961FB490F788E6D4808 /* SafeOrbitTests/ServerConfigurationTests.swift */,
 				2BD199390D0C58BE5786949D /* SafeOrbitTests/OnboardingTests.swift */,
 				ABE5DE34AE2E68E7FC898500 /* SafeOrbitTests/LocationTests.swift */,
+				7F8F6174CEB43AB9F458F407 /* SafeOrbitTests/RecordsTests.swift */,
 				F029AA7C22824C0748EDB4F4 /* SafeOrbit/Assets.xcassets */,
 				95BE1949FB74F1944A0D15BF /* SafeOrbit/Localizable.xcstrings */,
 				92DAF409D0B1D7FE3A8369EC /* SafeOrbit/InfoPlist.xcstrings */,
@@ -228,6 +243,10 @@
 				9F652D161F32AC57BA6A7996 /* SafeOrbit/LocationModels.swift in Sources */,
 				8A2CA7E1C7367D01CEE17EC9 /* SafeOrbit/LocationUI.swift in Sources */,
 				8776AD886BD1ED8DDD3EE294 /* SafeOrbit/WalkingNavigation.swift in Sources */,
+				F588D6903A4F478322A36064 /* SafeOrbit/RecordsDemoData.swift in Sources */,
+				BF5EE4F8FAF460EEDC28CC18 /* SafeOrbit/RecordsUI.swift in Sources */,
+				321A60DCBB9E709B352A2238 /* SafeOrbit/AgentChatUI.swift in Sources */,
+				28253C904530F4D2D868CCA0 /* SafeOrbit/SpeechInput.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -238,6 +257,7 @@
 				9C0782040571C3F1E18FC874 /* SafeOrbitTests/ServerConfigurationTests.swift in Sources */,
 				C5284D633A6E2F64E34790E6 /* SafeOrbitTests/OnboardingTests.swift in Sources */,
 				A7280CD09F944E21FA20FD94 /* SafeOrbitTests/LocationTests.swift in Sources */,
+				D9239BCEB476D34C1EE938F2 /* SafeOrbitTests/RecordsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

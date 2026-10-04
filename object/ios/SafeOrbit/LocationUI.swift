@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import UIKit
 
 @MainActor final class SafeZoneSessionStore: ObservableObject {
     @Published private(set) var edits: [String: SafeZone] = [:]
@@ -104,6 +105,7 @@ struct CaregiverHomePage: View {
     @State private var tab: CaregiverTab = .location
     @State private var navigating = false
     @State private var showingSettings: Bool
+    @State private var keyboardVisible = false
     init(store: OnboardingStore, settingsInitiallyOpen: Bool = false) {
         self.store = store
         _showingSettings = State(initialValue: settingsInitiallyOpen)
@@ -126,17 +128,14 @@ struct CaregiverHomePage: View {
                              agent: { tab = .agent }, navigate: { navigating = true },
                              settings: { setSettings(true) }, riskState: riskState,
                              zoneStore: zoneStore, usesPreviewTrail: store.previewSession)
+            } else if tab == .agent {
+                AgentChatPage(keyboardVisible: keyboardVisible)
             } else {
-                Color.white.ignoresSafeArea()
-                VStack(spacing: 12) {
-                    Image(systemName: tab.symbol).font(.system(size: 38)).foregroundStyle(OrbitStyle.teal)
-                    Text(tab.rawValue).font(.system(size: 28, weight: .semibold))
-                    Text("Coming soon").font(.subheadline).foregroundStyle(.secondary)
-                    Button("Sign out") { Task { await store.signOut() } }
-                        .font(.footnote).padding(.top, 18)
-                }.offset(y: -30)
+                RecordsPage()
             }
-            VStack { Spacer(); CaregiverTabBar(selection: $tab) }
+            if !keyboardVisible {
+                VStack { Spacer(); CaregiverTabBar(selection: $tab) }
+            }
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     if showingSettings {
@@ -159,6 +158,12 @@ struct CaregiverHomePage: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .task { await store.refreshLocation() }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardVisible = false
+        }
         .fullScreenCover(isPresented: $navigating) {
             WalkingNavigationPage(snapshot: store.location, name: store.elder.name) { navigating = false }
         }
