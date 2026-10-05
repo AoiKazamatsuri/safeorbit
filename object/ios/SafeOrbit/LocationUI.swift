@@ -145,6 +145,7 @@ struct CaregiverHomePage: View {
                         CaregiverSettingsPanel(
                             name: store.previewSession ? "Emma Liu" : "Caregiver",
                             showsPreviewPortrait: store.previewSession,
+                            showsLogout: !store.homeAccessEnabled,
                             logout: { Task { await store.signOut(); setSettings(false) } }
                         )
                         .frame(width: geometry.size.width * 0.765, height: geometry.size.height)
@@ -383,6 +384,7 @@ private enum CaregiverSettingsItem: String, CaseIterable, Identifiable {
 private struct CaregiverSettingsPanel: View {
     let name: String
     let showsPreviewPortrait: Bool
+    let showsLogout: Bool
     let logout: () -> Void
     @State private var selectedItem: CaregiverSettingsItem?
 
@@ -458,14 +460,16 @@ private struct CaregiverSettingsPanel: View {
                 Spacer(minLength: 0)
             }
 
-            Button(action: logout) {
-                Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.black)
-                    .frame(maxWidth: .infinity).frame(height: 51)
-                    .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
+            if showsLogout {
+                Button(action: logout) {
+                    Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.black)
+                        .frame(maxWidth: .infinity).frame(height: 51)
+                        .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
+                }
+                .padding(.horizontal, 28).padding(.bottom, 42)
             }
-            .padding(.horizontal, 28).padding(.bottom, 42)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {

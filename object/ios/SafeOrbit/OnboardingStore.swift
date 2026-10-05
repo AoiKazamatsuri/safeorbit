@@ -29,18 +29,21 @@ import CryptoKit
     private let api: OnboardingAPI
     private let vault: SessionVault
     let previewAccessEnabled: Bool
+    let homeAccessEnabled: Bool
     private(set) var previewSession = false
     private var challenge: AuthChallenge?
-    init(api: OnboardingAPI = .init(baseURL: ServerConfiguration.baseURL), vault: SessionVault = .init(), previewAccessEnabled: Bool = false) {
+    init(api: OnboardingAPI = .init(baseURL: ServerConfiguration.baseURL), vault: SessionVault = .init(), previewAccessEnabled: Bool = false, homeAccessEnabled: Bool = false) {
         self.api = api; self.vault = vault
+        self.homeAccessEnabled = homeAccessEnabled
 #if DEBUG
         self.previewAccessEnabled = previewAccessEnabled
 #else
         self.previewAccessEnabled = false
 #endif
+        if homeAccessEnabled { enterPreviewHome() }
     }
     func restore() async {
-        if previewAccessEnabled { return }
+        if homeAccessEnabled || previewAccessEnabled { return }
         guard let saved = vault.load() else { return }
         token = saved; tokenRole = vault.role() ?? "caregiver"; restoring = true
         await perform { self.route(try await self.api.request("session", token: saved) as AppSession) }
@@ -232,6 +235,7 @@ import CryptoKit
         }
     }
     func signOut() async {
+        guard !homeAccessEnabled else { return }
         guard let token else { reset(); return }
         guard !busy else { return }
         busy = true
@@ -240,12 +244,10 @@ import CryptoKit
         reset(); busy = false
     }
     func refreshLocation() async {
-#if DEBUG
         if previewSession {
             location = LocationPreviewData.snapshot()
             return
         }
-#endif
         guard let token, screen == .caregiverHome, !locationLoading else { return }
         locationLoading = true
         defer { locationLoading = false }
@@ -271,18 +273,16 @@ import CryptoKit
         screen = .role; error = nil; authorizing = false; location = nil; locationError = nil; locationLoading = false
     }
 
-#if DEBUG
     private func enterPreviewHome() {
         previewSession = true
         token = nil
         elder.name = "Li Lan"
         elder.callName = "Li Lan"
-        elder.phone = "+12025550100" // Reserved fictional number for the Debug call handoff.
+        elder.phone = "+12025550100" // Reserved fictional number for the sample call handoff.
         elder.bound = true
         location = LocationPreviewData.snapshot()
         clearPasswords()
         error = nil
         screen = .caregiverHome
     }
-#endif
 }

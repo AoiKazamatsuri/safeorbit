@@ -1,7 +1,19 @@
 import SwiftUI
 
 @main struct SafeOrbitApp: App {
-    var body: some Scene { WindowGroup { OnboardingRoot() } }
+    // Temporarily open the home screen; OnboardingRoot retains the account flow.
+    var body: some Scene { WindowGroup { HomeRoot() } }
+}
+struct HomeRoot: View {
+    @StateObject private var store = OnboardingStore(homeAccessEnabled: true)
+    var body: some View {
+        NavigationStack {
+            CaregiverHomePage(store: store)
+        }
+        .tint(OrbitStyle.teal)
+        .environment(\.locale, Locale(identifier: "en"))
+        .preferredColorScheme(.light)
+    }
 }
 struct OnboardingRoot: View {
 #if DEBUG

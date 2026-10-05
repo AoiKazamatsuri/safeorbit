@@ -74,7 +74,6 @@ struct ElderLocationSnapshot: Decodable {
     var validHeading: Double? { guard let heading, heading.isFinite, (0..<360).contains(heading) else { return nil }; return heading }
 }
 
-#if DEBUG
 /// Illustrative road-aligned sample near Nanjing University's Gulou Campus; never used by the live location flow.
 enum LocationPreviewData {
     // Fixed illustrative points checked against visible Beijing West Road and
@@ -99,4 +98,3 @@ enum LocationPreviewData {
             safeZones: [.init(id: "campus", name: "Campus", center: startingPoint, radiusMeters: 200)])
     }
 }
-#endif

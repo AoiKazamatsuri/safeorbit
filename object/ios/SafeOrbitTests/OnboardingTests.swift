@@ -6,6 +6,33 @@ import CryptoKit
 @testable import SafeOrbit
 
 final class OnboardingTests: XCTestCase {
+    @MainActor func testDirectHomeLeavesSavedAccountUntouchedAndNeverRequestsSession() async throws {
+        let vault = SessionVault(service: "org.safeorbit.test." + UUID().uuidString)
+        defer { vault.clear(); StubURLProtocol.handler = nil }
+        try vault.save("saved-account-test-token", role: "elder")
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubURLProtocol.self]
+        let network = URLSession(configuration: config)
+        defer { network.invalidateAndCancel() }
+        StubURLProtocol.handler = { _ in
+            XCTFail("Direct home must not call account or location APIs")
+            return (401, Data())
+        }
+        let store = OnboardingStore(api: .init(baseURL: URL(string: "http://localhost")!, session: network),
+                                    vault: vault, homeAccessEnabled: true)
+        XCTAssertEqual(store.screen, .caregiverHome)
+        XCTAssertTrue(store.previewSession)
+        XCTAssertNil(store.token)
+        XCTAssertNotNil(store.location)
+        await store.restore()
+        await store.refreshLocation()
+        await store.signOut()
+        XCTAssertEqual(store.screen, .caregiverHome)
+        XCTAssertNil(store.error)
+        XCTAssertNil(store.locationError)
+        XCTAssertEqual(vault.load(), "saved-account-test-token")
+        XCTAssertEqual(vault.role(), "elder")
+    }
     @MainActor func testPasswordSuggestionPreviewDoesNotCommitConfirmation() {
         var confirmation = ""
         let input = SignupPasswordField(title: "Confirm password", text: Binding(
