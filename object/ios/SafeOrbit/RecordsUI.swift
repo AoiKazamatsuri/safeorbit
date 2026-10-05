@@ -29,17 +29,15 @@ struct RecordsPage: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("Recording")
-                .font(.system(size: 27, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 45, alignment: .center)
-                .padding(.bottom, 5)
-                .background(OrbitStyle.teal.ignoresSafeArea(edges: .top))
+            CaregiverTopBar {
+                Text("Recording")
+                    .font(.system(size: 27, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
             ScrollView {
-                VStack(spacing: 14) {
-                    sectionPicker
-                    if section == .data { dataContent }
+                VStack(spacing: 23) {
+                    sectionPicker.padding(.horizontal, 12)
+                    if section == .data { dataContent.padding(.horizontal, 12) }
                     else { trendContent }
                 }
                 .padding(.horizontal, 20)
@@ -47,10 +45,9 @@ struct RecordsPage: View {
                 .padding(.bottom, 112)
             }
             .background(.white, in: UnevenRoundedRectangle(topLeadingRadius: 29, topTrailingRadius: 29))
-            .background(OrbitStyle.teal)
+            .background(alignment: .top) { OrbitStyle.teal.frame(height: 40) }
         }
-        .background(.white)
-        .background(OrbitStyle.teal.ignoresSafeArea(edges: .top))
+        .background(Color.white.ignoresSafeArea(edges: .bottom))
         .fullScreenCover(item: $selectedTrip) { TripDetailPage(trip: $0) { selectedTrip = nil } }
     }
 
@@ -59,8 +56,8 @@ struct RecordsPage: View {
             ForEach(RecordsSection.allCases, id: \.self) { item in
                 Button { section = item } label: {
                     Text(item.rawValue)
-                        .font(.system(size: 20, weight: .medium))
-                        .frame(maxWidth: .infinity).frame(height: 38)
+                        .font(.system(size: 16, weight: .medium))
+                        .frame(maxWidth: .infinity).frame(height: 30)
                         .foregroundStyle(section == item ? .black : .white)
                         .background(section == item ? .white : .clear, in: Capsule())
                 }.accessibilityAddTraits(section == item ? .isSelected : [])
@@ -137,9 +134,8 @@ struct RecordsPage: View {
                 }
             }
         }
-        .padding(17)
-        .background(.white, in: RoundedRectangle(cornerRadius: 25))
-        .shadow(color: .black.opacity(0.16), radius: 7, y: 3)
+        .padding(14)
+        .caregiverCard()
     }
 
     private var monthCells: [Int?] {
@@ -180,7 +176,7 @@ struct RecordsPage: View {
                             Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(.black)
                         }
-                        .padding(.horizontal, 14).frame(minHeight: 59)
+                        .padding(.horizontal, 14).frame(minHeight: 50)
                     }.buttonStyle(.plain)
                     if index < min(weekTrips.count, expanded ? weekTrips.count : 4) - 1 {
                         Divider().padding(.horizontal, 12)
@@ -190,25 +186,18 @@ struct RecordsPage: View {
                     Button { expanded.toggle() } label: {
                         Label(expanded ? "View Less" : "View More", systemImage: expanded ? "chevron.up" : "chevron.down")
                             .font(.system(size: 16)).foregroundStyle(.black)
-                            .frame(maxWidth: .infinity).padding(.vertical, 10)
+                            .frame(maxWidth: .infinity).frame(height: 36)
                     }
                 }
             }
         }
-        .background(.white, in: RoundedRectangle(cornerRadius: 25))
-        .shadow(color: .black.opacity(0.16), radius: 7, y: 3)
+        .caregiverCard()
     }
 
     private var trendContent: some View {
         VStack(spacing: 16) {
             trendCard
             metricGrid
-            Text(patternDescription)
-                .font(.system(size: 16))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(20)
-                .background(.white, in: RoundedRectangle(cornerRadius: 24))
-                .shadow(color: .black.opacity(0.13), radius: 6, y: 3)
         }
     }
 
@@ -256,8 +245,7 @@ struct RecordsPage: View {
             }
         }
         .padding(21)
-        .background(.white, in: RoundedRectangle(cornerRadius: 25))
-        .shadow(color: .black.opacity(0.16), radius: 7, y: 3)
+        .caregiverCard()
     }
 
     private var metricGrid: some View {
@@ -305,10 +293,9 @@ struct RecordsPage: View {
                 .font(.system(size: 17, weight: .medium))
             Text("vs last month").font(.system(size: 11)).foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, minHeight: 118, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 138, alignment: .leading)
         .padding(11)
-        .background(.white, in: RoundedRectangle(cornerRadius: 24))
-        .shadow(color: .black.opacity(0.13), radius: 6, y: 3)
+        .caregiverCard(radius: 24, opacity: 0.13)
     }
 
     private func bar(_ value: Int, maxValue: Int, lighter: Bool) -> some View {
@@ -319,12 +306,6 @@ struct RecordsPage: View {
                 .fill(lighter ? OrbitStyle.pale : OrbitStyle.teal.opacity(0.65))
                 .frame(width: 22, height: CGFloat(max(8, value * 32 / max(1, maxValue))))
         }
-    }
-
-    private var patternDescription: String {
-        let august = DemoRecords.trips.filter { $0.month == 8 }
-        let monday = august.filter { calendar.component(.weekday, from: $0.date) == 2 }.count
-        return "In August 2026, \(monday) of \(august.count) market trips started on a Monday morning. Most trips began around 9 AM."
     }
 
     private func shiftMonth(_ amount: Int) {
@@ -382,17 +363,18 @@ struct TripDetailPage: View {
     }
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Button(action: back) { Image(systemName: "chevron.left")
-                    .font(.system(size: 21, weight: .semibold)) }
-                    .accessibilityLabel("Back to records")
-                Text("\(trip.month == 8 ? "Aug" : "Jul") \(trip.day)").font(.system(size: 25, weight: .semibold))
-                Spacer()
+            CaregiverTopBar {
+                HStack(spacing: 12) {
+                    Button(action: back) { Image(systemName: "chevron.left")
+                        .font(.system(size: 21, weight: .semibold)) }
+                        .accessibilityLabel("Back to records")
+                    Text("\(trip.month == 8 ? "Aug" : "Jul") \(trip.day)")
+                        .font(.system(size: 25, weight: .semibold))
+                    Spacer()
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 23)
             }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 23).frame(height: 45, alignment: .center)
-            .padding(.bottom, 5)
-            .background(OrbitStyle.teal.ignoresSafeArea(edges: .top))
             Map(initialPosition: .region(region)) {
                 MapPolyline(coordinates: route)
                     .stroke(OrbitStyle.teal, style: StrokeStyle(lineWidth: 4, lineCap: .round, dash: [6, 5]))
@@ -443,7 +425,7 @@ struct TripDetailPage: View {
             .background(.white, in: UnevenRoundedRectangle(topLeadingRadius: 26, topTrailingRadius: 26))
             .padding(.top, -18)
         }
-        .background(OrbitStyle.teal.ignoresSafeArea(edges: .top))
+        .background(Color.white.ignoresSafeArea(edges: .bottom))
     }
 
     @ViewBuilder private var summaryPills: some View {

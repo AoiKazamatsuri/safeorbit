@@ -50,6 +50,8 @@
 	<string>Turn spoken questions into text before sending them in the Agent chat.</string>
 	<key>SafeOrbitServerURL</key>
 	<string>$(SAFEORBIT_SERVER_URL)</string>
+	<key>MapTilerAPIKey</key>
+	<string>$(MAPTILER_API_KEY)</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

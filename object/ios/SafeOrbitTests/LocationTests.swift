@@ -15,6 +15,26 @@ import SwiftUI
 }
 
 final class LocationTests: XCTestCase {
+    func testSafeZonePolygonKeepsWGS84CenterAndRadius() throws {
+        let center = GeoPoint(latitude: 32.061, longitude: 118.778)
+        let data = Data(SafeZoneSelectionMap.circleJSON(center: center, radius: 200).utf8)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let features = try XCTUnwrap(object["features"] as? [[String: Any]])
+        let geometry = try XCTUnwrap(features.first?["geometry"] as? [String: Any])
+        let rings = try XCTUnwrap(geometry["coordinates"] as? [[[Double]]])
+        let ring = try XCTUnwrap(rings.first)
+        XCTAssertEqual(ring.count, 65)
+        XCTAssertEqual(ring[0][0], ring[64][0], accuracy: 0.0000001)
+        XCTAssertEqual(ring[0][1], ring[64][1], accuracy: 0.0000001)
+        let longitudes = ring.map { $0[0] }
+        let latitudes = ring.map { $0[1] }
+        XCTAssertEqual((longitudes.min()! + longitudes.max()!) / 2, center.longitude, accuracy: 0.000001)
+        XCTAssertEqual((latitudes.min()! + latitudes.max()!) / 2, center.latitude, accuracy: 0.000001)
+        let east = CLLocation(latitude: ring[0][1], longitude: ring[0][0])
+        let origin = CLLocation(latitude: center.latitude, longitude: center.longitude)
+        XCTAssertEqual(origin.distance(from: east), 200, accuracy: 2)
+    }
+
     func testRiskPreviewArgumentsAreExplicit() {
         XCTAssertEqual(CaregiverRiskState.preview(arguments: []), .normal)
         XCTAssertEqual(CaregiverRiskState.preview(arguments: ["-safeorbitRiskState", "warning"]), .warning)
