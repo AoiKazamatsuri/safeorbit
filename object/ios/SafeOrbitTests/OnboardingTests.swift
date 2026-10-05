@@ -6,6 +6,49 @@ import CryptoKit
 @testable import SafeOrbit
 
 final class OnboardingTests: XCTestCase {
+    @MainActor func testPasswordSuggestionPreviewDoesNotCommitConfirmation() {
+        var confirmation = ""
+        let input = SignupPasswordField(title: "Confirm password", text: Binding(
+            get: { confirmation }, set: { confirmation = $0 }
+        ), visible: false, confirmation: true)
+        let coordinator = input.makeCoordinator()
+        let field = UITextField()
+
+        field.text = "preview"
+        coordinator.textChanged(field)
+        XCTAssertEqual(confirmation, "")
+        XCTAssertEqual(field.text, "")
+    }
+
+    @MainActor func testAcceptedGeneratedPasswordCanFillConfirmationInEitherOrder() {
+        for confirmationFirst in [true, false] {
+            var password = "a"
+            var confirmation = ""
+            let state = SignupAutofillState()
+            let primary = SignupPasswordField(title: "Password", text: Binding(
+                get: { password }, set: { password = $0 }
+            ), visible: false, autofillState: state, linkedConfirmation: Binding(
+                get: { confirmation }, set: { confirmation = $0 }
+            )).makeCoordinator()
+            primary.draft = password
+            let secondary = SignupPasswordField(title: "Confirm password", text: Binding(
+                get: { confirmation }, set: { confirmation = $0 }
+            ), visible: false, confirmation: true, autofillState: state).makeCoordinator()
+            let generated = "sample-generated-password"
+            let primaryField = UITextField()
+            let secondaryField = UITextField()
+            primaryField.text = generated
+            secondaryField.text = generated
+
+            if confirmationFirst { secondary.textChanged(secondaryField) }
+            primary.textChanged(primaryField)
+            if !confirmationFirst { secondary.textChanged(secondaryField) }
+
+            XCTAssertEqual(password, generated)
+            XCTAssertEqual(confirmation, generated)
+        }
+    }
+
     @MainActor func testSignupPasswordDraftRestoresUnexpectedClearButAllowsUserDelete() {
         var password = "sample"
         let input = SignupPasswordField(title: "Password", text: Binding(get: { password }, set: { password = $0 }), visible: false)

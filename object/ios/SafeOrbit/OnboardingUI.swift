@@ -112,13 +112,18 @@ struct AuthInput: View {
     @Binding var text: String
     var password = false
     var newPassword = false
+    var confirmation = false
+    var autofillState: SignupAutofillState?
+    var linkedConfirmation: Binding<String>?
     @State private var visible = false
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: symbol).foregroundStyle(OrbitStyle.secondary).frame(width: 20)
             Group {
                 if newPassword {
-                    SignupPasswordField(title: title, text: $text, visible: visible)
+                    SignupPasswordField(title: title, text: $text, visible: visible,
+                                        confirmation: confirmation, autofillState: autofillState,
+                                        linkedConfirmation: linkedConfirmation)
                 } else if password && !visible {
                     SecureField(title, text: $text, prompt: Text(title).foregroundStyle(OrbitStyle.secondary))
                 } else {
@@ -137,18 +142,64 @@ struct AuthInput: View {
     }
 }
 
+final class SignupAutofillState {
+    var pendingConfirmation = ""
+    var acceptedPassword = ""
+}
+
 // UIKit keeps the registration text input alive while secure entry is toggled.
 // Password AutoFill can clear its displayed text when its suggestion is dismissed;
 // only a user edit reported by the delegate is allowed to clear the draft.
+private final class SignupUITextField: UITextField {
+    private let confirmationMask = UILabel()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        prepareMask()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        prepareMask()
+    }
+
+    private func prepareMask() {
+        confirmationMask.font = .preferredFont(forTextStyle: .subheadline)
+        confirmationMask.textColor = .secondaryLabel
+        confirmationMask.backgroundColor = .white
+        confirmationMask.isUserInteractionEnabled = false
+        confirmationMask.accessibilityElementsHidden = true
+        confirmationMask.isHidden = true
+        addSubview(confirmationMask)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        confirmationMask.frame = bounds
+        bringSubviewToFront(confirmationMask)
+    }
+
+    func maskUncommittedConfirmation(_ mask: Bool, title: String) {
+        confirmationMask.text = title
+        confirmationMask.isHidden = !mask
+        textColor = mask ? .clear : .label
+        if mask { accessibilityValue = "" }
+        else { accessibilityValue = nil }
+    }
+}
+
 struct SignupPasswordField: UIViewRepresentable {
     let title: String
     @Binding var text: String
     let visible: Bool
+    var confirmation = false
+    var autofillState: SignupAutofillState?
+    var linkedConfirmation: Binding<String>?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIView(context: Context) -> UITextField {
-        let field = UITextField()
+        let field = SignupUITextField()
         field.delegate = context.coordinator
         field.addTarget(context.coordinator, action: #selector(Coordinator.textChanged(_:)), for: .editingChanged)
         field.font = .preferredFont(forTextStyle: .subheadline)
@@ -160,6 +211,7 @@ struct SignupPasswordField: UIViewRepresentable {
         field.spellCheckingType = .no
         field.isSecureTextEntry = true
         field.text = text
+        field.maskUncommittedConfirmation(confirmation && text.isEmpty, title: title)
         context.coordinator.draft = text
         context.coordinator.field = field
         return field
@@ -181,6 +233,7 @@ struct SignupPasswordField: UIViewRepresentable {
         } else if field.text != coordinator.draft {
             field.text = coordinator.draft
         }
+        (field as? SignupUITextField)?.maskUncommittedConfirmation(confirmation && text.isEmpty, title: title)
     }
 
     final class Coordinator: NSObject, UITextFieldDelegate {
@@ -218,6 +271,16 @@ struct SignupPasswordField: UIViewRepresentable {
 
         @objc func textChanged(_ field: UITextField) {
             let current = field.text ?? ""
+            // iOS previews the primary field in the confirmation field before the
+            // suggested password is accepted. That preview is not a user edit.
+            if parent.confirmation && !field.isFirstResponder
+                && current != parent.autofillState?.acceptedPassword {
+                parent.autofillState?.pendingConfirmation = current
+                field.text = draft
+                (field as? SignupUITextField)?.maskUncommittedConfirmation(draft.isEmpty, title: parent.title)
+                expectedUserText = nil
+                return
+            }
             if current.isEmpty && !draft.isEmpty && expectedUserText != "" {
                 field.text = draft
                 expectedUserText = nil
@@ -225,8 +288,16 @@ struct SignupPasswordField: UIViewRepresentable {
                 return
             }
             expectedUserText = nil
+            let wasGenerated = !parent.confirmation && current.count >= 12
+                && current.count - draft.count >= 8
             draft = current
             parent.text = current
+            if let state = parent.autofillState, !parent.confirmation {
+                state.acceptedPassword = wasGenerated ? current : ""
+                if wasGenerated && state.pendingConfirmation == current {
+                    parent.linkedConfirmation?.wrappedValue = current
+                }
+            }
         }
 
         func textFieldDidChangeSelection(_ field: UITextField) {
@@ -316,12 +387,17 @@ struct SignupPage: View {
 }
 struct EmailSignupPage: View {
     @ObservedObject var store: OnboardingStore
+    @State private var autofillState = SignupAutofillState()
     var body: some View {
         PageLayout(step: "", title: "Create account") {
             VStack(spacing: 14) {
                 AuthInput(title: "Email", symbol: "envelope", text: $store.email)
-                AuthInput(title: "Password", symbol: "lock", text: $store.password, password: true, newPassword: true)
-                AuthInput(title: "Confirm password", symbol: "lock", text: $store.confirmPassword, password: true, newPassword: true)
+                AuthInput(title: "Password", symbol: "lock", text: $store.password, password: true,
+                          newPassword: true, autofillState: autofillState,
+                          linkedConfirmation: $store.confirmPassword)
+                AuthInput(title: "Confirm password", symbol: "lock", text: $store.confirmPassword,
+                          password: true, newPassword: true, confirmation: true,
+                          autofillState: autofillState)
                 if !store.password.isEmpty && store.password.count < 8 {
                     Text("Use at least 8 characters.").font(.footnote).foregroundStyle(.red).frame(maxWidth: .infinity, alignment: .leading)
                 } else if !store.confirmPassword.isEmpty && store.confirmPassword != store.password {

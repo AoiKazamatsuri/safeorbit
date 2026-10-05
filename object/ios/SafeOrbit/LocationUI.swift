@@ -227,12 +227,13 @@ struct LocationPage: View {
                                     .font(.system(size: 31, weight: .bold))
                                     .rotationEffect(.degrees(snapshot.validHeading ?? 0))
                                     .foregroundStyle(OrbitStyle.teal)
-                                if let headline = riskState.headline, snapshot.isCurrent {
+                                let headline = riskState == .normal ? snapshot.status : riskState.headline
+                                if let headline, !headline.isEmpty, snapshot.isCurrent {
                                     Text(headline)
                                         .font(.system(size: 15, weight: .medium))
                                         .foregroundStyle(riskState == .high ? .white : .black)
                                         .padding(.horizontal, 17).padding(.vertical, 9)
-                                        .background(riskState.color, in: Capsule())
+                                        .background(riskState == .normal ? .white : riskState.color, in: Capsule())
                                         .shadow(color: .black.opacity(0.22), radius: 5, y: 3)
                                         .fixedSize()
                                         .offset(y: -49)
@@ -293,17 +294,6 @@ struct LocationPage: View {
                     .accessibilityLabel("Back to default view")
                 }
                 Spacer(minLength: 0)
-                if riskState == .normal, let snapshot, snapshot.isCurrent, let status = snapshot.status, !status.isEmpty {
-                    Text(status).font(.system(size: 15, weight: .medium))
-                        .padding(.horizontal, 16).padding(.vertical, 9)
-                        .background {
-                            Capsule().fill(.white)
-                                .shadow(color: .black.opacity(0.16), radius: 5)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.bottom, 15)
-                        .offset(y: -70)
-                }
                 HStack {
                     Spacer()
                     VStack(spacing: 12) {
