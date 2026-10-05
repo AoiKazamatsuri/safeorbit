@@ -39,7 +39,9 @@ final class RecordsTests: XCTestCase {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let screens: [(String, CGSize, DynamicTypeSize, AnyView)] = [
             ("agent-chat", CGSize(width: 393, height: 852), .large,
-             AnyView(AgentChatPage(keyboardVisible: false))),
+             AnyView(NavigationStack {
+                 AgentChatPage(keyboardVisible: false).toolbar(.hidden, for: .navigationBar)
+             })),
             ("records-data", CGSize(width: 393, height: 852), .large,
              AnyView(RecordsPage())),
             ("records-trend", CGSize(width: 393, height: 852), .large,

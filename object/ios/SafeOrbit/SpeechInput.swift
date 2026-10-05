@@ -13,7 +13,7 @@ import Speech
     private var tapInstalled = false
 
     func toggle() async {
-        if listening { stop(); return }
+        if listening { stop(showEmptyResult: true); return }
         await start()
     }
 
@@ -42,11 +42,19 @@ import Speech
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.record, mode: .measurement, options: .duckOthers)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
+            let input = engine.inputNode
+            let hardwareFormat = input.inputFormat(forBus: 0)
+            let format = input.outputFormat(forBus: 0)
+            guard session.isInputAvailable,
+                  hardwareFormat.sampleRate > 0, hardwareFormat.channelCount > 0,
+                  format.sampleRate > 0, format.channelCount > 0 else {
+                message = "No microphone input is available on this device."
+                try? session.setActive(false, options: .notifyOthersOnDeactivation)
+                return
+            }
             let request = SFSpeechAudioBufferRecognitionRequest()
             request.shouldReportPartialResults = true
             self.request = request
-            let input = engine.inputNode
-            let format = input.outputFormat(forBus: 0)
             input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
                 request.append(buffer)
             }
@@ -57,10 +65,10 @@ import Speech
             transcript = ""
             task = recognizer.recognitionTask(with: request) { [weak self] result, error in
                 Task { @MainActor [weak self] in
-                    guard let self else { return }
+                    guard let self, self.listening else { return }
                     if let result {
                         self.transcript = result.bestTranscription.formattedString
-                        if result.isFinal { self.stop() }
+                        if result.isFinal { self.stop(showEmptyResult: true); return }
                     }
                     if error != nil {
                         self.message = self.transcript.isEmpty ? "Could not understand the recording. Try again." : nil
@@ -74,8 +82,9 @@ import Speech
         }
     }
 
-    func stop() {
+    func stop(showEmptyResult: Bool = false) {
         guard listening || engine.isRunning || tapInstalled || task != nil || request != nil else { return }
+        let hadNoWords = listening && transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if engine.isRunning { engine.stop() }
         if tapInstalled { engine.inputNode.removeTap(onBus: 0); tapInstalled = false }
         request?.endAudio()
@@ -84,5 +93,8 @@ import Speech
         request = nil
         listening = false
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        if showEmptyResult && hadNoWords && message == nil {
+            message = "No speech was recognized. Try again."
+        }
     }
 }

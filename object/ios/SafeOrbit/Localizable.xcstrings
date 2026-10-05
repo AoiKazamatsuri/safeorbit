@@ -1,6 +1,29 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "#%@" : {
+
+    },
+    "%@\n%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@\n%2$lld"
+          }
+        }
+      }
+    },
+    "%@ – %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ – %2$@"
+          }
+        }
+      }
+    },
     "%@ · %lld min" : {
       "localizations" : {
         "en" : {
@@ -21,16 +44,76 @@
         }
       }
     },
+    "%@ %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$lld"
+          }
+        }
+      }
+    },
+    "%@, %@%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@%3$@"
+          }
+        }
+      }
+    },
+    "%lld" : {
+
+    },
+    "%lld meters" : {
+
+    },
+    "%lld min" : {
+
+    },
     "%lld." : {
 
     },
+    "%lld%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld%2$@"
+          }
+        }
+      }
+    },
     "%lld%%" : {
+
+    },
+    "%lldm" : {
+
+    },
+    "＋ New Tag" : {
+
+    },
+    "Add" : {
+
+    },
+    "Agent: %@" : {
+
+    },
+    "Ask a question" : {
 
     },
     "Back" : {
 
     },
+    "Back to default view" : {
+
+    },
     "Back to login" : {
+
+    },
+    "Back to records" : {
 
     },
     "Back to settings" : {
@@ -45,6 +128,9 @@
     "Caregiver" : {
 
     },
+    "Changes last until you leave this session." : {
+
+    },
     "Check connection" : {
 
     },
@@ -52,6 +138,9 @@
 
     },
     "Choose a photo" : {
+
+    },
+    "Clear" : {
 
     },
     "Close navigation" : {
@@ -76,7 +165,19 @@
         }
       }
     },
+    "Create Safe Zone" : {
+
+    },
+    "Delete Safe Zone" : {
+
+    },
+    "Delete this safe zone?" : {
+
+    },
     "Dismiss message" : {
+
+    },
+    "Edit %@ safe zone" : {
 
     },
     "Edit profile" : {
@@ -85,10 +186,19 @@
     "End navigation" : {
 
     },
+    "Enter a name for this safe zone." : {
+
+    },
     "Enter a valid phone number." : {
 
     },
     "Enter a valid SafeOrbit link." : {
+
+    },
+    "events" : {
+
+    },
+    "Events" : {
 
     },
     "Finding a walking route…" : {
@@ -112,7 +222,16 @@
     "Navigate" : {
 
     },
-    "Normal" : {
+    "New Tag" : {
+
+    },
+    "Next month" : {
+
+    },
+    "Next week" : {
+
+    },
+    "No trips in this period" : {
 
     },
     "Open settings" : {
@@ -136,13 +255,43 @@
     "Phone number" : {
 
     },
+    "Previous month" : {
+
+    },
+    "Previous week" : {
+
+    },
+    "Question" : {
+
+    },
+    "Recording" : {
+
+    },
     "Remove photo" : {
 
     },
     "Restoring your connection…" : {
 
     },
+    "Route Deviation" : {
+
+    },
+    "Route Deviation Trend" : {
+
+    },
+    "Safe Zone Radius" : {
+
+    },
+    "Save Changes" : {
+
+    },
     "Scan code" : {
+
+    },
+    "Selected safe zone center" : {
+
+    },
+    "Send question" : {
 
     },
     "Settings" : {
@@ -160,13 +309,46 @@
     "Sign out on this phone?" : {
 
     },
+    "Start dictation" : {
+
+    },
+    "Stop dictation" : {
+
+    },
+    "Suggested questions" : {
+
+    },
+    "Tag" : {
+
+    },
+    "Tag name" : {
+
+    },
+    "This change lasts only until you leave this session." : {
+
+    },
     "Try again" : {
 
     },
     "Use at least 8 characters." : {
 
     },
+    "View Less" : {
+
+    },
+    "View More" : {
+
+    },
+    "vs last month" : {
+
+    },
     "Walking to %@" : {
+
+    },
+    "Week" : {
+
+    },
+    "Your message: %@" : {
 
     }
   },

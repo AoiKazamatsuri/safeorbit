@@ -23,7 +23,7 @@ struct AgentChatPage: View {
                     Circle().fill(.white).frame(width: 84, height: 84)
                         .overlay { agentMark }
                         .shadow(color: .black.opacity(0.14), radius: 3, y: 2)
-                        .offset(y: 0)
+                        .offset(y: 43)
                 }
                 .background(OrbitStyle.teal.ignoresSafeArea(edges: .top))
                 .zIndex(1)
