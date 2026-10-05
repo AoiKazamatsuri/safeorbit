@@ -104,6 +104,9 @@
     "Add" : {
 
     },
+    "Add emergency contact" : {
+
+    },
     "Add safe zone" : {
 
     },
@@ -111,9 +114,6 @@
 
     },
     "Always on" : {
-
-    },
-    "App language" : {
 
     },
     "Are these live records?" : {
@@ -135,9 +135,6 @@
 
     },
     "Back to records" : {
-
-    },
-    "Back to settings" : {
 
     },
     "Call senior" : {
@@ -198,22 +195,22 @@
     "Edit %@ safe zone" : {
 
     },
-    "Edit member" : {
+    "Edit profile" : {
 
     },
-    "Edit profile" : {
+    "Emergency contacts" : {
 
     },
     "End navigation" : {
 
     },
-    "English" : {
-
-    },
-    "Enter a name and a valid phone number." : {
-
-    },
     "Enter a name for this safe zone." : {
+
+    },
+    "Enter a name, valid phone number and relationship." : {
+
+    },
+    "Enter a name, valid phone number and valid email if provided." : {
 
     },
     "Enter a valid phone number." : {
@@ -252,6 +249,9 @@
     "How do I change a safe zone?" : {
 
     },
+    "Last used" : {
+
+    },
     "Location available" : {
 
     },
@@ -261,10 +261,10 @@
     "Log Out" : {
 
     },
-    "Low-risk alerts" : {
+    "Login method" : {
 
     },
-    "Make primary caregiver" : {
+    "Low-risk alerts" : {
 
     },
     "Monitoring limited" : {
@@ -291,6 +291,9 @@
     "Not connected" : {
 
     },
+    "OK" : {
+
+    },
     "Open settings" : {
 
     },
@@ -304,6 +307,9 @@
 
     },
     "Paste link" : {
+
+    },
+    "Paused" : {
 
     },
     "Phone connection QR code" : {
@@ -321,16 +327,25 @@
     "Primary caregiver" : {
 
     },
+    "Privacy Policy" : {
+
+    },
     "Question" : {
 
     },
     "Recording" : {
 
     },
+    "Remove contact" : {
+
+    },
     "Remove member" : {
 
     },
     "Remove photo" : {
+
+    },
+    "Remove this emergency contact?" : {
 
     },
     "Remove this local family member?" : {
@@ -402,10 +417,10 @@
     "Tag name" : {
 
     },
-    "This safe zone will be removed." : {
+    "This feature is not connected yet. Account sign-in and registration remain paused. No account or device changes were made." : {
 
     },
-    "Time zone" : {
+    "This safe zone will be removed." : {
 
     },
     "Try again" : {
