@@ -70,6 +70,9 @@
     "%lld" : {
 
     },
+    "%lld m radius" : {
+
+    },
     "%lld meters" : {
 
     },
@@ -101,10 +104,25 @@
     "Add" : {
 
     },
+    "Add safe zone" : {
+
+    },
     "Agent: %@" : {
 
     },
+    "Always on" : {
+
+    },
+    "App language" : {
+
+    },
+    "Are these live records?" : {
+
+    },
     "Ask a question" : {
+
+    },
+    "Automatic voice navigation" : {
 
     },
     "Back" : {
@@ -131,6 +149,9 @@
     "Caregiver" : {
 
     },
+    "Change photo" : {
+
+    },
     "Check connection" : {
 
     },
@@ -147,9 +168,6 @@
 
     },
     "Code expired" : {
-
-    },
-    "Coming soon" : {
 
     },
     "Connection link" : {
@@ -180,10 +198,19 @@
     "Edit %@ safe zone" : {
 
     },
+    "Edit member" : {
+
+    },
     "Edit profile" : {
 
     },
     "End navigation" : {
+
+    },
+    "English" : {
+
+    },
+    "Enter a name and a valid phone number." : {
 
     },
     "Enter a name for this safe zone." : {
@@ -210,13 +237,40 @@
     "Forgot password?" : {
 
     },
+    "Frequently asked questions" : {
+
+    },
+    "Getting started" : {
+
+    },
     "Hide password" : {
+
+    },
+    "High-risk alerts" : {
+
+    },
+    "How do I change a safe zone?" : {
+
+    },
+    "Location available" : {
 
     },
     "Location unavailable" : {
 
     },
     "Log Out" : {
+
+    },
+    "Low-risk alerts" : {
+
+    },
+    "Make primary caregiver" : {
+
+    },
+    "Monitoring limited" : {
+
+    },
+    "Monitoring status" : {
 
     },
     "Navigate" : {
@@ -232,6 +286,9 @@
 
     },
     "No trips in this period" : {
+
+    },
+    "Not connected" : {
 
     },
     "Open settings" : {
@@ -261,13 +318,22 @@
     "Previous week" : {
 
     },
+    "Primary caregiver" : {
+
+    },
     "Question" : {
 
     },
     "Recording" : {
 
     },
+    "Remove member" : {
+
+    },
     "Remove photo" : {
+
+    },
+    "Remove this local family member?" : {
 
     },
     "Restoring your connection…" : {
@@ -279,10 +345,22 @@
     "Route Deviation Trend" : {
 
     },
+    "Safe return & recovery" : {
+
+    },
     "Safe Zone Radius" : {
 
     },
+    "Safe zones" : {
+
+    },
+    "Sample location" : {
+
+    },
     "Save Changes" : {
+
+    },
+    "Saved on this phone" : {
 
     },
     "Scan code" : {
@@ -291,7 +369,7 @@
     "Send question" : {
 
     },
-    "Settings" : {
+    "Senior phone" : {
 
     },
     "Share link" : {
@@ -315,6 +393,9 @@
     "Suggested questions" : {
 
     },
+    "Support on the way home" : {
+
+    },
     "Tag" : {
 
     },
@@ -322,6 +403,9 @@
 
     },
     "This safe zone will be removed." : {
+
+    },
+    "Time zone" : {
 
     },
     "Try again" : {
@@ -343,6 +427,12 @@
 
     },
     "Week" : {
+
+    },
+    "What do the risk colors mean?" : {
+
+    },
+    "What is a safe zone?" : {
 
     },
     "Your message: %@" : {
