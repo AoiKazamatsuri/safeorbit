@@ -101,6 +101,8 @@ struct CaregiverTabBar: View {
 struct CaregiverHomePage: View {
     @ObservedObject var store: OnboardingStore
     @StateObject private var zoneStore = SafeZoneSessionStore()
+    @StateObject private var settingsStore = CaregiverSettingsStore()
+    @State private var selectedSettings: CaregiverSettingsItem?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tab: CaregiverTab = .location
     @State private var navigating = false
@@ -143,9 +145,12 @@ struct CaregiverHomePage: View {
                             .onTapGesture { setSettings(false) }
                             .transition(.opacity)
                         CaregiverSettingsPanel(
-                            name: store.previewSession ? "Emma Liu" : "Caregiver",
+                            name: settingsStore.data.caregiver.name,
+                            photo: settingsStore.data.caregiver.photo,
+                            primary: settingsStore.data.primaryID == "self",
                             showsPreviewPortrait: store.previewSession,
                             showsLogout: !store.homeAccessEnabled,
+                            select: { selectedSettings = $0 },
                             logout: { Task { await store.signOut(); setSettings(false) } }
                         )
                         .frame(width: geometry.size.width * 0.765, height: geometry.size.height)
@@ -158,7 +163,16 @@ struct CaregiverHomePage: View {
             .zIndex(2)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .task { await store.refreshLocation() }
+        .task {
+            if store.previewSession { store.elder = settingsStore.data.senior }
+            await store.refreshLocation()
+        }
+        .onChange(of: settingsStore.data.senior) { _, profile in
+            if store.previewSession { store.elder = profile }
+        }
+        .fullScreenCover(item: $selectedSettings) { item in
+            CaregiverSettingsDetail(item: item, settings: settingsStore, onboarding: store, zones: zoneStore) { selectedSettings = nil }
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             keyboardVisible = true
         }
@@ -359,40 +373,22 @@ struct LocationPage: View {
     }
 }
 
-private enum CaregiverSettingsItem: String, CaseIterable, Identifiable {
-    case account = "Account Settings"
-    case senior = "Senior Profile"
-    case family = "Family Members"
-    case agent = "AI Agent Settings"
-    case location = "Location Settings"
-    case notifications = "Notifications"
-    case help = "Help"
-    var id: String { rawValue }
-    var symbol: String {
-        switch self {
-        case .account: "gearshape"
-        case .senior: "person.crop.circle"
-        case .family: "person.3"
-        case .agent: "sparkles"
-        case .location: "mappin.and.ellipse"
-        case .notifications: "bell"
-        case .help: "questionmark.circle"
-        }
-    }
-}
-
 private struct CaregiverSettingsPanel: View {
     let name: String
+    let photo: String?
+    let primary: Bool
     let showsPreviewPortrait: Bool
     let showsLogout: Bool
+    let select: (CaregiverSettingsItem) -> Void
     let logout: () -> Void
-    @State private var selectedItem: CaregiverSettingsItem?
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 14) {
                 Group {
-                    if showsPreviewPortrait {
+                    if let photo {
+                        ProfileAvatar(photo: photo, size: 57)
+                    } else if showsPreviewPortrait {
                         Image("PreviewCaregiver").resizable().scaledToFill()
                     } else {
                         Image(systemName: "person.crop.circle.fill")
@@ -402,8 +398,8 @@ private struct CaregiverSettingsPanel: View {
                 .frame(width: 57, height: 57).clipShape(Circle())
                 VStack(alignment: .leading, spacing: 5) {
                     Text(name).font(.system(size: 18, weight: .semibold)).lineLimit(1)
-                    Text("Caregiver")
-                        .font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
+                    Text(primary ? "Primary caregiver" : "Caregiver")
+                        .font(.system(size: 11, weight: .medium)).foregroundStyle(.white)
                         .padding(.horizontal, 11).padding(.vertical, 4)
                         .background(OrbitStyle.teal, in: Capsule())
                 }
@@ -414,24 +410,9 @@ private struct CaregiverSettingsPanel: View {
             .padding(.horizontal, 27)
             .padding(.top, 57)
 
-            if let selectedItem {
-                VStack(alignment: .leading, spacing: 24) {
-                    Button { self.selectedItem = nil } label: {
-                        Label("Settings", systemImage: "chevron.left")
-                            .font(.system(size: 16, weight: .medium))
-                    }
-                    .accessibilityLabel("Back to settings")
-                    Text(selectedItem.rawValue).font(.system(size: 23, weight: .semibold))
-                    Text("Coming soon").font(.system(size: 15)).foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .foregroundStyle(.black)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 38).padding(.top, 44)
-            } else {
                 VStack(spacing: 0) {
                     ForEach(CaregiverSettingsItem.allCases) { item in
-                        Button { selectedItem = item } label: {
+                        Button { select(item) } label: {
                             HStack(spacing: 17) {
                                 if item == .family {
                                     Image("FamilyMembers")
@@ -458,7 +439,6 @@ private struct CaregiverSettingsPanel: View {
                 }
                 .padding(.horizontal, 34).padding(.top, 20)
                 Spacer(minLength: 0)
-            }
 
             if showsLogout {
                 Button(action: logout) {
