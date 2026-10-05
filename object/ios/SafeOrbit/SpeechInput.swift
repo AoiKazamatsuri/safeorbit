@@ -27,7 +27,7 @@ import Speech
             return
         }
         let microphonePermission = await withCheckedContinuation { continuation in
-            AVAudioSession.sharedInstance().requestRecordPermission { continuation.resume(returning: $0) }
+            AVAudioApplication.requestRecordPermission { continuation.resume(returning: $0) }
         }
         guard microphonePermission else {
             message = "Microphone access is off. Allow it in Settings to dictate a question."

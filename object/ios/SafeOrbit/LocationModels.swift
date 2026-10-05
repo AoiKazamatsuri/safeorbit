@@ -32,7 +32,7 @@ enum MainlandCoordinates {
         lon += (20*sin(x*pi) + 40*sin(x*pi/3))*2/3
         lon += (150*sin(x*pi/12) + 300*sin(x*pi/30))*2/3
         let rad = p.latitude / 180 * pi
-        var magic = 1 - 0.00669342162296594323 * pow(sin(rad), 2)
+        let magic = 1 - 0.00669342162296594323 * pow(sin(rad), 2)
         let root = sqrt(magic)
         lat = lat * 180 / ((6335552.717000426 * (1 - 0.00669342162296594323)) / (magic*root) * pi)
         lon = lon * 180 / (6378245 / root * cos(rad) * pi)
