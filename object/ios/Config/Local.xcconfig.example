@@ -2,5 +2,3 @@
 SAFEORBIT_SERVER_URL = http:/$()/192.168.1.20:3000
 // Set your real development team locally before running on a device.
 // DEVELOPMENT_TEAM =
-// Add a MapTiler key for the English safe-zone editor map; keep this file untracked.
-// MAPTILER_API_KEY =

@@ -64,6 +64,9 @@
         }
       }
     },
+    "%@m" : {
+
+    },
     "%lld" : {
 
     },
@@ -126,9 +129,6 @@
 
     },
     "Caregiver" : {
-
-    },
-    "Changes last until you leave this session." : {
 
     },
     "Check connection" : {
@@ -288,9 +288,6 @@
     "Scan code" : {
 
     },
-    "Selected safe zone center" : {
-
-    },
     "Send question" : {
 
     },
@@ -324,7 +321,7 @@
     "Tag name" : {
 
     },
-    "This change lasts only until you leave this session." : {
+    "This safe zone will be removed." : {
 
     },
     "Try again" : {

@@ -1,3 +1,4 @@
+// !$*UTF8*$!
 {
 	archiveVersion = 1;
 	classes = {
@@ -5,95 +6,93 @@
 	objectVersion = 56;
 	objects = {
 
-/* Begin PBXFileReference section */
-		3FB2BD550F06A795A4AB7FF4 /* SafeOrbit/SafeOrbitApp.swift */ = {isa = PBXFileReference; path = "SafeOrbit/SafeOrbitApp.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		366EE99968210FA8F05B566B /* SafeOrbit/ServerConfiguration.swift */ = {isa = PBXFileReference; path = "SafeOrbit/ServerConfiguration.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		46F327A303236EE513E7E21A /* SafeOrbit/OnboardingModels.swift */ = {isa = PBXFileReference; path = "SafeOrbit/OnboardingModels.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		38AD48EA6F376F2130580E69 /* SafeOrbit/OnboardingAPI.swift */ = {isa = PBXFileReference; path = "SafeOrbit/OnboardingAPI.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		DB31C845D61A37607A458424 /* SafeOrbit/OnboardingStore.swift */ = {isa = PBXFileReference; path = "SafeOrbit/OnboardingStore.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		F53B972F484839B1F6E82F96 /* SafeOrbit/OnboardingUI.swift */ = {isa = PBXFileReference; path = "SafeOrbit/OnboardingUI.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		E97854554CF94F5DFF1FA51F /* SafeOrbit/QRScanner.swift */ = {isa = PBXFileReference; path = "SafeOrbit/QRScanner.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		A9A3FE8E397BF12CB48B73AB /* SafeOrbit/LocationModels.swift */ = {isa = PBXFileReference; path = "SafeOrbit/LocationModels.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		324AEABB7D6A4A7CFBDD6017 /* SafeOrbit/LocationUI.swift */ = {isa = PBXFileReference; path = "SafeOrbit/LocationUI.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		2089A105658F9DA1C0E2CDAD /* SafeOrbit/SafeZoneSelectionMap.swift */ = {isa = PBXFileReference; path = "SafeOrbit/SafeZoneSelectionMap.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		2079A8DCA3FF92477242FE6F /* SafeOrbit/CaregiverChrome.swift */ = {isa = PBXFileReference; path = "SafeOrbit/CaregiverChrome.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		4EBAAC5DA9374795DDAA30B0 /* SafeOrbit/WalkingNavigation.swift */ = {isa = PBXFileReference; path = "SafeOrbit/WalkingNavigation.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		ACAA506A3F96B16CEF9A2AC6 /* SafeOrbit/RecordsDemoData.swift */ = {isa = PBXFileReference; path = "SafeOrbit/RecordsDemoData.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		DA53952549CDCA05340C60F9 /* SafeOrbit/RecordsUI.swift */ = {isa = PBXFileReference; path = "SafeOrbit/RecordsUI.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		BB4F603B5486041FEBA35ACC /* SafeOrbit/AgentChatUI.swift */ = {isa = PBXFileReference; path = "SafeOrbit/AgentChatUI.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		0ACB9C79C3916CFE444EAF9A /* SafeOrbit/SpeechInput.swift */ = {isa = PBXFileReference; path = "SafeOrbit/SpeechInput.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		83308961FB490F788E6D4808 /* SafeOrbitTests/ServerConfigurationTests.swift */ = {isa = PBXFileReference; path = "SafeOrbitTests/ServerConfigurationTests.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		2BD199390D0C58BE5786949D /* SafeOrbitTests/OnboardingTests.swift */ = {isa = PBXFileReference; path = "SafeOrbitTests/OnboardingTests.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		ABE5DE34AE2E68E7FC898500 /* SafeOrbitTests/LocationTests.swift */ = {isa = PBXFileReference; path = "SafeOrbitTests/LocationTests.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		7F8F6174CEB43AB9F458F407 /* SafeOrbitTests/RecordsTests.swift */ = {isa = PBXFileReference; path = "SafeOrbitTests/RecordsTests.swift"; sourceTree = "<group>"; lastKnownFileType = sourcecode.swift; };
-		F029AA7C22824C0748EDB4F4 /* SafeOrbit/Assets.xcassets */ = {isa = PBXFileReference; path = "SafeOrbit/Assets.xcassets"; sourceTree = "<group>"; lastKnownFileType = folder.assetcatalog; };
-		95BE1949FB74F1944A0D15BF /* SafeOrbit/Localizable.xcstrings */ = {isa = PBXFileReference; path = "SafeOrbit/Localizable.xcstrings"; sourceTree = "<group>"; lastKnownFileType = text.json.xcstrings; };
-		92DAF409D0B1D7FE3A8369EC /* SafeOrbit/InfoPlist.xcstrings */ = {isa = PBXFileReference; path = "SafeOrbit/InfoPlist.xcstrings"; sourceTree = "<group>"; lastKnownFileType = text.json.xcstrings; };
-		6E93D021BA762BF4F1DA888C /* SafeOrbit/SafeOrbit.entitlements */ = {isa = PBXFileReference; path = "SafeOrbit/SafeOrbit.entitlements"; sourceTree = "<group>"; lastKnownFileType = text.plist.entitlements; };
-		CE2BD72ADACACF1E2DA7025A /* SafeOrbit/Info.plist */ = {isa = PBXFileReference; path = "SafeOrbit/Info.plist"; sourceTree = "<group>"; lastKnownFileType = text.plist.xml; };
-		ACD4BCC47A4DDAA3B0722D11 /* Config/Debug.xcconfig */ = {isa = PBXFileReference; path = "Config/Debug.xcconfig"; sourceTree = "<group>"; lastKnownFileType = text.xcconfig; };
-		323B5140B8E0B7C06560E7E1 /* Config/Release.xcconfig */ = {isa = PBXFileReference; path = "Config/Release.xcconfig"; sourceTree = "<group>"; lastKnownFileType = text.xcconfig; };
-		88F4CDFC38B9C0CE7B73BE5C /* SafeOrbit.app */ = {isa = PBXFileReference; path = SafeOrbit.app; sourceTree = BUILT_PRODUCTS_DIR; explicitFileType = wrapper.application; includeInIndex = 0; };
-		91E5D63736EA86B11DE2C380 /* SafeOrbitTests.xctest */ = {isa = PBXFileReference; path = SafeOrbitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; explicitFileType = wrapper.cfbundle; includeInIndex = 0; };
-/* End PBXFileReference section */
-
 /* Begin PBXBuildFile section */
-		12AE4209B019D95CC96587FE /* SafeOrbit/SafeOrbitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB2BD550F06A795A4AB7FF4 /* SafeOrbit/SafeOrbitApp.swift */; };
-		09A74B74C46451ABC6862DE0 /* SafeOrbit/ServerConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366EE99968210FA8F05B566B /* SafeOrbit/ServerConfiguration.swift */; };
-		41186EF3B07413680D670CBE /* SafeOrbit/OnboardingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F327A303236EE513E7E21A /* SafeOrbit/OnboardingModels.swift */; };
 		07847ED970BE051D143FB891 /* SafeOrbit/OnboardingAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38AD48EA6F376F2130580E69 /* SafeOrbit/OnboardingAPI.swift */; };
+		09A74B74C46451ABC6862DE0 /* SafeOrbit/ServerConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366EE99968210FA8F05B566B /* SafeOrbit/ServerConfiguration.swift */; };
+		12AE4209B019D95CC96587FE /* SafeOrbit/SafeOrbitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB2BD550F06A795A4AB7FF4 /* SafeOrbit/SafeOrbitApp.swift */; };
+		28253C904530F4D2D868CCA0 /* SafeOrbit/SpeechInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ACB9C79C3916CFE444EAF9A /* SafeOrbit/SpeechInput.swift */; };
+		321A60DCBB9E709B352A2238 /* SafeOrbit/AgentChatUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB4F603B5486041FEBA35ACC /* SafeOrbit/AgentChatUI.swift */; };
+		41186EF3B07413680D670CBE /* SafeOrbit/OnboardingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F327A303236EE513E7E21A /* SafeOrbit/OnboardingModels.swift */; };
 		8085A362AD5E052199D0FA0B /* SafeOrbit/OnboardingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB31C845D61A37607A458424 /* SafeOrbit/OnboardingStore.swift */; };
 		8094EDD5466819A92EAF01E3 /* SafeOrbit/OnboardingUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = F53B972F484839B1F6E82F96 /* SafeOrbit/OnboardingUI.swift */; };
-		CF48425D5854F6B715C5A05F /* SafeOrbit/QRScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E97854554CF94F5DFF1FA51F /* SafeOrbit/QRScanner.swift */; };
-		9F652D161F32AC57BA6A7996 /* SafeOrbit/LocationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9A3FE8E397BF12CB48B73AB /* SafeOrbit/LocationModels.swift */; };
-		8A2CA7E1C7367D01CEE17EC9 /* SafeOrbit/LocationUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 324AEABB7D6A4A7CFBDD6017 /* SafeOrbit/LocationUI.swift */; };
-		E80D4AB9F712CD856C4F2939 /* SafeOrbit/SafeZoneSelectionMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089A105658F9DA1C0E2CDAD /* SafeOrbit/SafeZoneSelectionMap.swift */; };
-		BDD71BB193431635A2945CBC /* SafeOrbit/CaregiverChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2079A8DCA3FF92477242FE6F /* SafeOrbit/CaregiverChrome.swift */; };
 		8776AD886BD1ED8DDD3EE294 /* SafeOrbit/WalkingNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EBAAC5DA9374795DDAA30B0 /* SafeOrbit/WalkingNavigation.swift */; };
-		F588D6903A4F478322A36064 /* SafeOrbit/RecordsDemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACAA506A3F96B16CEF9A2AC6 /* SafeOrbit/RecordsDemoData.swift */; };
-		BF5EE4F8FAF460EEDC28CC18 /* SafeOrbit/RecordsUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA53952549CDCA05340C60F9 /* SafeOrbit/RecordsUI.swift */; };
-		321A60DCBB9E709B352A2238 /* SafeOrbit/AgentChatUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB4F603B5486041FEBA35ACC /* SafeOrbit/AgentChatUI.swift */; };
-		28253C904530F4D2D868CCA0 /* SafeOrbit/SpeechInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ACB9C79C3916CFE444EAF9A /* SafeOrbit/SpeechInput.swift */; };
+		8A2CA7E1C7367D01CEE17EC9 /* SafeOrbit/LocationUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 324AEABB7D6A4A7CFBDD6017 /* SafeOrbit/LocationUI.swift */; };
 		9C0782040571C3F1E18FC874 /* SafeOrbitTests/ServerConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83308961FB490F788E6D4808 /* SafeOrbitTests/ServerConfigurationTests.swift */; };
-		C5284D633A6E2F64E34790E6 /* SafeOrbitTests/OnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BD199390D0C58BE5786949D /* SafeOrbitTests/OnboardingTests.swift */; };
+		9F652D161F32AC57BA6A7996 /* SafeOrbit/LocationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9A3FE8E397BF12CB48B73AB /* SafeOrbit/LocationModels.swift */; };
 		A7280CD09F944E21FA20FD94 /* SafeOrbitTests/LocationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE5DE34AE2E68E7FC898500 /* SafeOrbitTests/LocationTests.swift */; };
-		D9239BCEB476D34C1EE938F2 /* SafeOrbitTests/RecordsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F8F6174CEB43AB9F458F407 /* SafeOrbitTests/RecordsTests.swift */; };
+		BDD71BB193431635A2945CBC /* SafeOrbit/CaregiverChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2079A8DCA3FF92477242FE6F /* SafeOrbit/CaregiverChrome.swift */; };
+		BF5EE4F8FAF460EEDC28CC18 /* SafeOrbit/RecordsUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA53952549CDCA05340C60F9 /* SafeOrbit/RecordsUI.swift */; };
+		C5284D633A6E2F64E34790E6 /* SafeOrbitTests/OnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BD199390D0C58BE5786949D /* SafeOrbitTests/OnboardingTests.swift */; };
+		CF48425D5854F6B715C5A05F /* SafeOrbit/QRScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E97854554CF94F5DFF1FA51F /* SafeOrbit/QRScanner.swift */; };
 		D29418975E11D4FDE8DF2A91 /* SafeOrbit/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F029AA7C22824C0748EDB4F4 /* SafeOrbit/Assets.xcassets */; };
-		FC08DB3F5DB0C0EDB56FAEB8 /* SafeOrbit/Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 95BE1949FB74F1944A0D15BF /* SafeOrbit/Localizable.xcstrings */; };
 		D57BF325FD7BF54FFB25D23D /* SafeOrbit/InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 92DAF409D0B1D7FE3A8369EC /* SafeOrbit/InfoPlist.xcstrings */; };
-		1B48E1B504ABB36E9F8DF513 /* MapTilerSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 28D3B25AEB6C4CE2BDCE8140 /* MapTilerSDK */; };
+		D9239BCEB476D34C1EE938F2 /* SafeOrbitTests/RecordsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F8F6174CEB43AB9F458F407 /* SafeOrbitTests/RecordsTests.swift */; };
+		E80D4AB9F712CD856C4F2939 /* SafeOrbit/SafeZoneSelectionMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089A105658F9DA1C0E2CDAD /* SafeOrbit/SafeZoneSelectionMap.swift */; };
+		F588D6903A4F478322A36064 /* SafeOrbit/RecordsDemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACAA506A3F96B16CEF9A2AC6 /* SafeOrbit/RecordsDemoData.swift */; };
+		FC08DB3F5DB0C0EDB56FAEB8 /* SafeOrbit/Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 95BE1949FB74F1944A0D15BF /* SafeOrbit/Localizable.xcstrings */; };
 /* End PBXBuildFile section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		0601D0A75C518C99809A1C22 /* MapTiler package */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/maptiler/maptiler-sdk-swift.git";
-			requirement = {
-				kind = exactVersion;
-				version = 2.1.3;
-			};
+/* Begin PBXContainerItemProxy section */
+		B83103CC2CE4C10B09A9C238 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 39A67C09A176EFA66BF71C1E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 373B9A7B0591AC3069343A3B;
+			remoteInfo = SafeOrbit;
 		};
-/* End XCRemoteSwiftPackageReference section */
+/* End PBXContainerItemProxy section */
 
-/* Begin XCSwiftPackageProductDependency section */
-		28D3B25AEB6C4CE2BDCE8140 /* MapTilerSDK product */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 0601D0A75C518C99809A1C22 /* MapTiler package */;
-			productName = MapTilerSDK;
+/* Begin PBXFileReference section */
+		0ACB9C79C3916CFE444EAF9A /* SafeOrbit/SpeechInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/SpeechInput.swift; sourceTree = "<group>"; };
+		2079A8DCA3FF92477242FE6F /* SafeOrbit/CaregiverChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/CaregiverChrome.swift; sourceTree = "<group>"; };
+		2089A105658F9DA1C0E2CDAD /* SafeOrbit/SafeZoneSelectionMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/SafeZoneSelectionMap.swift; sourceTree = "<group>"; };
+		2BD199390D0C58BE5786949D /* SafeOrbitTests/OnboardingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbitTests/OnboardingTests.swift; sourceTree = "<group>"; };
+		323B5140B8E0B7C06560E7E1 /* Config/Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Release.xcconfig; sourceTree = "<group>"; };
+		324AEABB7D6A4A7CFBDD6017 /* SafeOrbit/LocationUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/LocationUI.swift; sourceTree = "<group>"; };
+		366EE99968210FA8F05B566B /* SafeOrbit/ServerConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/ServerConfiguration.swift; sourceTree = "<group>"; };
+		38AD48EA6F376F2130580E69 /* SafeOrbit/OnboardingAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/OnboardingAPI.swift; sourceTree = "<group>"; };
+		3FB2BD550F06A795A4AB7FF4 /* SafeOrbit/SafeOrbitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/SafeOrbitApp.swift; sourceTree = "<group>"; };
+		46F327A303236EE513E7E21A /* SafeOrbit/OnboardingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/OnboardingModels.swift; sourceTree = "<group>"; };
+		4EBAAC5DA9374795DDAA30B0 /* SafeOrbit/WalkingNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/WalkingNavigation.swift; sourceTree = "<group>"; };
+		6E93D021BA762BF4F1DA888C /* SafeOrbit/SafeOrbit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SafeOrbit/SafeOrbit.entitlements; sourceTree = "<group>"; };
+		7F8F6174CEB43AB9F458F407 /* SafeOrbitTests/RecordsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbitTests/RecordsTests.swift; sourceTree = "<group>"; };
+		83308961FB490F788E6D4808 /* SafeOrbitTests/ServerConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbitTests/ServerConfigurationTests.swift; sourceTree = "<group>"; };
+		88F4CDFC38B9C0CE7B73BE5C /* SafeOrbit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SafeOrbit.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		91E5D63736EA86B11DE2C380 /* SafeOrbitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SafeOrbitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		92DAF409D0B1D7FE3A8369EC /* SafeOrbit/InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = SafeOrbit/InfoPlist.xcstrings; sourceTree = "<group>"; };
+		95BE1949FB74F1944A0D15BF /* SafeOrbit/Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = SafeOrbit/Localizable.xcstrings; sourceTree = "<group>"; };
+		A9A3FE8E397BF12CB48B73AB /* SafeOrbit/LocationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/LocationModels.swift; sourceTree = "<group>"; };
+		ABE5DE34AE2E68E7FC898500 /* SafeOrbitTests/LocationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbitTests/LocationTests.swift; sourceTree = "<group>"; };
+		ACAA506A3F96B16CEF9A2AC6 /* SafeOrbit/RecordsDemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/RecordsDemoData.swift; sourceTree = "<group>"; };
+		ACD4BCC47A4DDAA3B0722D11 /* Config/Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Debug.xcconfig; sourceTree = "<group>"; };
+		BB4F603B5486041FEBA35ACC /* SafeOrbit/AgentChatUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/AgentChatUI.swift; sourceTree = "<group>"; };
+		CE2BD72ADACACF1E2DA7025A /* SafeOrbit/Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = SafeOrbit/Info.plist; sourceTree = "<group>"; };
+		DA53952549CDCA05340C60F9 /* SafeOrbit/RecordsUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/RecordsUI.swift; sourceTree = "<group>"; };
+		DB31C845D61A37607A458424 /* SafeOrbit/OnboardingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/OnboardingStore.swift; sourceTree = "<group>"; };
+		E97854554CF94F5DFF1FA51F /* SafeOrbit/QRScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/QRScanner.swift; sourceTree = "<group>"; };
+		F029AA7C22824C0748EDB4F4 /* SafeOrbit/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = SafeOrbit/Assets.xcassets; sourceTree = "<group>"; };
+		F53B972F484839B1F6E82F96 /* SafeOrbit/OnboardingUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/OnboardingUI.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B3738BA844ADC3134834D412 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End XCSwiftPackageProductDependency section */
+		BD8E6E833F7127522CCF2794 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		4D59BD4F59BC7FC872211896 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				88F4CDFC38B9C0CE7B73BE5C /* SafeOrbit.app */,
-				91E5D63736EA86B11DE2C380 /* SafeOrbitTests.xctest */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		46F841CC66BFBE86BDB66ED7 /* Main */ = {
+		46F841CC66BFBE86BDB66ED7 = {
 			isa = PBXGroup;
 			children = (
 				3FB2BD550F06A795A4AB7FF4 /* SafeOrbit/SafeOrbitApp.swift */,
@@ -127,10 +126,116 @@
 			);
 			sourceTree = "<group>";
 		};
+		4D59BD4F59BC7FC872211896 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				88F4CDFC38B9C0CE7B73BE5C /* SafeOrbit.app */,
+				91E5D63736EA86B11DE2C380 /* SafeOrbitTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
+/* Begin PBXNativeTarget section */
+		373B9A7B0591AC3069343A3B /* SafeOrbit */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1364DE184D47BE47084E25E2 /* Build configuration list for PBXNativeTarget "SafeOrbit" */;
+			buildPhases = (
+				5F6A9338085D3E23F8FB6BF7 /* Sources */,
+				B3738BA844ADC3134834D412 /* Frameworks */,
+				3689B1113F9BB70CEC185CA2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SafeOrbit;
+			productName = SafeOrbit;
+			productReference = 88F4CDFC38B9C0CE7B73BE5C /* SafeOrbit.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D7DD05776768D056E5B6F7EE /* SafeOrbitTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8295C81666A8791159ACE054 /* Build configuration list for PBXNativeTarget "SafeOrbitTests" */;
+			buildPhases = (
+				991C998F80DEAA0A398FCA9B /* Sources */,
+				BD8E6E833F7127522CCF2794 /* Frameworks */,
+				012F9D35299D4FDABC35198E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4E64676DFD25B11B8D53C1F6 /* PBXTargetDependency */,
+			);
+			name = SafeOrbitTests;
+			productName = SafeOrbitTests;
+			productReference = 91E5D63736EA86B11DE2C380 /* SafeOrbitTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		39A67C09A176EFA66BF71C1E /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					373B9A7B0591AC3069343A3B = {
+						CreatedOnToolsVersion = 27.0;
+						SystemCapabilities = {
+							com.apple.SignInWithApple = {
+								enabled = 1;
+							};
+						};
+					};
+					D7DD05776768D056E5B6F7EE = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = 373B9A7B0591AC3069343A3B;
+					};
+				};
+			};
+			buildConfigurationList = C61BE3748CFF795AB7883AC1 /* Build configuration list for PBXProject "SafeOrbit" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 46F841CC66BFBE86BDB66ED7;
+			productRefGroup = 4D59BD4F59BC7FC872211896 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				373B9A7B0591AC3069343A3B /* SafeOrbit */,
+				D7DD05776768D056E5B6F7EE /* SafeOrbitTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		012F9D35299D4FDABC35198E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3689B1113F9BB70CEC185CA2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D29418975E11D4FDE8DF2A91 /* SafeOrbit/Assets.xcassets in Resources */,
+				FC08DB3F5DB0C0EDB56FAEB8 /* SafeOrbit/Localizable.xcstrings in Resources */,
+				D57BF325FD7BF54FFB25D23D /* SafeOrbit/InfoPlist.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
-		5F6A9338085D3E23F8FB6BF7 /* SafeOrbit Sources */ = {
+		5F6A9338085D3E23F8FB6BF7 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -153,7 +258,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		991C998F80DEAA0A398FCA9B /* SafeOrbitTests Sources */ = {
+		991C998F80DEAA0A398FCA9B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -166,285 +271,170 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXFrameworksBuildPhase section */
-		B3738BA844ADC3134834D412 /* SafeOrbit Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				1B48E1B504ABB36E9F8DF513 /* MapTilerSDK in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
+/* Begin PBXTargetDependency section */
+		4E64676DFD25B11B8D53C1F6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 373B9A7B0591AC3069343A3B /* SafeOrbit */;
+			targetProxy = B83103CC2CE4C10B09A9C238 /* PBXContainerItemProxy */;
 		};
-		BD8E6E833F7127522CCF2794 /* SafeOrbitTests Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section */
-
-/* Begin PBXResourcesBuildPhase section */
-		3689B1113F9BB70CEC185CA2 /* SafeOrbit Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				D29418975E11D4FDE8DF2A91 /* SafeOrbit/Assets.xcassets in Resources */,
-				FC08DB3F5DB0C0EDB56FAEB8 /* SafeOrbit/Localizable.xcstrings in Resources */,
-				D57BF325FD7BF54FFB25D23D /* SafeOrbit/InfoPlist.xcstrings in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		012F9D35299D4FDABC35198E /* SafeOrbitTests Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXResourcesBuildPhase section */
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		8665F37281000797AD86F468 /* SafeOrbit Debug */ = {
+		104FDA10424FE41F939FB381 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = ACD4BCC47A4DDAA3B0722D11 /* Debug.xcconfig */;
-			name = Debug;
+			baseConfigurationReference = 323B5140B8E0B7C06560E7E1 /* Config/Release.xcconfig */;
 			buildSettings = {
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				PRODUCT_BUNDLE_IDENTIFIER = org.safeorbit.demo;
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				CODE_SIGN_STYLE = Automatic;
-				SWIFT_VERSION = 5.0;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				TARGETED_DEVICE_FAMILY = 1;
-				ENABLE_TESTABILITY = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
-				CODE_SIGN_ENTITLEMENTS = SafeOrbit/SafeOrbit.entitlements;
-				INFOPLIST_FILE = SafeOrbit/Info.plist;
-				GENERATE_INFOPLIST_FILE = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-			};
-		};
-		CA4BE20CF6955442304AE294 /* SafeOrbit Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 323B5140B8E0B7C06560E7E1 /* Release.xcconfig */;
-			name = Release;
-			buildSettings = {
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				PRODUCT_BUNDLE_IDENTIFIER = org.safeorbit.demo;
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				CODE_SIGN_STYLE = Automatic;
-				SWIFT_VERSION = 5.0;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				TARGETED_DEVICE_FAMILY = 1;
-				ENABLE_TESTABILITY = NO;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
-				CODE_SIGN_ENTITLEMENTS = SafeOrbit/SafeOrbit.entitlements;
-				INFOPLIST_FILE = SafeOrbit/Info.plist;
-				GENERATE_INFOPLIST_FILE = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-			};
-		};
-		4414D8C86439C91293D9335A /* SafeOrbitTests Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = ACD4BCC47A4DDAA3B0722D11 /* Debug.xcconfig */;
-			name = Debug;
-			buildSettings = {
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				PRODUCT_BUNDLE_IDENTIFIER = org.safeorbit.demo.tests;
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				CODE_SIGN_STYLE = Automatic;
-				SWIFT_VERSION = 5.0;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				TARGETED_DEVICE_FAMILY = 1;
-				ENABLE_TESTABILITY = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
-				GENERATE_INFOPLIST_FILE = YES;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SafeOrbit.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SafeOrbit";
 				BUNDLE_LOADER = "$(TEST_HOST)";
-			};
-		};
-		104FDA10424FE41F939FB381 /* SafeOrbitTests Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 323B5140B8E0B7C06560E7E1 /* Release.xcconfig */;
-			name = Release;
-			buildSettings = {
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_TESTABILITY = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = org.safeorbit.demo.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				CODE_SIGN_STYLE = Automatic;
-				SWIFT_VERSION = 5.0;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				TARGETED_DEVICE_FAMILY = 1;
-				ENABLE_TESTABILITY = NO;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
-				GENERATE_INFOPLIST_FILE = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SafeOrbit.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SafeOrbit";
-				BUNDLE_LOADER = "$(TEST_HOST)";
 			};
+			name = Release;
 		};
-		866FBEF258F539EB509C5327 /* Project Debug */ = {
+		1A4AC1309ADABF7D66E4EC58 /* Release */ = {
 			isa = XCBuildConfiguration;
-			name = Debug;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
-				DEBUG_INFORMATION_FORMAT = dwarf;
-			};
-		};
-		1A4AC1309ADABF7D66E4EC58 /* Project Release */ = {
-			isa = XCBuildConfiguration;
-			name = Release;
-			buildSettings = {
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 			};
+			name = Release;
+		};
+		4414D8C86439C91293D9335A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = ACD4BCC47A4DDAA3B0722D11 /* Config/Debug.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.safeorbit.demo.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SafeOrbit.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SafeOrbit";
+			};
+			name = Debug;
+		};
+		8665F37281000797AD86F468 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = ACD4BCC47A4DDAA3B0722D11 /* Config/Debug.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SafeOrbit/SafeOrbit.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SafeOrbit/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.safeorbit.demo;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		866FBEF258F539EB509C5327 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+			};
+			name = Debug;
+		};
+		CA4BE20CF6955442304AE294 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 323B5140B8E0B7C06560E7E1 /* Config/Release.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SafeOrbit/SafeOrbit.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_TESTABILITY = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SafeOrbit/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.safeorbit.demo;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		1364DE184D47BE47084E25E2 /* SafeOrbit Configurations */ = {
+		1364DE184D47BE47084E25E2 /* Build configuration list for PBXNativeTarget "SafeOrbit" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				8665F37281000797AD86F468 /* SafeOrbit Debug */,
-				CA4BE20CF6955442304AE294 /* SafeOrbit Release */,
+				8665F37281000797AD86F468 /* Debug */,
+				CA4BE20CF6955442304AE294 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		8295C81666A8791159ACE054 /* SafeOrbitTests Configurations */ = {
+		8295C81666A8791159ACE054 /* Build configuration list for PBXNativeTarget "SafeOrbitTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				4414D8C86439C91293D9335A /* SafeOrbitTests Debug */,
-				104FDA10424FE41F939FB381 /* SafeOrbitTests Release */,
+				4414D8C86439C91293D9335A /* Debug */,
+				104FDA10424FE41F939FB381 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		C61BE3748CFF795AB7883AC1 /* Project Configurations */ = {
+		C61BE3748CFF795AB7883AC1 /* Build configuration list for PBXProject "SafeOrbit" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				866FBEF258F539EB509C5327 /* Project Debug */,
-				1A4AC1309ADABF7D66E4EC58 /* Project Release */,
+				866FBEF258F539EB509C5327 /* Debug */,
+				1A4AC1309ADABF7D66E4EC58 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin PBXNativeTarget section */
-		373B9A7B0591AC3069343A3B /* SafeOrbit */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 1364DE184D47BE47084E25E2;
-			buildPhases = (
-				5F6A9338085D3E23F8FB6BF7 /* SafeOrbit Sources */,
-				B3738BA844ADC3134834D412 /* SafeOrbit Frameworks */,
-				3689B1113F9BB70CEC185CA2 /* SafeOrbit Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = SafeOrbit;
-			productName = SafeOrbit;
-			productReference = 88F4CDFC38B9C0CE7B73BE5C;
-			packageProductDependencies = (
-				28D3B25AEB6C4CE2BDCE8140 /* MapTilerSDK */,
-			);
-			productType = "com.apple.product-type.application";
-		};
-		D7DD05776768D056E5B6F7EE /* SafeOrbitTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 8295C81666A8791159ACE054;
-			buildPhases = (
-				991C998F80DEAA0A398FCA9B /* SafeOrbitTests Sources */,
-				BD8E6E833F7127522CCF2794 /* SafeOrbitTests Frameworks */,
-				012F9D35299D4FDABC35198E /* SafeOrbitTests Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				4E64676DFD25B11B8D53C1F6 /* AppDependency */,
-			);
-			name = SafeOrbitTests;
-			productName = SafeOrbitTests;
-			productReference = 91E5D63736EA86B11DE2C380;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-/* End PBXNativeTarget section */
-
-/* Begin PBXContainerItemProxy section */
-		B83103CC2CE4C10B09A9C238 /* AppProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 39A67C09A176EFA66BF71C1E;
-			proxyType = 1;
-			remoteGlobalIDString = 373B9A7B0591AC3069343A3B;
-			remoteInfo = SafeOrbit;
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXTargetDependency section */
-		4E64676DFD25B11B8D53C1F6 /* AppDependency */ = {
-			isa = PBXTargetDependency;
-			target = 373B9A7B0591AC3069343A3B;
-			targetProxy = B83103CC2CE4C10B09A9C238;
-		};
-/* End PBXTargetDependency section */
-
-/* Begin PBXProject section */
-		39A67C09A176EFA66BF71C1E /* Project */ = {
-			isa = PBXProject;
-			attributes = {
-				LastUpgradeCheck = 2700;
-				TargetAttributes = {
-					373B9A7B0591AC3069343A3B = {
-						CreatedOnToolsVersion = 27.0;
-						SystemCapabilities = {
-							com.apple.SignInWithApple = {
-								enabled = 1;
-							};
-						};
-					};
-					D7DD05776768D056E5B6F7EE = {
-						CreatedOnToolsVersion = 27.0;
-						TestTargetID = 373B9A7B0591AC3069343A3B;
-					};
-				};
-			};
-			buildConfigurationList = C61BE3748CFF795AB7883AC1;
-			compatibilityVersion = "Xcode 14.0";
-			developmentRegion = en;
-			hasScannedForEncodings = 0;
-			knownRegions = (
-				en,
-				Base,
-			);
-			mainGroup = 46F841CC66BFBE86BDB66ED7;
-			productRefGroup = 4D59BD4F59BC7FC872211896;
-			packageReferences = (
-				0601D0A75C518C99809A1C22 /* MapTiler package */,
-			);
-			projectDirPath = "";
-			projectRoot = "";
-			targets = (
-				373B9A7B0591AC3069343A3B /* SafeOrbit */,
-				D7DD05776768D056E5B6F7EE /* SafeOrbitTests */,
-			);
-		};
-/* End PBXProject section */
 	};
 	rootObject = 39A67C09A176EFA66BF71C1E /* Project object */;
 }

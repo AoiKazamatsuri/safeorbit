@@ -15,24 +15,70 @@ import SwiftUI
 }
 
 final class LocationTests: XCTestCase {
-    func testSafeZonePolygonKeepsWGS84CenterAndRadius() throws {
+    @MainActor func testSafeZoneCircleUsesMapCoordinatesAndMeters() {
         let center = GeoPoint(latitude: 32.061, longitude: 118.778)
-        let data = Data(SafeZoneSelectionMap.circleJSON(center: center, radius: 200).utf8)
-        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let features = try XCTUnwrap(object["features"] as? [[String: Any]])
-        let geometry = try XCTUnwrap(features.first?["geometry"] as? [String: Any])
-        let rings = try XCTUnwrap(geometry["coordinates"] as? [[[Double]]])
-        let ring = try XCTUnwrap(rings.first)
-        XCTAssertEqual(ring.count, 65)
-        XCTAssertEqual(ring[0][0], ring[64][0], accuracy: 0.0000001)
-        XCTAssertEqual(ring[0][1], ring[64][1], accuracy: 0.0000001)
-        let longitudes = ring.map { $0[0] }
-        let latitudes = ring.map { $0[1] }
-        XCTAssertEqual((longitudes.min()! + longitudes.max()!) / 2, center.longitude, accuracy: 0.000001)
-        XCTAssertEqual((latitudes.min()! + latitudes.max()!) / 2, center.latitude, accuracy: 0.000001)
-        let east = CLLocation(latitude: ring[0][1], longitude: ring[0][0])
-        let origin = CLLocation(latitude: center.latitude, longitude: center.longitude)
-        XCTAssertEqual(origin.distance(from: east), 200, accuracy: 2)
+        let circle = SafeZoneSelectionMap.circle(center: center, radius: 200)
+        XCTAssertEqual(circle.coordinate.latitude, center.appleCoordinate.latitude, accuracy: 0.000001)
+        XCTAssertEqual(circle.coordinate.longitude, center.appleCoordinate.longitude, accuracy: 0.000001)
+        XCTAssertEqual(circle.pointCount, 65)
+        let edge = circle.points()[0].coordinate
+        let distance = CLLocation(latitude: edge.latitude, longitude: edge.longitude)
+            .distance(from: CLLocation(latitude: center.appleCoordinate.latitude, longitude: center.appleCoordinate.longitude))
+        XCTAssertEqual(distance, 200, accuracy: 2)
+        let london = GeoPoint(latitude: 51.5, longitude: -0.12)
+        XCTAssertEqual(SafeZoneSelectionMap.circle(center: london, radius: 500).coordinate.latitude, london.latitude, accuracy: 0.000001)
+    }
+
+    @MainActor func testSafeZoneDragStoresWGS84AndPanPreservesSelection() throws {
+        let original = LocationPreviewData.campus
+        let target = GeoPoint(latitude: original.latitude + 0.001, longitude: original.longitude + 0.001)
+        var selections: [GeoPoint] = []
+        let adapter = SafeZoneMapView(initialCenter: original, radiusMeters: 200,
+                                      onSelection: { selections.append($0) }, onState: { _, _ in })
+        let coordinator = adapter.makeCoordinator()
+        let map = MKMapView(frame: CGRect(x: 0, y: 0, width: 393, height: 700))
+        coordinator.configure(map)
+        defer { coordinator.loadTimeout?.cancel(); map.delegate = nil }
+        map.setRegion(MKCoordinateRegion(center: target.appleCoordinate,
+                                        latitudinalMeters: 1600, longitudinalMeters: 1600), animated: false)
+        XCTAssertEqual(coordinator.selectedCenter, original)
+        XCTAssertTrue(selections.isEmpty)
+
+        let camera = map.region
+        let pin = try XCTUnwrap(coordinator.mapView(map, viewFor: coordinator.pin))
+        XCTAssertTrue(pin.gestureRecognizers?.contains(where: { $0.name == "safe-zone-direct-drag" }) == true)
+        coordinator.pin.coordinate = target.appleCoordinate
+        coordinator.commitSelection(in: map)
+        let saved = try XCTUnwrap(selections.last)
+        XCTAssertEqual(saved.latitude, target.latitude, accuracy: 0.000001)
+        XCTAssertEqual(saved.longitude, target.longitude, accuracy: 0.000001)
+        XCTAssertEqual(map.region.center.latitude, camera.center.latitude, accuracy: 0.000001)
+        XCTAssertEqual(map.region.span.latitudeDelta, camera.span.latitudeDelta, accuracy: 0.000001)
+        let circle = try XCTUnwrap(map.overlays.first as? MKPolygon)
+        XCTAssertEqual(circle.coordinate.latitude, coordinator.pin.coordinate.latitude, accuracy: 0.000001)
+        let edge = circle.points()[0].coordinate
+        XCTAssertEqual(CLLocation(latitude: edge.latitude, longitude: edge.longitude)
+            .distance(from: CLLocation(latitude: circle.coordinate.latitude, longitude: circle.coordinate.longitude)), 200, accuracy: 2)
+
+    }
+
+    @MainActor func testSafeZoneMapFailureDisablesSaveAndRenderingRecovers() async {
+        var states: [(Bool, String?)] = []
+        let adapter = SafeZoneMapView(initialCenter: LocationPreviewData.campus, radiusMeters: 200,
+                                      onSelection: { _ in }, onState: { states.append(($0, $1)) })
+        let coordinator = adapter.makeCoordinator()
+        let map = MKMapView()
+        coordinator.mapViewDidFailLoadingMap(map, withError: URLError(.notConnectedToInternet))
+        try? await Task.sleep(for: .milliseconds(20))
+        XCTAssertEqual(states.last?.0, false)
+        XCTAssertNotNil(states.last?.1)
+        coordinator.mapViewDidFinishRenderingMap(map, fullyRendered: false)
+        try? await Task.sleep(for: .milliseconds(20))
+        XCTAssertEqual(states.last?.0, false)
+        coordinator.mapViewDidFinishRenderingMap(map, fullyRendered: true)
+        try? await Task.sleep(for: .milliseconds(20))
+        XCTAssertEqual(states.last?.0, true)
+        XCTAssertNil(states.last?.1)
     }
 
     func testRiskPreviewArgumentsAreExplicit() {
