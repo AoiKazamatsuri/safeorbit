@@ -26,6 +26,15 @@ struct NavigationFix {
         && now.timeIntervalSince(timestamp) >= -5 && now.timeIntervalSince(timestamp) <= 15
     }
 }
+struct NavigationHeading {
+    let degrees: Double
+    let accuracy: Double
+    let timestamp: Date
+    func isUsable(at now: Date) -> Bool {
+        degrees.isFinite && (0..<360).contains(degrees) && accuracy.isFinite && (0...45).contains(accuracy)
+        && (-5...15).contains(now.timeIntervalSince(timestamp))
+    }
+}
 struct WalkingStep {
     let instruction: String
     let coordinates: [CLLocationCoordinate2D]
@@ -43,11 +52,13 @@ struct WalkingRoute {
     func currentPoint() async throws -> GeoPoint
     func route(from: GeoPoint, to: GeoPoint) async throws -> WalkingRoute
     func startUpdates(_ receive: @escaping (Result<NavigationFix, NavigationIssue>) -> Void)
+    func startHeadingUpdates(_ receive: @escaping (NavigationHeading) -> Void)
     func stopUpdates()
     func cancelRoute()
 }
 extension WalkingRouteProvider {
     func startUpdates(_ receive: @escaping (Result<NavigationFix, NavigationIssue>) -> Void) {}
+    func startHeadingUpdates(_ receive: @escaping (NavigationHeading) -> Void) {}
     func stopUpdates() {}
     func cancelRoute() {}
 }
@@ -58,6 +69,7 @@ extension WalkingRouteProvider {
     private var locationRequestID: UUID?
     private var timeout: Task<Void, Never>?
     private var receive: ((Result<NavigationFix, NavigationIssue>) -> Void)?
+    private var headingReceiver: ((NavigationHeading) -> Void)?
     private var directions: MKDirections?
     override init() {
         super.init()
@@ -95,7 +107,13 @@ extension WalkingRouteProvider {
         guard CLLocationManager.locationServicesEnabled() else { receive(.failure(.locationDenied)); return }
         handleAuthorization(manager.authorizationStatus)
     }
+    func startHeadingUpdates(_ receive: @escaping (NavigationHeading) -> Void) {
+        headingReceiver = receive
+        handleAuthorization(manager.authorizationStatus)
+    }
     func stopUpdates() {
+        headingReceiver = nil
+        manager.stopUpdatingHeading()
         receive = nil
         manager.stopUpdatingLocation()
         completeLocation(.failure(CancellationError()))
@@ -110,6 +128,7 @@ extension WalkingRouteProvider {
         case .authorizedAlways, .authorizedWhenInUse:
             if receive != nil { manager.startUpdatingLocation() }
             else if locationContinuation != nil { manager.requestLocation() }
+            if headingReceiver != nil, CLLocationManager.headingAvailable() { manager.startUpdatingHeading() }
         case .denied, .restricted:
             receive?(.failure(.locationDenied))
             completeLocation(.failure(NavigationIssue.locationDenied))
@@ -124,6 +143,11 @@ extension WalkingRouteProvider {
             self?.receive?(.success(fix))
             if fix.isUsable(at: Date()) { self?.completeLocation(.success(fix.point)) }
         }
+    }
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading heading: CLHeading) {
+        let sample = NavigationHeading(degrees: heading.trueHeading >= 0 ? heading.trueHeading : heading.magneticHeading,
+                                       accuracy: heading.headingAccuracy, timestamp: heading.timestamp)
+        Task { @MainActor [weak self] in self?.headingReceiver?(sample) }
     }
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         Task { @MainActor [weak self] in
@@ -210,6 +234,7 @@ struct RouteProjection {
     @Published private(set) var suspended = false
     @Published private(set) var arrived = false
     @Published private(set) var fix: NavigationFix?
+    @Published private var heading: NavigationHeading?
     @Published private(set) var destination: ElderLocationSnapshot?
     @Published private(set) var remainingMeters = 0.0
     @Published private(set) var remainingSeconds = 0.0
@@ -234,6 +259,26 @@ struct RouteProjection {
         self.provider = provider; self.voice = voice ?? NavigationVoice(); self.now = now
     }
     convenience init() { self.init(provider: AppleWalkingRouteProvider()) }
+    /// Use device facing direction when stationary; route tangent keeps unsupported devices useful.
+    var markerHeading: Double? {
+        if let heading, heading.isUsable(at: now()) { return heading.degrees }
+        if let fix, fix.course.isFinite, (0..<360).contains(fix.course) { return fix.course }
+        guard let fix, let coordinates = route?.coordinates, coordinates.count > 1 else { return nil }
+        let point = fix.point.appleCoordinate
+        var nearest = Double.infinity, bearing: Double?
+        for index in 1..<coordinates.count {
+            let a = coordinates[index - 1], b = coordinates[index]
+            guard let projection = RouteProjection.project(point, onto: [a, b]),
+                  projection.length > 1, projection.offRoute < nearest else { continue }
+            nearest = projection.offRoute
+            let latitude1 = a.latitude * .pi / 180, latitude2 = b.latitude * .pi / 180
+            let longitude = (b.longitude - a.longitude) * .pi / 180
+            let y = sin(longitude) * cos(latitude2)
+            let x = cos(latitude1) * sin(latitude2) - sin(latitude1) * cos(latitude2) * cos(longitude)
+            bearing = (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
+        }
+        return bearing
+    }
     var instruction: String {
         if arrived { return "Arrived near the senior’s latest location" }
         if suspended { return "Navigation paused" }
@@ -270,6 +315,11 @@ struct RouteProjection {
             case .success(let fix): self.receive(fix)
             case .failure(let issue): self.issue = issue; self.resetEvidence(); self.voice.stop()
             }
+        }
+        provider.startHeadingUpdates { [weak self] sample in
+            guard let self, self.generation == session, self.isPresented, !self.suspended, !self.arrived else { return }
+            guard self.heading == nil || sample.timestamp > self.heading!.timestamp else { return }
+            self.heading = sample.isUsable(at: self.now()) ? sample : nil
         }
     }
     func plan(to snapshot: ElderLocationSnapshot?) async {
@@ -387,7 +437,7 @@ struct RouteProjection {
         guard isPresented else { return }
         voice.stop()
         guard !arrived else { return }
-        generation += 1; suspended = true; loading = false; needsReplan = false
+        generation += 1; heading = nil; suspended = true; loading = false; needsReplan = false
         planningTask?.cancel(); provider.stopUpdates(); provider.cancelRoute(); voice.stop(); resetEvidence()
     }
     func resume(to snapshot: ElderLocationSnapshot?) async {
@@ -397,7 +447,7 @@ struct RouteProjection {
     func end() {
         generation += 1; isPresented = false; suspended = false; arrived = false
         planningTask?.cancel(); planningTask = nil; provider.stopUpdates(); provider.cancelRoute(); voice.stop()
-        route = nil; estimatedArrival = nil; issue = nil; fix = nil; destination = nil; loading = false; needsReplan = false
+        heading = nil; route = nil; estimatedArrival = nil; issue = nil; fix = nil; destination = nil; loading = false; needsReplan = false
         lastPlanningAt = nil; plannedDestination = nil; resetEvidence(); spoken.removeAll()
     }
     private func resetEvidence() { offRouteCount = 0; arrivalCount = 0 }

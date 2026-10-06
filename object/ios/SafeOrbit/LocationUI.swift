@@ -275,8 +275,7 @@ struct LocationPage: View {
                     }
                     if let fix = navigation.fix {
                         Annotation("Your location", coordinate: fix.point.appleCoordinate) {
-                            CurrentLocationDot(heading: fix.course.isFinite && (0..<360).contains(fix.course)
-                                               ? fix.course - visibleHeading : nil,
+                            CurrentLocationDot(heading: navigation.markerHeading.map { $0 - visibleHeading },
                                                label: "Your location")
                         }.annotationTitles(.hidden)
                     }

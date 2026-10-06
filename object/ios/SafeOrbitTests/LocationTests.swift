@@ -283,6 +283,7 @@ final class LocationTests: XCTestCase {
     var routeGate: CheckedContinuation<WalkingRoute, Error>?
     var holdRoute = false
     var receiver: ((Result<NavigationFix, NavigationIssue>) -> Void)?
+    var headingReceiver: ((NavigationHeading) -> Void)?
     var destinations: [GeoPoint] = []
     var result: WalkingRoute {
         let corner = CLLocationCoordinate2D(latitude: 0, longitude: 0.001)
@@ -299,7 +300,8 @@ final class LocationTests: XCTestCase {
         return result
     }
     func startUpdates(_ receive: @escaping (Result<NavigationFix, NavigationIssue>) -> Void) { receiver = receive }
-    func stopUpdates() { stops += 1; receiver = nil }
+    func startHeadingUpdates(_ receive: @escaping (NavigationHeading) -> Void) { headingReceiver = receive }
+    func stopUpdates() { stops += 1; receiver = nil; headingReceiver = nil }
     func cancelRoute() { cancelled += 1 }
 }
 
@@ -430,7 +432,7 @@ extension LocationTests {
             let senior = LocationPreviewData.snapshot(recordedAt: clock.date)
             await model.start(to: unavailable ? nil : senior)
             if !unavailable {
-                model.receive(NavigationFix(point: LocationPreviewData.startingPoint, accuracy: 5, timestamp: clock.date, course: 120))
+                model.receive(NavigationFix(point: LocationPreviewData.startingPoint, accuracy: 5, timestamp: clock.date))
             }
             var profile = ElderProfile(); profile.name = "Li Lan"
             let window = UIWindow(windowScene: scene)
@@ -501,5 +503,52 @@ extension LocationTests {
         await model.start(to: nil)
         XCTAssertNil(model.estimatedArrival)
         model.end()
+    }
+}
+
+extension LocationTests {
+    @MainActor func testNavigationHeadingPrefersCompassAndFallsBackToCourseThenRoute() async throws {
+        let clock = NavigationClock(), provider = NavigationProviderStub()
+        let model = WalkingNavigationModel(provider: provider, voice: NavigationVoiceSpy(), now: { clock.date })
+        await model.start(to: navigationSnapshot(provider.target, at: clock.date))
+        model.receive(NavigationFix(point: provider.source, accuracy: 5, timestamp: clock.date))
+        XCTAssertEqual(try XCTUnwrap(model.markerHeading), 90, accuracy: 0.1)
+        clock.date.addTimeInterval(1)
+        model.receive(NavigationFix(point: provider.source, accuracy: 5, timestamp: clock.date, course: 120))
+        XCTAssertEqual(model.markerHeading, 120)
+        provider.headingReceiver?(NavigationHeading(degrees: 270, accuracy: 5, timestamp: clock.date))
+        XCTAssertEqual(model.markerHeading, 270)
+        clock.date.addTimeInterval(16)
+        XCTAssertEqual(model.markerHeading, 120)
+        provider.headingReceiver?(NavigationHeading(degrees: 10, accuracy: -1, timestamp: clock.date))
+        XCTAssertEqual(model.markerHeading, 120)
+        provider.headingReceiver?(NavigationHeading(degrees: .nan, accuracy: 5, timestamp: clock.date))
+        XCTAssertEqual(model.markerHeading, 120)
+        clock.date.addTimeInterval(1)
+        model.receive(NavigationFix(point: .init(latitude: 0.0005, longitude: 0.001), accuracy: 5, timestamp: clock.date))
+        XCTAssertEqual(try XCTUnwrap(model.markerHeading), 0, accuracy: 0.1)
+        model.end()
+        XCTAssertNil(model.markerHeading)
+    }
+
+    @MainActor func testHeadingCallbacksCannotRevivePausedOrEndedNavigation() async {
+        let clock = NavigationClock(), provider = NavigationProviderStub()
+        let model = WalkingNavigationModel(provider: provider, voice: NavigationVoiceSpy(), now: { clock.date })
+        await model.start(to: navigationSnapshot(provider.target, at: clock.date))
+        let oldReceiver = provider.headingReceiver
+        model.pause()
+        oldReceiver?(NavigationHeading(degrees: 270, accuracy: 5, timestamp: clock.date))
+        XCTAssertNil(model.markerHeading)
+        await model.resume(to: navigationSnapshot(provider.target, at: clock.date))
+        let newReceiver = provider.headingReceiver
+        clock.date.addTimeInterval(1)
+        oldReceiver?(NavigationHeading(degrees: 270, accuracy: 5, timestamp: clock.date))
+        XCTAssertNil(model.markerHeading)
+        newReceiver?(NavigationHeading(degrees: 45, accuracy: 5, timestamp: clock.date))
+        XCTAssertEqual(model.markerHeading, 45)
+        model.end()
+        newReceiver?(NavigationHeading(degrees: 90, accuracy: 5, timestamp: clock.date))
+        XCTAssertNil(model.markerHeading)
+        XCTAssertNil(provider.headingReceiver)
     }
 }
