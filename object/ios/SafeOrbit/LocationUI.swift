@@ -879,7 +879,7 @@ struct WalkingNavigationOverlay: View {
             }
             NavigationSummaryCard(model: model, confirmingExit: $confirmingExit, end: end)
         }
-        .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 18)
+        .padding(.horizontal, 20).padding(.top, 8)
         .tint(OrbitStyle.teal)
     }
     private func navigationButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
@@ -918,7 +918,7 @@ struct NavigationSummaryCard: View {
                 }
             }
         }
-        .padding(16).frame(maxWidth: .infinity, minHeight: 96)
+        .padding(16).frame(maxWidth: .infinity, minHeight: 88)
         .background(.white, in: Capsule())
         .compositingGroup()
         .shadow(color: .black.opacity(0.13), radius: 8, y: 3)
@@ -942,7 +942,7 @@ struct NavigationSummaryCard: View {
     private var exitButton: some View {
         Button("Exit navigation", action: end)
             .font(.headline).fixedSize(horizontal: true, vertical: false)
-            .frame(maxWidth: .infinity, minHeight: 64)
+            .frame(maxWidth: .infinity, minHeight: 56)
             .foregroundStyle(.white).background(OrbitStyle.teal, in: Capsule())
             .buttonStyle(.plain)
             .accessibilityIdentifier("end-navigation")
@@ -950,7 +950,7 @@ struct NavigationSummaryCard: View {
     private var cancelButton: some View {
         Button("Cancel") { confirmingExit = false }
             .font(.headline).fixedSize(horizontal: true, vertical: false)
-            .frame(maxWidth: .infinity, minHeight: 64)
+            .frame(maxWidth: .infinity, minHeight: 56)
             .foregroundStyle(OrbitStyle.teal).background(OrbitStyle.teal.opacity(0.10), in: Capsule())
             .buttonStyle(.plain)
             .accessibilityIdentifier("cancel-exit-navigation")
