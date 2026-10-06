@@ -262,3 +262,222 @@ final class LocationTests: XCTestCase {
         XCTAssertEqual(model.route?.steps.count, 2)
     }
 }
+
+@MainActor private final class NavigationClock {
+    var date = Date()
+    func advance(_ seconds: Double = 1) { date = date.addingTimeInterval(seconds) }
+}
+@MainActor private final class NavigationVoiceSpy: NavigationSpeaking {
+    var spoken: [String] = []
+    var stops = 0
+    func speak(_ text: String) { spoken.append(text) }
+    func stop() { stops += 1 }
+}
+@MainActor private final class NavigationProviderStub: WalkingRouteProvider {
+    let source = GeoPoint(latitude: 0, longitude: 0)
+    var target = GeoPoint(latitude: 0.001, longitude: 0.001)
+    var calls = 0
+    var stops = 0
+    var cancelled = 0
+    var error: NavigationIssue?
+    var routeGate: CheckedContinuation<WalkingRoute, Error>?
+    var holdRoute = false
+    var receiver: ((Result<NavigationFix, NavigationIssue>) -> Void)?
+    var destinations: [GeoPoint] = []
+    var result: WalkingRoute {
+        let corner = CLLocationCoordinate2D(latitude: 0, longitude: 0.001)
+        return WalkingRoute(coordinates: [source.appleCoordinate, corner, target.appleCoordinate], distanceMeters: 222,
+                            expectedSeconds: 180, steps: ["Walk east", "Turn left and walk north"], segments: [
+            WalkingStep(instruction: "Walk east", coordinates: [source.appleCoordinate, corner], distanceMeters: 111),
+            WalkingStep(instruction: "Turn left and walk north", coordinates: [corner, target.appleCoordinate], distanceMeters: 111)])
+    }
+    func currentPoint() async throws -> GeoPoint { if let error { throw error }; return source }
+    func route(from: GeoPoint, to: GeoPoint) async throws -> WalkingRoute {
+        calls += 1; destinations.append(to)
+        if let error { throw error }
+        if holdRoute { return try await withCheckedThrowingContinuation { routeGate = $0 } }
+        return result
+    }
+    func startUpdates(_ receive: @escaping (Result<NavigationFix, NavigationIssue>) -> Void) { receiver = receive }
+    func stopUpdates() { stops += 1; receiver = nil }
+    func cancelRoute() { cancelled += 1 }
+}
+
+extension LocationTests {
+    @MainActor private func navigationSnapshot(_ point: GeoPoint, at date: Date) -> ElderLocationSnapshot {
+        ElderLocationSnapshot(coordinate: point, recordedAt: date, heading: nil, status: nil,
+                              batteryPercent: nil, address: nil, trail: [], safeZones: [])
+    }
+    @MainActor func testNavigationProgressVoiceMuteAndArrival() async {
+        let clock = NavigationClock(), provider = NavigationProviderStub(), voice = NavigationVoiceSpy()
+        let model = WalkingNavigationModel(provider: provider, voice: voice, now: { clock.date })
+        await model.start(to: navigationSnapshot(provider.target, at: clock.date))
+        XCTAssertGreaterThan(model.turnMeters, 0)
+        func fix(_ latitude: Double, _ longitude: Double, accuracy: Double = 5) {
+            clock.advance()
+            model.receive(NavigationFix(point: .init(latitude: latitude, longitude: longitude), accuracy: accuracy, timestamp: clock.date))
+        }
+        fix(0, 0.0002)
+        XCTAssertEqual(model.stepIndex, 0); XCTAssertLessThan(model.remainingMeters, 222)
+        XCTAssertEqual(voice.spoken.count, 1)
+        fix(0, 0.0003)
+        XCTAssertEqual(voice.spoken.count, 1)
+        fix(0, 0.0008)
+        XCTAssertEqual(voice.spoken.count, 2)
+        fix(0, 0.00081)
+        XCTAssertEqual(voice.spoken.count, 2)
+        model.toggleMuted()
+        fix(0.0002, 0.001)
+        XCTAssertEqual(model.stepIndex, 1); XCTAssertEqual(voice.spoken.count, 2)
+        model.toggleMuted()
+        fix(0.0003, 0.001)
+        XCTAssertEqual(voice.spoken.count, 3)
+        let remaining = model.remainingMeters
+        fix(0.00095, 0.001, accuracy: 80)
+        XCTAssertEqual(model.remainingMeters, remaining); XCTAssertFalse(model.arrived)
+        fix(0.00095, 0.001); fix(0.00096, 0.001)
+        XCTAssertFalse(model.arrived)
+        fix(0.00097, 0.001)
+        XCTAssertTrue(model.arrived); XCTAssertEqual(model.remainingMeters, 0)
+        XCTAssertGreaterThan(provider.stops, 0)
+        XCTAssertTrue(voice.spoken.last?.contains("near") == true)
+        let stops = voice.stops
+        model.pause()
+        XCTAssertGreaterThan(voice.stops, stops)
+        XCTAssertTrue(model.arrived)
+        model.end(); XCTAssertFalse(model.isPresented); XCTAssertNil(model.route)
+    }
+    @MainActor func testNavigationDeviationThrottleAndMovingSenior() async {
+        let clock = NavigationClock(), provider = NavigationProviderStub()
+        let model = WalkingNavigationModel(provider: provider, voice: NavigationVoiceSpy(), now: { clock.date })
+        await model.start(to: navigationSnapshot(provider.target, at: clock.date))
+        for _ in 0..<3 {
+            clock.advance()
+            model.receive(NavigationFix(point: .init(latitude: -0.001, longitude: 0.0005), accuracy: 5, timestamp: clock.date))
+        }
+        XCTAssertEqual(provider.calls, 1)
+        clock.advance(30)
+        model.receive(NavigationFix(point: .init(latitude: -0.001, longitude: 0.0005), accuracy: 5, timestamp: clock.date))
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertEqual(provider.calls, 2)
+        let moved = GeoPoint(latitude: 0.002, longitude: 0.001)
+        model.updateDestination(navigationSnapshot(moved, at: clock.date))
+        XCTAssertEqual(provider.calls, 2)
+        clock.advance(31)
+        model.receive(NavigationFix(point: provider.source, accuracy: 5, timestamp: clock.date))
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertEqual(provider.calls, 3); XCTAssertEqual(provider.destinations.last, moved)
+        let latest = model.destination?.recordedAt
+        model.updateDestination(navigationSnapshot(provider.target, at: clock.date.addingTimeInterval(-100)))
+        XCTAssertEqual(model.destination?.recordedAt, latest)
+        model.end()
+    }
+    @MainActor func testNavigationStaleLocationPausesAndRecovers() async {
+        let clock = NavigationClock(), provider = NavigationProviderStub()
+        let model = WalkingNavigationModel(provider: provider, voice: NavigationVoiceSpy(), now: { clock.date })
+        await model.start(to: navigationSnapshot(provider.target, at: clock.date))
+        model.receive(NavigationFix(point: provider.source, accuracy: 5, timestamp: clock.date))
+        clock.advance(16); model.tick()
+        XCTAssertEqual(model.issue, .locationUnavailable)
+        let remaining = model.remainingMeters
+        model.receive(NavigationFix(point: provider.target, accuracy: 5, timestamp: clock.date.addingTimeInterval(-16)))
+        XCTAssertEqual(model.remainingMeters, remaining); XCTAssertFalse(model.arrived)
+        clock.advance(301); model.tick()
+        XCTAssertEqual(model.issue, .staleDestination)
+        model.updateDestination(navigationSnapshot(provider.target, at: clock.date))
+        clock.advance()
+        model.receive(NavigationFix(point: provider.source, accuracy: 5, timestamp: clock.date))
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertEqual(provider.calls, 2); XCTAssertNil(model.issue)
+        model.pause(); XCTAssertTrue(model.suspended)
+        let calls = provider.calls
+        model.receive(NavigationFix(point: provider.target, accuracy: 5, timestamp: clock.date))
+        XCTAssertEqual(provider.calls, calls)
+        await model.resume(to: navigationSnapshot(provider.target, at: clock.date))
+        XCTAssertFalse(model.suspended); XCTAssertEqual(provider.calls, calls + 1)
+        model.end()
+    }
+    @MainActor func testNavigationCancellationIgnoresLateRouteAndLocation() async {
+        let clock = NavigationClock(), provider = NavigationProviderStub()
+        provider.holdRoute = true
+        let model = WalkingNavigationModel(provider: provider, voice: NavigationVoiceSpy(), now: { clock.date })
+        let task = Task { await model.start(to: navigationSnapshot(provider.target, at: clock.date)) }
+        for _ in 0..<20 { if provider.routeGate != nil { break }; await Task.yield() }
+        XCTAssertNotNil(provider.routeGate)
+        let oldReceiver = provider.receiver
+        model.end()
+        provider.routeGate?.resume(returning: provider.result); provider.routeGate = nil
+        await task.value
+        oldReceiver?(.success(NavigationFix(point: provider.target, accuracy: 5, timestamp: clock.date)))
+        XCTAssertNil(model.route); XCTAssertNil(model.fix); XCTAssertFalse(model.loading); XCTAssertFalse(model.isPresented)
+    }
+}
+
+extension LocationTests {
+    @MainActor func testInlineNavigationSnapshotsAndExit() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("FrontendSnapshots")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let clock = NavigationClock()
+        for (name, size, type, unavailable) in [
+            ("inline-navigation", CGSize(width: 393, height: 852), DynamicTypeSize.large, false),
+            ("inline-navigation-small-large-text", CGSize(width: 375, height: 812), DynamicTypeSize.accessibility1, false),
+            ("inline-navigation-unavailable", CGSize(width: 393, height: 852), DynamicTypeSize.large, true)
+        ] {
+            let provider = RouteStub(), voice = NavigationVoiceSpy()
+            let model = WalkingNavigationModel(provider: provider, voice: voice, now: { clock.date })
+            let senior = LocationPreviewData.snapshot(recordedAt: clock.date)
+            await model.start(to: unavailable ? nil : senior)
+            if !unavailable {
+                model.receive(NavigationFix(point: LocationPreviewData.startingPoint, accuracy: 5, timestamp: clock.date))
+            }
+            var profile = ElderProfile(); profile.name = "Li Lan"
+            let window = UIWindow(windowScene: scene)
+            window.frame = CGRect(origin: .zero, size: size)
+            window.rootViewController = UIHostingController(rootView:
+                LocationPage(profile: profile, snapshot: senior, message: nil, loading: false,
+                             refresh: {}, agent: {}, navigate: {}, usesPreviewTrail: true, navigation: model)
+                .environment(\.dynamicTypeSize, type).environment(\.colorScheme, .light))
+            window.makeKeyAndVisible()
+            window.rootViewController?.view.frame = window.bounds
+            window.rootViewController?.view.layoutIfNeeded()
+            try await Task.sleep(for: .milliseconds(2500))
+            let image = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in
+                window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+            }
+            let data = try XCTUnwrap(image.pngData())
+            try data.write(to: folder.appendingPathComponent(name + ".png"))
+            let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
+            attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+            XCTAssertTrue(model.isPresented)
+            model.end(); XCTAssertFalse(model.isPresented)
+            window.isHidden = true; previous?.makeKeyAndVisible()
+        }
+    }
+}
+
+extension LocationTests {
+    @MainActor func testNavigationErrorsRemainActionableAndRetry() async {
+        let clock = NavigationClock(), provider = NavigationProviderStub()
+        let model = WalkingNavigationModel(provider: provider, voice: NavigationVoiceSpy(), now: { clock.date })
+        provider.error = .locationDenied
+        await model.start(to: navigationSnapshot(provider.target, at: clock.date))
+        model.tick()
+        XCTAssertEqual(model.issue, .locationDenied)
+        provider.error = .routeUnavailable
+        await model.plan(to: navigationSnapshot(provider.target, at: clock.date))
+        model.tick()
+        XCTAssertEqual(model.issue, .routeUnavailable)
+        provider.error = nil
+        await model.plan(to: navigationSnapshot(provider.target, at: clock.date))
+        XCTAssertNotNil(model.route); XCTAssertNil(model.issue)
+        clock.advance()
+        let nearby = GeoPoint(latitude: provider.target.latitude + 0.00005, longitude: provider.target.longitude)
+        model.updateDestination(navigationSnapshot(nearby, at: clock.date))
+        XCTAssertEqual(provider.calls, 1)
+        model.updateDestination(navigationSnapshot(.init(latitude: 90.1, longitude: 0), at: clock.date.addingTimeInterval(1)))
+        XCTAssertEqual(model.issue, .missingDestination)
+        model.end()
+    }
+}

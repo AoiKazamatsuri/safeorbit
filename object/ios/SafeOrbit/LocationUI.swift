@@ -105,7 +105,7 @@ struct CaregiverHomePage: View {
     @State private var selectedSettings: CaregiverSettingsItem?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tab: CaregiverTab = .location
-    @State private var navigating = false
+    @StateObject private var navigation = WalkingNavigationModel()
     @State private var showingSettings: Bool
     @State private var keyboardVisible = false
     init(store: OnboardingStore, settingsInitiallyOpen: Bool = false) {
@@ -127,15 +127,16 @@ struct CaregiverHomePage: View {
                 LocationPage(profile: store.elder, snapshot: store.location,
                              message: store.locationError, loading: store.locationLoading,
                              refresh: { Task { await store.refreshLocation() } },
-                             agent: { tab = .agent }, navigate: { navigating = true },
+                             agent: { tab = .agent }, navigate: { Task { await navigation.start(to: store.location) } },
                              settings: { setSettings(true) }, riskState: riskState,
-                             zoneStore: zoneStore, usesPreviewTrail: store.previewSession)
+                             zoneStore: zoneStore, usesPreviewTrail: store.previewSession,
+                             navigation: navigation, refreshDestination: { await store.refreshLocation(); return store.location })
             } else if tab == .agent {
                 AgentChatPage(keyboardVisible: keyboardVisible)
             } else {
                 RecordsPage()
             }
-            if !keyboardVisible {
+            if !keyboardVisible && !navigation.isPresented {
                 VStack { Spacer(); CaregiverTabBar(selection: $tab) }
             }
             GeometryReader { geometry in
@@ -179,9 +180,7 @@ struct CaregiverHomePage: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             keyboardVisible = false
         }
-        .fullScreenCover(isPresented: $navigating) {
-            WalkingNavigationPage(snapshot: store.location, name: store.elder.name) { navigating = false }
-        }
+        .onDisappear { navigation.end() }
     }
 }
 
@@ -197,6 +196,13 @@ struct LocationPage: View {
     var riskState: CaregiverRiskState = .normal
     @ObservedObject var zoneStore = SafeZoneSessionStore()
     var usesPreviewTrail = false
+    @ObservedObject var navigation = WalkingNavigationModel()
+    var refreshDestination: (() async -> ElderLocationSnapshot?)? = nil
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var previousCamera: MapCameraPosition?
+    @State private var followsUser = true
+    @State private var visibleHeading = 0.0
+    private var navigationRunning: Bool { navigation.isPresented && !navigation.suspended && !navigation.arrived && scenePhase == .active }
     @State private var camera: MapCameraPosition = .automatic
     @State private var defaultRegion: MKCoordinateRegion?
     @State private var baselineVisibleRegion: MKCoordinateRegion?
@@ -209,6 +215,7 @@ struct LocationPage: View {
     var body: some View {
         ZStack(alignment: .top) {
             Map(position: $camera) {
+                if !navigation.isPresented {
                 ForEach(zoneStore.visibleZones(in: snapshot).filter { $0.center.isValid && $0.radiusMeters.isFinite && $0.radiusMeters > 0 }, id: \.renderKey) { zone in
                         MapCircle(center: zone.center.appleCoordinate, radius: zone.radiusMeters)
                             .foregroundStyle(OrbitStyle.teal.opacity(0.10))
@@ -258,11 +265,34 @@ struct LocationPage: View {
                         }
                     }
                 }
+                }
+                if navigation.isPresented {
+                    if let route = navigation.route {
+                        MapPolyline(coordinates: route.coordinates)
+                            .stroke(OrbitStyle.teal, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                    }
+                    if let destination = navigation.destination, destination.coordinate.isValid {
+                        Marker(profile.name, coordinate: destination.coordinate.appleCoordinate).tint(OrbitStyle.teal)
+                    }
+                    if let fix = navigation.fix {
+                        Annotation("Your location", coordinate: fix.point.appleCoordinate) {
+                            Image(systemName: "location.north.circle.fill")
+                                .font(.system(size: 36)).foregroundStyle(.blue, .white)
+                                .rotationEffect(.degrees(fix.course >= 0 ? fix.course - visibleHeading : 0))
+                                .shadow(radius: 3)
+                        }.annotationTitles(.hidden)
+                    }
+                }
             }
             .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
             .mapControlVisibility(.hidden)
             .onMapCameraChange(frequency: .onEnd) { context in
                 visibleRegion = context.region
+                visibleHeading = context.camera.heading
+                if navigation.isPresented {
+                    if camera.positionedByUser { followsUser = false }
+                    return
+                }
                 guard defaultRegion != nil else { return }
                 if awaitingBaseline || baselineVisibleRegion == nil {
                     baselineVisibleRegion = context.region
@@ -279,6 +309,7 @@ struct LocationPage: View {
                 }
             }
             .ignoresSafeArea()
+            if !navigation.isPresented {
             VStack(alignment: .leading) {
                 HStack(alignment: .top) {
                     Button(action: settings) {
@@ -330,10 +361,58 @@ struct LocationPage: View {
                 SeniorLocationCard(profile: profile, snapshot: snapshot, navigate: navigate, riskState: riskState)
                     .padding(.bottom, 80)
             }.padding(.horizontal, 20).padding(.top, 4)
+            } else {
+                WalkingNavigationOverlay(model: navigation, name: profile.name, preview: usesPreviewTrail,
+                    refreshMessage: message,
+                    retry: { Task {
+                        let latest = await refreshDestination?() ?? snapshot
+                        guard navigation.isPresented, !Task.isCancelled else { return }
+                        await navigation.plan(to: latest)
+                    } },
+                    follow: { followsUser = true; followCurrentPosition() },
+                    overview: { followsUser = false; showRouteOverview() }, end: { navigation.end() })
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .onChange(of: snapshot?.recordedAt) { _, _ in focusOnSenior() }
-        .onAppear { focusOnSenior() }
+        .onChange(of: snapshot?.recordedAt) { _, _ in
+            if navigation.isPresented { navigation.updateDestination(snapshot) }
+            else { focusOnSenior() }
+        }
+        .onChange(of: navigation.isPresented) { _, presented in
+            if presented { previousCamera = camera; followsUser = true; followCurrentPosition() }
+            else if let previousCamera { camera = previousCamera; self.previousCamera = nil }
+        }
+        .onChange(of: navigation.fix?.timestamp) { _, _ in
+            if followsUser && navigationRunning { followCurrentPosition() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { navigation.pause() }
+        }
+        .task(id: scenePhase) {
+            if scenePhase == .active && navigation.suspended {
+                let latest = await refreshDestination?() ?? snapshot
+                guard !Task.isCancelled, scenePhase == .active else { return }
+                await navigation.resume(to: latest)
+            }
+        }
+        .task(id: navigationRunning) {
+            guard navigationRunning else { return }
+            while !Task.isCancelled {
+                let latest = await refreshDestination?() ?? snapshot
+                guard !Task.isCancelled, navigationRunning else { return }
+                navigation.updateDestination(latest)
+                do { try await Task.sleep(for: .seconds(30)) } catch { return }
+            }
+        }
+        .task(id: navigationRunning) {
+            guard navigationRunning else { return }
+            while !Task.isCancelled {
+                navigation.tick()
+                do { try await Task.sleep(for: .seconds(1)) } catch { return }
+            }
+        }
+        .onAppear { if !navigation.isPresented { focusOnSenior() } }
+        .onDisappear { navigation.end() }
         .fullScreenCover(item: $zoneEditor) { selection in
             SafeZoneEditorPage(
                 zone: selection.zone,
@@ -344,6 +423,20 @@ struct LocationPage: View {
                 save: { zoneStore.save($0) }, delete: { zoneStore.delete($0) }
             )
         }
+    }
+    private func followCurrentPosition() {
+        guard let fix = navigation.fix, fix.point.isValid else { return }
+        camera = .camera(MapCamera(centerCoordinate: fix.point.appleCoordinate, distance: 550,
+                                   heading: fix.course >= 0 && fix.course.isFinite ? fix.course : 0, pitch: 0))
+    }
+    private func showRouteOverview() {
+        guard let coordinates = navigation.route?.coordinates, !coordinates.isEmpty else { return }
+        let latitudes = coordinates.map(\.latitude), longitudes = coordinates.map(\.longitude)
+        camera = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(
+            latitude: (latitudes.min()! + latitudes.max()!) / 2,
+            longitude: (longitudes.min()! + longitudes.max()!) / 2),
+            span: MKCoordinateSpan(latitudeDelta: max(0.004, (latitudes.max()! - latitudes.min()!) * 1.8),
+                                   longitudeDelta: max(0.004, (longitudes.max()! - longitudes.min()!) * 1.8))))
     }
     private func focusOnSenior() {
         guard let point else { return }
@@ -727,82 +820,104 @@ private struct SeniorLocationCard: View {
     }
 }
 
+struct WalkingNavigationOverlay: View {
+    @ObservedObject var model: WalkingNavigationModel
+    let name: String
+    let preview: Bool
+    let refreshMessage: String?
+    let retry: () -> Void
+    let follow: () -> Void
+    let overview: () -> Void
+    let end: () -> Void
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(alignment: .center, spacing: 14) {
+                Image(systemName: model.directionSymbol)
+                    .font(.system(size: 32, weight: .semibold)).foregroundStyle(OrbitStyle.teal)
+                VStack(alignment: .leading, spacing: 4) {
+                    if model.route != nil && model.issue == nil && !model.loading && !model.arrived {
+                        Text(WalkingNavigationModel.distanceText(model.turnMeters)).font(.title2.bold())
+                    }
+                    Text(model.instruction).font(.headline).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                if model.loading { ProgressView() }
+            }
+            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white, in: RoundedRectangle(cornerRadius: 22))
+            .shadow(color: .black.opacity(0.13), radius: 8, y: 3)
+            .accessibilityIdentifier("navigation-instruction")
+            Spacer(minLength: 8)
+            HStack {
+                Spacer()
+                VStack(spacing: 10) {
+                    navigationButton(model.muted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                                     label: model.muted ? "Unmute navigation" : "Mute navigation", action: model.toggleMuted)
+                    navigationButton("location.fill", label: "Back to my location", action: follow)
+                    navigationButton("arrow.up.left.and.arrow.down.right", label: "Route overview", action: overview)
+                }
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Walking to \(name)").font(.headline)
+                if model.route != nil && !model.arrived {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(WalkingNavigationModel.distanceText(model.remainingMeters)).font(.title2.bold())
+                        Text("≈ \(Int(ceil(model.remainingSeconds / 60))) min").font(.headline)
+                    }.foregroundStyle(OrbitStyle.teal)
+                }
+                if preview { Text("Demo senior location").font(.caption.bold()).foregroundStyle(.secondary) }
+                if let destination = model.destination {
+                    Text("Senior location updated \(destination.recordedAt.formatted(date: .omitted, time: .standard))")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if let refreshMessage { Text(refreshMessage).font(.caption).foregroundStyle(.secondary) }
+                if model.issue != nil && !model.suspended {
+                    Button("Try again", action: retry).font(.headline).disabled(model.loading)
+                }
+                Button(model.arrived ? "Back to Location" : "End navigation", action: end)
+                    .font(.headline).frame(maxWidth: .infinity).frame(minHeight: 48)
+                    .foregroundStyle(.white).background(OrbitStyle.teal, in: Capsule())
+                    .accessibilityIdentifier("end-navigation")
+            }
+            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white, in: RoundedRectangle(cornerRadius: 24))
+            .shadow(color: .black.opacity(0.13), radius: 8, y: 3)
+            .accessibilityIdentifier("navigation-summary")
+        }
+        .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 18)
+        .tint(OrbitStyle.teal)
+    }
+    private func navigationButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(OrbitStyle.teal).frame(width: 48, height: 48)
+                .background(.white, in: Circle()).shadow(color: .black.opacity(0.13), radius: 5, y: 2)
+        }.accessibilityLabel(label)
+    }
+}
+
+#if DEBUG
+// Compatibility fixture for historical snapshot tests; renders the same Location map.
+// Production Navigate does not present this view.
 struct WalkingNavigationPage: View {
     let snapshot: ElderLocationSnapshot?
     let name: String
-    let end: () -> Void
     @StateObject private var model: WalkingNavigationModel
-    @State private var camera: MapCameraPosition = .automatic
-    init(snapshot: ElderLocationSnapshot?, name: String, end: @escaping () -> Void) {
-        self.snapshot = snapshot; self.name = name; self.end = end
-        _model = StateObject(wrappedValue: WalkingNavigationModel())
-    }
+    let end: () -> Void
     init(snapshot: ElderLocationSnapshot?, name: String, model: WalkingNavigationModel, end: @escaping () -> Void) {
         self.snapshot = snapshot; self.name = name; self.end = end
         _model = StateObject(wrappedValue: model)
     }
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            Map(position: $camera) {
-                if let route = model.route {
-                    MapPolyline(coordinates: route.coordinates).stroke(OrbitStyle.teal, lineWidth: 6)
-                }
-                if let snapshot, snapshot.coordinate.isValid {
-                    Marker(name, coordinate: snapshot.coordinate.appleCoordinate)
-                }
-            }.mapStyle(.standard(elevation: .flat)).ignoresSafeArea()
-            VStack {
-                HStack {
-                    Button(action: end) { Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .semibold)).frame(width: 44, height: 44)
-                        .background(.white, in: Capsule()) }
-                        .accessibilityLabel("Close navigation")
-                    Spacer()
-                }.padding(.horizontal, 20).padding(.top, 12)
-                Spacer()
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Walking to \(name)").font(.title3.bold())
-                    if model.loading { ProgressView("Finding a walking route…") }
-                    else if let issue = model.issue {
-                        Text(issue.localizedDescription).font(.subheadline)
-                        Button("Try again") { Task { await model.plan(to: snapshot) } }
-                    } else if let route = model.route {
-                        Text("\(Self.distance(route.distanceMeters)) · \(Int(ceil(route.expectedSeconds / 60))) min")
-                            .font(.headline).foregroundStyle(OrbitStyle.teal)
-                        if route.steps.isEmpty { Text("Follow the highlighted route.") }
-                        else {
-                            ScrollView { VStack(alignment: .leading, spacing: 12) {
-                                ForEach(Array(route.steps.enumerated()), id: \.offset) { index, step in
-                                    HStack(alignment: .top) {
-                                        Text("\(index + 1).").foregroundStyle(OrbitStyle.teal)
-                                        Text(step)
-                                    }.font(.subheadline)
-                                }
-                            }}.frame(maxHeight: 170)
-                        }
-                    }
-                    Button("End navigation", action: end)
-                        .frame(maxWidth: .infinity).frame(height: 50)
-                        .foregroundStyle(.white).background(OrbitStyle.teal, in: Capsule())
-                }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.white, in: UnevenRoundedRectangle(topLeadingRadius: 25, topTrailingRadius: 25))
-            }
-        }.tint(OrbitStyle.teal)
-        .task {
-            await model.plan(to: snapshot)
-            if let coordinates = model.route?.coordinates, !coordinates.isEmpty {
-                let latitudes = coordinates.map(\.latitude), longitudes = coordinates.map(\.longitude)
-                camera = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: (latitudes.min()! + latitudes.max()!)/2,
-                    longitude: (longitudes.min()! + longitudes.max()!)/2),
-                    span: MKCoordinateSpan(latitudeDelta: max(0.004, (latitudes.max()! - latitudes.min()!)*1.4),
-                                           longitudeDelta: max(0.004, (longitudes.max()! - longitudes.min()!)*1.4))))
-            }
-        }
+    init(snapshot: ElderLocationSnapshot?, name: String, end: @escaping () -> Void) {
+        self.init(snapshot: snapshot, name: name, model: WalkingNavigationModel(), end: end)
     }
-    private static func distance(_ meters: Double) -> String {
-        meters >= 1000 ? String(format: "%.1f km", meters / 1000) : "\(Int(meters.rounded())) m"
+    var body: some View {
+        LocationPage(profile: ElderProfile(), snapshot: snapshot, message: nil, loading: false,
+                     refresh: {}, agent: {}, navigate: {}, navigation: model)
+            .task { await model.start(to: snapshot) }
     }
 }
+#endif
 
 #if DEBUG
 private func locationPreview() -> ElderLocationSnapshot {
