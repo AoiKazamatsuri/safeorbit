@@ -362,6 +362,9 @@
     "Send question" : {
 
     },
+    "Senior location" : {
+
+    },
     "Senior phone" : {
 
     },
@@ -423,6 +426,9 @@
 
     },
     "What is a safe zone?" : {
+
+    },
+    "Your location" : {
 
     },
     "Your message: %@" : {
