@@ -904,7 +904,7 @@ struct NavigationSummaryCard: View {
                     VStack(spacing: 10) { exitButton; cancelButton }
                 }
             } else {
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     Button { confirmingExit = true } label: {
                         Image(systemName: "xmark").font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(.secondary).frame(width: 44, height: 44)
@@ -912,17 +912,18 @@ struct NavigationSummaryCard: View {
                     .accessibilityLabel("Exit navigation")
                     .accessibilityIdentifier("request-exit-navigation")
                     ViewThatFits(in: .horizontal) {
-                        HStack(alignment: .firstTextBaseline, spacing: 16) { distance; duration; arrival }
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack(alignment: .firstTextBaseline, spacing: 16) { distance; duration }
-                            arrival
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(alignment: .firstTextBaseline, spacing: 8) { distance; duration; arrival }
+                        VStack(spacing: 12) { distance; duration; arrival }
+                    }.frame(maxWidth: .infinity)
                 }
             }
         }
         .padding(16).frame(maxWidth: .infinity, minHeight: 96)
-        .background(.white, in: RoundedRectangle(cornerRadius: 24))
+        .background {
+            if confirmingExit { Capsule().fill(.white) }
+            else { RoundedRectangle(cornerRadius: 24).fill(.white) }
+        }
+        .compositingGroup()
         .shadow(color: .black.opacity(0.13), radius: 8, y: 3)
         .accessibilityIdentifier("navigation-summary")
     }
@@ -936,16 +937,17 @@ struct NavigationSummaryCard: View {
         metric(model.estimatedArrival?.formatted(date: .omitted, time: .shortened) ?? "—", label: "Arrival")
     }
     private func metric(_ value: String, label: String) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(value).font(.headline).foregroundStyle(OrbitStyle.teal).fixedSize()
-            Text(label).font(.caption).foregroundStyle(.secondary).fixedSize()
-        }
+        VStack(spacing: 6) {
+            Text(value).font(.system(.title2, design: .default, weight: .bold)).foregroundStyle(OrbitStyle.teal).fixedSize()
+            Text(label).font(.subheadline).foregroundStyle(.secondary).fixedSize()
+        }.frame(maxWidth: .infinity)
     }
     private var exitButton: some View {
         Button("Exit navigation", action: end)
             .font(.headline).fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, minHeight: 48)
             .foregroundStyle(.white).background(OrbitStyle.teal, in: Capsule())
+            .buttonStyle(.plain)
             .accessibilityIdentifier("end-navigation")
     }
     private var cancelButton: some View {
@@ -953,6 +955,7 @@ struct NavigationSummaryCard: View {
             .font(.headline).fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, minHeight: 48)
             .foregroundStyle(OrbitStyle.teal).background(OrbitStyle.teal.opacity(0.10), in: Capsule())
+            .buttonStyle(.plain)
             .accessibilityIdentifier("cancel-exit-navigation")
     }
 }
