@@ -421,9 +421,9 @@ extension LocationTests {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let clock = NavigationClock()
         for (name, size, type, unavailable) in [
-            ("inline-navigation", CGSize(width: 393, height: 852), DynamicTypeSize.large, false),
-            ("inline-navigation-small-large-text", CGSize(width: 375, height: 812), DynamicTypeSize.accessibility1, false),
-            ("inline-navigation-unavailable", CGSize(width: 393, height: 852), DynamicTypeSize.large, true)
+            ("refined-navigation", CGSize(width: 393, height: 852), DynamicTypeSize.large, false),
+            ("refined-navigation-small-large-text", CGSize(width: 375, height: 812), DynamicTypeSize.accessibility1, false),
+            ("refined-navigation-unavailable", CGSize(width: 393, height: 852), DynamicTypeSize.large, true)
         ] {
             let provider = RouteStub(), voice = NavigationVoiceSpy()
             let model = WalkingNavigationModel(provider: provider, voice: voice, now: { clock.date })
@@ -478,6 +478,28 @@ extension LocationTests {
         XCTAssertEqual(provider.calls, 1)
         model.updateDestination(navigationSnapshot(.init(latitude: 90.1, longitude: 0), at: clock.date.addingTimeInterval(1)))
         XCTAssertEqual(model.issue, .missingDestination)
+        model.end()
+    }
+}
+
+
+extension LocationTests {
+    @MainActor func testEstimatedArrivalUsesValidProgressAndClearsOnExit() async throws {
+        let clock = NavigationClock(), provider = NavigationProviderStub()
+        let model = WalkingNavigationModel(provider: provider, voice: NavigationVoiceSpy(), now: { clock.date })
+        await model.start(to: navigationSnapshot(provider.target, at: clock.date))
+        XCTAssertEqual(try XCTUnwrap(model.estimatedArrival).timeIntervalSince(clock.date), model.remainingSeconds, accuracy: 0.01)
+        clock.advance()
+        model.receive(NavigationFix(point: .init(latitude: 0, longitude: 0.0005), accuracy: 5, timestamp: clock.date))
+        XCTAssertEqual(try XCTUnwrap(model.estimatedArrival).timeIntervalSince(clock.date), model.remainingSeconds, accuracy: 0.01)
+        let arrival = model.estimatedArrival
+        clock.advance()
+        model.receive(NavigationFix(point: provider.target, accuracy: 80, timestamp: clock.date))
+        XCTAssertEqual(model.estimatedArrival, arrival)
+        model.end()
+        XCTAssertNil(model.estimatedArrival)
+        await model.start(to: nil)
+        XCTAssertNil(model.estimatedArrival)
         model.end()
     }
 }

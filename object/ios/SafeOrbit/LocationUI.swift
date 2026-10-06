@@ -200,7 +200,8 @@ struct LocationPage: View {
     var refreshDestination: (() async -> ElderLocationSnapshot?)? = nil
     @Environment(\.scenePhase) private var scenePhase
     @State private var previousCamera: MapCameraPosition?
-    @State private var followsUser = true
+    @State private var followsUser = false
+    @State private var showsOverview = true
     @State private var visibleHeading = 0.0
     private var navigationRunning: Bool { navigation.isPresented && !navigation.suspended && !navigation.arrived && scenePhase == .active }
     @State private var camera: MapCameraPosition = .automatic
@@ -272,7 +273,7 @@ struct LocationPage: View {
                             .stroke(OrbitStyle.teal, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
                     }
                     if let destination = navigation.destination, destination.coordinate.isValid {
-                        Marker(profile.name, coordinate: destination.coordinate.appleCoordinate).tint(OrbitStyle.teal)
+                        Marker(usesPreviewTrail ? "\(profile.name) · Demo" : profile.name, coordinate: destination.coordinate.appleCoordinate).tint(OrbitStyle.teal)
                     }
                     if let fix = navigation.fix {
                         Annotation("Your location", coordinate: fix.point.appleCoordinate) {
@@ -290,7 +291,7 @@ struct LocationPage: View {
                 visibleRegion = context.region
                 visibleHeading = context.camera.heading
                 if navigation.isPresented {
-                    if camera.positionedByUser { followsUser = false }
+                    if camera.positionedByUser { followsUser = false; showsOverview = false }
                     return
                 }
                 guard defaultRegion != nil else { return }
@@ -362,15 +363,15 @@ struct LocationPage: View {
                     .padding(.bottom, 80)
             }.padding(.horizontal, 20).padding(.top, 4)
             } else {
-                WalkingNavigationOverlay(model: navigation, name: profile.name, preview: usesPreviewTrail,
+                WalkingNavigationOverlay(model: navigation,
                     refreshMessage: message,
                     retry: { Task {
                         let latest = await refreshDestination?() ?? snapshot
                         guard navigation.isPresented, !Task.isCancelled else { return }
                         await navigation.plan(to: latest)
                     } },
-                    follow: { followsUser = true; followCurrentPosition() },
-                    overview: { followsUser = false; showRouteOverview() }, end: { navigation.end() })
+                    follow: { followsUser = true; showsOverview = false; followCurrentPosition() },
+                    overview: { followsUser = false; showsOverview = true; showRouteOverview() }, end: { navigation.end() })
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -379,11 +380,20 @@ struct LocationPage: View {
             else { focusOnSenior() }
         }
         .onChange(of: navigation.isPresented) { _, presented in
-            if presented { previousCamera = camera; followsUser = true; followCurrentPosition() }
+            if presented { previousCamera = camera; followsUser = false; showsOverview = true; showRouteOverview() }
             else if let previousCamera { camera = previousCamera; self.previousCamera = nil }
         }
         .onChange(of: navigation.fix?.timestamp) { _, _ in
-            if followsUser && navigationRunning { followCurrentPosition() }
+            if navigationRunning {
+                if followsUser { followCurrentPosition() }
+                else if showsOverview { showRouteOverview() }
+            }
+        }
+        .onChange(of: navigation.routeVersion) { _, _ in
+            if navigation.isPresented && showsOverview { showRouteOverview() }
+        }
+        .onChange(of: navigation.destination?.coordinate) { _, _ in
+            if navigation.isPresented && showsOverview { showRouteOverview() }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { navigation.pause() }
@@ -411,7 +421,9 @@ struct LocationPage: View {
                 do { try await Task.sleep(for: .seconds(1)) } catch { return }
             }
         }
-        .onAppear { if !navigation.isPresented { focusOnSenior() } }
+        .onAppear {
+            if navigation.isPresented { showRouteOverview() } else { focusOnSenior() }
+        }
         .onDisappear { navigation.end() }
         .fullScreenCover(item: $zoneEditor) { selection in
             SafeZoneEditorPage(
@@ -430,7 +442,10 @@ struct LocationPage: View {
                                    heading: fix.course >= 0 && fix.course.isFinite ? fix.course : 0, pitch: 0))
     }
     private func showRouteOverview() {
-        guard let coordinates = navigation.route?.coordinates, !coordinates.isEmpty else { return }
+        var coordinates = navigation.route?.coordinates ?? []
+        if let point = navigation.fix?.point, point.isValid { coordinates.append(point.appleCoordinate) }
+        if let point = navigation.destination?.coordinate, point.isValid { coordinates.append(point.appleCoordinate) }
+        guard !coordinates.isEmpty else { return }
         let latitudes = coordinates.map(\.latitude), longitudes = coordinates.map(\.longitude)
         camera = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(
             latitude: (latitudes.min()! + latitudes.max()!) / 2,
@@ -822,15 +837,15 @@ private struct SeniorLocationCard: View {
 
 struct WalkingNavigationOverlay: View {
     @ObservedObject var model: WalkingNavigationModel
-    let name: String
-    let preview: Bool
     let refreshMessage: String?
     let retry: () -> Void
     let follow: () -> Void
     let overview: () -> Void
     let end: () -> Void
+    @State private var confirmingExit = false
     var body: some View {
         VStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 14) {
                 Image(systemName: model.directionSymbol)
                     .font(.system(size: 32, weight: .semibold)).foregroundStyle(OrbitStyle.teal)
@@ -842,6 +857,11 @@ struct WalkingNavigationOverlay: View {
                 }
                 Spacer(minLength: 0)
                 if model.loading { ProgressView() }
+            }
+            if let refreshMessage { Text(refreshMessage).font(.caption).foregroundStyle(.secondary) }
+            if model.issue != nil && !model.suspended {
+                Button("Try again", action: retry).font(.headline).disabled(model.loading)
+            }
             }
             .padding(18).frame(maxWidth: .infinity, alignment: .leading)
             .background(.white, in: RoundedRectangle(cornerRadius: 22))
@@ -857,32 +877,7 @@ struct WalkingNavigationOverlay: View {
                     navigationButton("arrow.up.left.and.arrow.down.right", label: "Route overview", action: overview)
                 }
             }
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Walking to \(name)").font(.headline)
-                if model.route != nil && !model.arrived {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(WalkingNavigationModel.distanceText(model.remainingMeters)).font(.title2.bold())
-                        Text("≈ \(Int(ceil(model.remainingSeconds / 60))) min").font(.headline)
-                    }.foregroundStyle(OrbitStyle.teal)
-                }
-                if preview { Text("Demo senior location").font(.caption.bold()).foregroundStyle(.secondary) }
-                if let destination = model.destination {
-                    Text("Senior location updated \(destination.recordedAt.formatted(date: .omitted, time: .standard))")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                if let refreshMessage { Text(refreshMessage).font(.caption).foregroundStyle(.secondary) }
-                if model.issue != nil && !model.suspended {
-                    Button("Try again", action: retry).font(.headline).disabled(model.loading)
-                }
-                Button(model.arrived ? "Back to Location" : "End navigation", action: end)
-                    .font(.headline).frame(maxWidth: .infinity).frame(minHeight: 48)
-                    .foregroundStyle(.white).background(OrbitStyle.teal, in: Capsule())
-                    .accessibilityIdentifier("end-navigation")
-            }
-            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white, in: RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.13), radius: 8, y: 3)
-            .accessibilityIdentifier("navigation-summary")
+            NavigationSummaryCard(model: model, confirmingExit: $confirmingExit, end: end)
         }
         .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 18)
         .tint(OrbitStyle.teal)
@@ -893,6 +888,72 @@ struct WalkingNavigationOverlay: View {
                 .foregroundStyle(OrbitStyle.teal).frame(width: 48, height: 48)
                 .background(.white, in: Circle()).shadow(color: .black.opacity(0.13), radius: 5, y: 2)
         }.accessibilityLabel(label)
+    }
+}
+
+struct NavigationSummaryCard: View {
+    @ObservedObject var model: WalkingNavigationModel
+    @Binding var confirmingExit: Bool
+    let end: () -> Void
+
+    var body: some View {
+        Group {
+            if confirmingExit {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { exitButton; cancelButton }
+                    VStack(spacing: 10) { exitButton; cancelButton }
+                }
+            } else {
+                HStack(spacing: 12) {
+                    Button { confirmingExit = true } label: {
+                        Image(systemName: "xmark").font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.secondary).frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Exit navigation")
+                    .accessibilityIdentifier("request-exit-navigation")
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .firstTextBaseline, spacing: 16) { distance; duration; arrival }
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(alignment: .firstTextBaseline, spacing: 16) { distance; duration }
+                            arrival
+                        }
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .padding(16).frame(maxWidth: .infinity, minHeight: 96)
+        .background(.white, in: RoundedRectangle(cornerRadius: 24))
+        .shadow(color: .black.opacity(0.13), radius: 8, y: 3)
+        .accessibilityIdentifier("navigation-summary")
+    }
+    private var distance: some View {
+        metric(model.route == nil ? "—" : "\(Int(model.remainingMeters.rounded())) m", label: "Remaining")
+    }
+    private var duration: some View {
+        metric(model.route == nil ? "—" : "\(Int(ceil(model.remainingSeconds / 60))) min", label: "To arrive")
+    }
+    private var arrival: some View {
+        metric(model.estimatedArrival?.formatted(date: .omitted, time: .shortened) ?? "—", label: "Arrival")
+    }
+    private func metric(_ value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(value).font(.headline).foregroundStyle(OrbitStyle.teal).fixedSize()
+            Text(label).font(.caption).foregroundStyle(.secondary).fixedSize()
+        }
+    }
+    private var exitButton: some View {
+        Button("Exit navigation", action: end)
+            .font(.headline).fixedSize(horizontal: true, vertical: false)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .foregroundStyle(.white).background(OrbitStyle.teal, in: Capsule())
+            .accessibilityIdentifier("end-navigation")
+    }
+    private var cancelButton: some View {
+        Button("Cancel") { confirmingExit = false }
+            .font(.headline).fixedSize(horizontal: true, vertical: false)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .foregroundStyle(OrbitStyle.teal).background(OrbitStyle.teal.opacity(0.10), in: Capsule())
+            .accessibilityIdentifier("cancel-exit-navigation")
     }
 }
 

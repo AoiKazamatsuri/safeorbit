@@ -213,6 +213,7 @@ struct RouteProjection {
     @Published private(set) var destination: ElderLocationSnapshot?
     @Published private(set) var remainingMeters = 0.0
     @Published private(set) var remainingSeconds = 0.0
+    @Published private(set) var estimatedArrival: Date?
     @Published private(set) var stepIndex = 0
     @Published private(set) var turnMeters = 0.0
     @Published private(set) var muted = false
@@ -220,7 +221,7 @@ struct RouteProjection {
     private let voice: NavigationSpeaking
     private let now: () -> Date
     private var generation = 0
-    private var routeVersion = 0
+    @Published private(set) var routeVersion = 0
     private var lastPlanningAt: Date?
     private var plannedDestination: GeoPoint?
     private var offRouteCount = 0
@@ -275,7 +276,7 @@ struct RouteProjection {
         guard !loading else { return }
         destination = snapshot
         voice.stop()
-        route = nil; issue = validDestination(snapshot)
+        route = nil; estimatedArrival = nil; issue = validDestination(snapshot)
         guard issue == nil, let snapshot else { voice.stop(); return }
         let session = generation
         loading = true
@@ -293,6 +294,7 @@ struct RouteProjection {
             issue = nil; route = result; plannedDestination = snapshot.coordinate
             routeVersion += 1; stepIndex = 0; spoken.removeAll(); resetEvidence()
             remainingMeters = result.distanceMeters; remainingSeconds = result.expectedSeconds
+            estimatedArrival = now().addingTimeInterval(remainingSeconds)
             var fallbackEnd = 0.0
             stepEnds = result.segments.map { step in
                 fallbackEnd += max(0, step.distanceMeters)
@@ -361,7 +363,7 @@ struct RouteProjection {
         guard projection.offRoute <= 40 else { arrivalCount = 0; return }
         arrivalCount = Self.distance(sample.point, destination.coordinate) <= 20 ? arrivalCount + 1 : 0
         if arrivalCount >= 3 {
-            arrived = true; remainingMeters = 0; remainingSeconds = 0
+            arrived = true; remainingMeters = 0; remainingSeconds = 0; estimatedArrival = now()
             provider.stopUpdates(); provider.cancelRoute(); voice.stop()
             if !muted { voice.speak("Arrived near the senior’s latest location") }
             return
@@ -369,6 +371,7 @@ struct RouteProjection {
         let ratio = projection.length > 0 ? min(1, max(0, projection.along / projection.length)) : 0
         remainingMeters = min(remainingMeters, route.distanceMeters * (1 - ratio))
         remainingSeconds = route.expectedSeconds * remainingMeters / route.distanceMeters
+        estimatedArrival = now().addingTimeInterval(remainingSeconds)
         while stepEnds.indices.contains(stepIndex), stepIndex < route.steps.count - 1,
               projection.along >= stepEnds[stepIndex] - 5 { stepIndex += 1 }
         turnMeters = stepEnds.indices.contains(stepIndex) ? max(0, stepEnds[stepIndex] - projection.along) : remainingMeters
@@ -394,7 +397,7 @@ struct RouteProjection {
     func end() {
         generation += 1; isPresented = false; suspended = false; arrived = false
         planningTask?.cancel(); planningTask = nil; provider.stopUpdates(); provider.cancelRoute(); voice.stop()
-        route = nil; issue = nil; fix = nil; destination = nil; loading = false; needsReplan = false
+        route = nil; estimatedArrival = nil; issue = nil; fix = nil; destination = nil; loading = false; needsReplan = false
         lastPlanningAt = nil; plannedDestination = nil; resetEvidence(); spoken.removeAll()
     }
     private func resetEvidence() { offRouteCount = 0; arrivalCount = 0 }
