@@ -24,16 +24,6 @@
         }
       }
     },
-    "%@ · %lld min" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ · %2$lld min"
-          }
-        }
-      }
-    },
     "%@ (%@)" : {
       "localizations" : {
         "en" : {
@@ -77,9 +67,6 @@
 
     },
     "%lld min" : {
-
-    },
-    "%lld." : {
 
     },
     "%lld%@" : {
@@ -161,9 +148,6 @@
     "Clear" : {
 
     },
-    "Close navigation" : {
-
-    },
     "Code expired" : {
 
     },
@@ -201,9 +185,6 @@
     "Emergency contacts" : {
 
     },
-    "End navigation" : {
-
-    },
     "Enter a name for this safe zone." : {
 
     },
@@ -225,10 +206,7 @@
     "Events" : {
 
     },
-    "Finding a walking route…" : {
-
-    },
-    "Follow the highlighted route." : {
+    "Exit navigation" : {
 
     },
     "Forgot password?" : {
@@ -436,9 +414,6 @@
 
     },
     "vs last month" : {
-
-    },
-    "Walking to %@" : {
 
     },
     "Week" : {

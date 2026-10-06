@@ -919,10 +919,7 @@ struct NavigationSummaryCard: View {
             }
         }
         .padding(16).frame(maxWidth: .infinity, minHeight: 96)
-        .background {
-            if confirmingExit { Capsule().fill(.white) }
-            else { RoundedRectangle(cornerRadius: 24).fill(.white) }
-        }
+        .background(.white, in: Capsule())
         .compositingGroup()
         .shadow(color: .black.opacity(0.13), radius: 8, y: 3)
         .accessibilityIdentifier("navigation-summary")
@@ -945,7 +942,7 @@ struct NavigationSummaryCard: View {
     private var exitButton: some View {
         Button("Exit navigation", action: end)
             .font(.headline).fixedSize(horizontal: true, vertical: false)
-            .frame(maxWidth: .infinity, minHeight: 48)
+            .frame(maxWidth: .infinity, minHeight: 64)
             .foregroundStyle(.white).background(OrbitStyle.teal, in: Capsule())
             .buttonStyle(.plain)
             .accessibilityIdentifier("end-navigation")
@@ -953,7 +950,7 @@ struct NavigationSummaryCard: View {
     private var cancelButton: some View {
         Button("Cancel") { confirmingExit = false }
             .font(.headline).fixedSize(horizontal: true, vertical: false)
-            .frame(maxWidth: .infinity, minHeight: 48)
+            .frame(maxWidth: .infinity, minHeight: 64)
             .foregroundStyle(OrbitStyle.teal).background(OrbitStyle.teal.opacity(0.10), in: Capsule())
             .buttonStyle(.plain)
             .accessibilityIdentifier("cancel-exit-navigation")
