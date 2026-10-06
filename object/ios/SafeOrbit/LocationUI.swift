@@ -246,10 +246,8 @@ struct LocationPage: View {
                     if let point {
                         Annotation("Senior", coordinate: point) {
                             ZStack {
-                                Image(systemName: "location.north.fill")
-                                    .font(.system(size: 31, weight: .bold))
-                                    .rotationEffect(.degrees(snapshot.validHeading ?? 0))
-                                    .foregroundStyle(OrbitStyle.teal)
+                                CurrentLocationDot(heading: snapshot.validHeading.map { $0 - visibleHeading },
+                                                   label: "Senior location")
                                 let headline = riskState == .normal ? snapshot.status : riskState.headline
                                 if let headline, !headline.isEmpty, snapshot.isCurrent {
                                     Text(headline)
@@ -259,7 +257,7 @@ struct LocationPage: View {
                                         .background(riskState == .normal ? .white : riskState.color, in: Capsule())
                                         .shadow(color: .black.opacity(0.22), radius: 5, y: 3)
                                         .fixedSize()
-                                        .offset(y: -49)
+                                        .offset(y: -65)
                                         .accessibilityLabel(headline)
                                 }
                             }
@@ -277,10 +275,9 @@ struct LocationPage: View {
                     }
                     if let fix = navigation.fix {
                         Annotation("Your location", coordinate: fix.point.appleCoordinate) {
-                            Image(systemName: "location.north.circle.fill")
-                                .font(.system(size: 36)).foregroundStyle(.blue, .white)
-                                .rotationEffect(.degrees(fix.course >= 0 ? fix.course - visibleHeading : 0))
-                                .shadow(radius: 3)
+                            CurrentLocationDot(heading: fix.course.isFinite && (0..<360).contains(fix.course)
+                                               ? fix.course - visibleHeading : nil,
+                                               label: "Your location")
                         }.annotationTitles(.hidden)
                     }
                 }
@@ -995,3 +992,37 @@ private func locationPreview() -> ElderLocationSnapshot {
                         refresh: {}, agent: {}, navigate: {})
 }
 #endif
+
+/// The dot stays centered on the coordinate; only the direction beam rotates with the camera.
+private struct CurrentLocationDot: View {
+    let heading: Double?
+    let label: LocalizedStringKey
+    private let blue = Color(uiColor: .systemBlue)
+
+    var body: some View {
+        ZStack {
+            if let heading, heading.isFinite {
+                Path { path in
+                    let center = CGPoint(x: 54, y: 54)
+                    path.move(to: center)
+                    path.addArc(center: center, radius: 50,
+                                startAngle: .degrees(-125), endAngle: .degrees(-55), clockwise: false)
+                    path.closeSubpath()
+                }
+                .fill(RadialGradient(colors: [blue.opacity(0.45), blue.opacity(0.22), blue.opacity(0)],
+                                     center: .center, startRadius: 8, endRadius: 50))
+                .blur(radius: 2)
+                .rotationEffect(.degrees(heading))
+                .accessibilityHidden(true)
+            }
+            Circle()
+                .fill(blue)
+                .frame(width: 24, height: 24)
+                .overlay(Circle().strokeBorder(.white, lineWidth: 3))
+                .shadow(color: .black.opacity(0.18), radius: 3, y: 1)
+        }
+        .frame(width: 108, height: 108)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+    }
+}

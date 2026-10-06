@@ -430,7 +430,7 @@ extension LocationTests {
             let senior = LocationPreviewData.snapshot(recordedAt: clock.date)
             await model.start(to: unavailable ? nil : senior)
             if !unavailable {
-                model.receive(NavigationFix(point: LocationPreviewData.startingPoint, accuracy: 5, timestamp: clock.date))
+                model.receive(NavigationFix(point: LocationPreviewData.startingPoint, accuracy: 5, timestamp: clock.date, course: 120))
             }
             var profile = ElderProfile(); profile.name = "Li Lan"
             let window = UIWindow(windowScene: scene)
