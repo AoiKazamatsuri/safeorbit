@@ -3,6 +3,48 @@ import SwiftUI
 @testable import SafeOrbit
 
 final class SettingsTests: XCTestCase {
+    @MainActor func testSettingsSlideEntersFromLeftAndLeavesToLeft() async throws {
+        try await verifySlide(reduceMotion: false)
+    }
+    @MainActor func testSettingsSlideReduceMotionDoesNotMoveHorizontally() async throws {
+        try await verifySlide(reduceMotion: true)
+    }
+    @MainActor private func verifySlide(reduceMotion: Bool) async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
+        let state = SlideTestState()
+        let marker = UIView()
+        marker.backgroundColor = .red
+        window.rootViewController = UIHostingController(rootView: SlideTestPage(state: state, marker: marker, reduceMotion: reduceMotion))
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; previous?.makeKeyAndVisible() }
+        try await Task.sleep(for: .milliseconds(100))
+        state.item = .init(id: "detail")
+        try await Task.sleep(for: .milliseconds(120))
+        let entering = try slideFrame(marker, in: window)
+        if reduceMotion { XCTAssertEqual(entering.minX, 0, accuracy: 1) }
+        else { XCTAssertLessThan(entering.minX, -1); XCTAssertGreaterThan(entering.maxX, 1) }
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertEqual(try slideFrame(marker, in: window).minX, 0, accuracy: 1)
+        state.item = nil
+        try await Task.sleep(for: .milliseconds(100))
+        let leaving = try slideFrame(marker, in: window)
+        if reduceMotion { XCTAssertEqual(leaving.minX, 0, accuracy: 1) }
+        else { XCTAssertLessThan(leaving.minX, -1); XCTAssertGreaterThan(leaving.maxX, 1) }
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertNil(marker.window, "Outgoing detail must be removed so its draft resets on re-entry")
+        state.item = .init(id: "another-detail")
+        try await Task.sleep(for: .milliseconds(350))
+        XCTAssertNotNil(marker.window, "Settings must support reopening after returning")
+    }
+    @MainActor private func slideFrame(_ marker: UIView, in window: UIWindow) throws -> CGRect {
+        XCTAssertNotNil(marker.window, "The destination must remain mounted during its exit animation")
+        let layer = try XCTUnwrap(marker.layer.presentation())
+        return layer.convert(layer.bounds, to: window.layer.presentation() ?? window.layer)
+    }
+
     @MainActor func testProfilesValidateAndPersistWithoutSavingDraft() throws {
         let suite = "org.safeorbit.settings-test." + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -48,11 +90,13 @@ final class SettingsTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = CaregiverSettingsStore(defaults: defaults)
+        store.set(\.allowAITripHistory, false)
         store.set(\.autoNavigation, false)
         store.set(\.lowRiskNotifications, false)
         store.set(\.recoveryNotifications, false)
         store.set(\.limitedMonitoringNotifications, false)
         let reopened = CaregiverSettingsStore(defaults: defaults)
+        XCTAssertFalse(reopened.data.allowAITripHistory)
         XCTAssertFalse(reopened.data.autoNavigation)
         XCTAssertFalse(reopened.data.lowRiskNotifications)
         XCTAssertFalse(reopened.data.recoveryNotifications)
@@ -71,12 +115,14 @@ final class SettingsTests: XCTestCase {
         store.set(\.autoNavigation, false)
         let raw = try XCTUnwrap(defaults.data(forKey: "safeorbit.caregiver.settings.v1"))
         var json = try XCTUnwrap(JSONSerialization.jsonObject(with: raw) as? [String: Any])
+        json.removeValue(forKey: "allowAITripHistory")
         var account = try XCTUnwrap(json["caregiver"] as? [String: Any]); account.removeValue(forKey: "email"); json["caregiver"] = account
         var members = try XCTUnwrap(json["members"] as? [[String: Any]])
         members[0].removeValue(forKey: "relationship"); json["members"] = members
         json.removeValue(forKey: "seniorRelationship"); json.removeValue(forKey: "emergencyContacts")
         defaults.set(try JSONSerialization.data(withJSONObject: json), forKey: "safeorbit.caregiver.settings.v1")
         let restored = CaregiverSettingsStore(defaults: defaults)
+        XCTAssertTrue(restored.data.allowAITripHistory)
         XCTAssertEqual(restored.data.caregiver.name, "Legacy caregiver")
         XCTAssertEqual(restored.data.caregiver.email, "")
         XCTAssertEqual(restored.data.members.first?.name, "Legacy member")
@@ -112,6 +158,73 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(CaregiverSettingsStore(defaults: defaults).data.emergencyContacts.isEmpty)
         XCTAssertEqual(store.data.caregiver.email, "demo@example.com")
     }
+    @MainActor func testInlineProfileGroupsSaveIndependentlyAndDiscardUnsavedDrafts() throws {
+        let suite = "org.safeorbit.inline." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = CaregiverSettingsStore(defaults: defaults)
+        let account = SettingsProfileDraft(data: store.data, senior: false)
+        let senior = SettingsProfileDraft(data: store.data, senior: true)
+        account.caregiver.name = "Account saved"
+        senior.profile.name = "Senior draft"
+        senior.relationship = "Mother"
+        let contact = EmergencyContact(name: "Draft contact", relationship: "Son", phone: "+12025550103")
+        senior.updateContact(contact)
+        account.save(to: store)
+        XCTAssertTrue(account.saved)
+        XCTAssertFalse(senior.saved)
+        XCTAssertEqual(senior.profile.name, "Senior draft")
+        XCTAssertEqual(senior.contacts, [contact])
+        var reopened = CaregiverSettingsStore(defaults: defaults)
+        XCTAssertEqual(reopened.data.caregiver.name, "Account saved")
+        XCTAssertEqual(reopened.data.senior.name, "Li Lan")
+        XCTAssertTrue(reopened.data.emergencyContacts.isEmpty)
+        account.caregiver.email = "unsaved@example.com"
+        XCTAssertFalse(account.saved)
+        senior.save(to: store)
+        XCTAssertTrue(senior.saved)
+        XCTAssertEqual(account.caregiver.email, "unsaved@example.com")
+        reopened = CaregiverSettingsStore(defaults: defaults)
+        XCTAssertEqual(reopened.data.caregiver.email, "")
+        XCTAssertEqual(reopened.data.senior.name, "Senior draft")
+        XCTAssertEqual(reopened.data.emergencyContacts, [contact])
+        XCTAssertEqual(SettingsProfileDraft(data: reopened.data, senior: false).caregiver.email, "")
+        senior.contacts.removeAll()
+        XCTAssertFalse(senior.saved)
+        XCTAssertEqual(reopened.data.emergencyContacts, [contact])
+    }
+    @MainActor func testInlineProfileLoadingAndValidationAreIsolated() throws {
+        let suite = "org.safeorbit.inline-loading." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = CaregiverSettingsStore(defaults: defaults)
+        let account = SettingsProfileDraft(data: store.data, senior: false)
+        let senior = SettingsProfileDraft(data: store.data, senior: true)
+        senior.relationship = "Mother"
+        account.photoLoading = true
+        XCTAssertFalse(account.canSave)
+        XCTAssertTrue(senior.canSave)
+        account.caregiver.name = "Loading draft"
+        account.save(to: store)
+        XCTAssertEqual(store.data.caregiver.name, "Emma Liu")
+        senior.save(to: store)
+        XCTAssertTrue(senior.saved)
+        account.photoLoading = false
+        account.caregiver.email = "invalid email"
+        XCTAssertFalse(account.canSave)
+        XCTAssertTrue(senior.canSave)
+        account.save(to: store)
+        XCTAssertEqual(store.data.caregiver.name, "Emma Liu")
+        account.caregiver.email = ""
+        account.save(to: store)
+        XCTAssertTrue(account.saved)
+        senior.photoLoading = true
+        XCTAssertFalse(senior.canSave)
+        XCTAssertTrue(account.canSave)
+        account.caregiver.photo = "new-photo-draft"
+        XCTAssertFalse(account.saved)
+    }
+
     @MainActor func testSettingsPagesSnapshots() async throws {
         let suite = "org.safeorbit.settings-snapshots." + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -121,18 +234,18 @@ final class SettingsTests: XCTestCase {
         let zones = SafeZoneSessionStore()
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let previous = scene.windows.first(where: \.isKeyWindow)
-        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("FrontendSnapshots/settings-revision")
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("FrontendSnapshots/settings-inline")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let member = LocalFamilyMember(name: "Sample Member", phone: "+12025550102", relationship: "Daughter")
         let contact = EmergencyContact(name: "Sample Contact", relationship: "Son", phone: "+12025550103")
-        var pages: [(String, AnyView)] = CaregiverSettingsItem.allCases.map {
-            ($0.rawValue.lowercased().replacingOccurrences(of: " ", with: "-"), AnyView(CaregiverSettingsDetail(item: $0, settings: store, onboarding: onboarding, zones: zones, back: {})))
+        var pages: [(String, AnyView)] = CaregiverSettingsGroup.allCases.map {
+            ($0.rawValue.lowercased().replacingOccurrences(of: " ", with: "-"), AnyView(CaregiverSettingsGroupPage(group: $0, settings: store, onboarding: onboarding, zones: zones, back: {})))
         }
         pages += [
             ("member-detail", AnyView(SettingsMemberDetail(member: member, isSelf: false, settings: store, back: {}))),
             ("self-detail", AnyView(SettingsMemberDetail(member: .init(id: "self", name: "Emma Liu", phone: "+12025550101"), isSelf: true, settings: store, back: {}))),
             ("emergency-contact", AnyView(EmergencyContactEditor(contact: contact, save: { _ in }, back: {}))),
-            ("privacy-policy", AnyView(SettingsPage("Privacy Policy", back: {}) { SettingsCard { SettingsNote(text: "A formal privacy policy has not been provided for this classroom demo. This page is not a published privacy policy.") } }))
+            ("privacy-policy", AnyView(SettingsPrivacyPage(back: {})))
         ]
         for (pageName, page) in pages {
             for largeText in [false, true] {
@@ -154,8 +267,48 @@ final class SettingsTests: XCTestCase {
                 try raw.write(to: folder.appendingPathComponent(name + ".png"))
                 let attachment = XCTAttachment(data: raw, uniformTypeIdentifier: "public.png")
                 attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+                if pageName == "profiles-&-family", let scroll = findScrollView(window.rootViewController!.view) {
+                    XCTAssertGreaterThan(scroll.contentSize.height, scroll.bounds.height)
+                    scroll.setContentOffset(CGPoint(x: 0, y: max(0, scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom)), animated: false)
+                    try await Task.sleep(for: .milliseconds(200))
+                    let bottom = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in
+                        window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+                    }
+                    let bottomRaw = try XCTUnwrap(bottom.pngData())
+                    try bottomRaw.write(to: folder.appendingPathComponent(name + "-bottom.png"))
+                }
                 window.isHidden = true; previous?.makeKeyAndVisible()
             }
+        }
+    }
+    @MainActor private func findScrollView(_ view: UIView) -> UIScrollView? {
+        if let scroll = view as? UIScrollView { return scroll }
+        for child in view.subviews { if let scroll = findScrollView(child) { return scroll } }
+        return nil
+    }
+
+}
+
+private struct SlideTestItem: Identifiable { let id: String }
+@MainActor private final class SlideTestState: ObservableObject {
+    @Published var item: SlideTestItem?
+}
+private struct SlideTestMarker: UIViewRepresentable {
+    let view: UIView
+    func makeUIView(context: Context) -> UIView { view }
+    func updateUIView(_ uiView: UIView, context: Context) {}
+}
+private struct SlideTestPage: View {
+    @ObservedObject var state: SlideTestState
+    let marker: UIView
+    let reduceMotion: Bool
+    var body: some View {
+        if reduceMotion {
+            Color.blue.modifier(SettingsSlideModifier(isPresented: state.item != nil, reduceMotionOverride: true) {
+                SlideTestMarker(view: marker)
+            })
+        } else {
+            Color.blue.settingsSlide(item: $state.item) { _ in SlideTestMarker(view: marker) }
         }
     }
 }

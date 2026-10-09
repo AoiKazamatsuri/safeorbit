@@ -3,6 +3,15 @@ import SwiftUI
 @testable import SafeOrbit
 
 final class RecordsTests: XCTestCase {
+    func testAgentTripHistoryPermissionBlocksAllSampleAnswers() {
+        for question in DemoRecords.quickQuestions + ["8 月路线偏离几次？"] {
+            let answer = DemoRecords.answer(to: question, allowTripHistory: false)
+            XCTAssertTrue(answer.contains("access is off") || answer.contains("已关闭"))
+            XCTAssertFalse(answer.contains("August 24"))
+            XCTAssertFalse(answer.contains("route deviations"))
+        }
+        XCTAssertTrue(DemoRecords.answer(to: DemoRecords.quickQuestions[0], allowTripHistory: true).contains("August 24"))
+    }
     func testSampleRecordsStayConsistentAcrossPages() throws {
         let august = DemoRecords.trips.filter { $0.month == 8 }
         XCTAssertEqual(august.reduce(0) { $0 + $1.deviations }, 4)

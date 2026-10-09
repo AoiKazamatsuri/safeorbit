@@ -8,13 +8,16 @@ private struct ChatLine: Identifiable {
 
 struct AgentChatPage: View {
     let keyboardVisible: Bool
+    @ObservedObject var settings: CaregiverSettingsStore
     @StateObject private var speech = SpeechInput()
     @State private var draft = ""
-    @State private var lines: [ChatLine] = [
-        ChatLine(fromCaregiver: true, text: DemoRecords.quickQuestions[0]),
-        ChatLine(fromCaregiver: false, text: DemoRecords.answer(to: DemoRecords.quickQuestions[0]))
-    ]
+    @State private var lines: [ChatLine] = []
     @FocusState private var composing: Bool
+
+    @MainActor init(keyboardVisible: Bool, settings: CaregiverSettingsStore? = nil) {
+        self.keyboardVisible = keyboardVisible
+        self.settings = settings ?? CaregiverSettingsStore()
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -72,6 +75,8 @@ struct AgentChatPage: View {
         .background(Color.white.ignoresSafeArea(edges: .bottom))
         .onChange(of: speech.transcript) { _, value in if !value.isEmpty { draft = value } }
         .onDisappear { speech.stop() }
+        .onAppear { if lines.isEmpty { ask(DemoRecords.quickQuestions[0]) } }
+        .onChange(of: settings.data.allowAITripHistory) { _, _ in lines.removeAll() }
     }
 
     private var composer: some View {
@@ -130,6 +135,6 @@ struct AgentChatPage: View {
 
     private func ask(_ question: String) {
         lines.append(ChatLine(fromCaregiver: true, text: question))
-        lines.append(ChatLine(fromCaregiver: false, text: DemoRecords.answer(to: question)))
+        lines.append(ChatLine(fromCaregiver: false, text: DemoRecords.answer(to: question, allowTripHistory: settings.data.allowAITripHistory)))
     }
 }

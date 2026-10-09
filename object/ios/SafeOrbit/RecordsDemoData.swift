@@ -141,9 +141,12 @@ enum DemoRecords {
         "Has unusual movement increased?"
     ]
 
-    static func answer(to question: String) -> String {
+    static func answer(to question: String, allowTripHistory: Bool = true) -> String {
         let text = question.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let chinese = text.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) }
+        guard allowTripHistory else {
+            return chinese ? "已关闭 AI 使用出行记录。可以在 AI 设置中开启。" : "Trip history access is off. You can enable it in AI Settings."
+        }
         if text.contains("high-risk") || text.contains("high risk") || text.contains("走失") || text.contains("高风险") {
             guard let latest = trips.filter({ $0.risk == .high }).max(by: { $0.date < $1.date }) else {
                 return chinese ? "演示回答：样例记录中没有高风险出行。" : "Demo answer: No high-risk trip appears in the sample records."

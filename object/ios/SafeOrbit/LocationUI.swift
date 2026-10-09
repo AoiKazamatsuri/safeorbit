@@ -102,7 +102,7 @@ struct CaregiverHomePage: View {
     @ObservedObject var store: OnboardingStore
     @StateObject private var zoneStore = SafeZoneSessionStore()
     @StateObject private var settingsStore = CaregiverSettingsStore()
-    @State private var selectedSettings: CaregiverSettingsItem?
+    @State private var selectedSettings: CaregiverSettingsGroup?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tab: CaregiverTab = .location
     @StateObject private var navigation = WalkingNavigationModel()
@@ -132,7 +132,7 @@ struct CaregiverHomePage: View {
                              zoneStore: zoneStore, usesPreviewTrail: store.previewSession,
                              navigation: navigation, refreshDestination: { await store.refreshLocation(); return store.location })
             } else if tab == .agent {
-                AgentChatPage(keyboardVisible: keyboardVisible)
+                AgentChatPage(keyboardVisible: keyboardVisible, settings: settingsStore)
             } else {
                 RecordsPage()
             }
@@ -171,8 +171,8 @@ struct CaregiverHomePage: View {
         .onChange(of: settingsStore.data.senior) { _, profile in
             if store.previewSession { store.elder = profile }
         }
-        .fullScreenCover(item: $selectedSettings) { item in
-            CaregiverSettingsDetail(item: item, settings: settingsStore, onboarding: store, zones: zoneStore) { selectedSettings = nil }
+        .settingsSlide(item: $selectedSettings) { item in
+            CaregiverSettingsGroupPage(group: item, settings: settingsStore, onboarding: store, zones: zoneStore) { selectedSettings = nil }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             keyboardVisible = true
@@ -483,7 +483,7 @@ private struct CaregiverSettingsPanel: View {
     let primary: Bool
     let showsPreviewPortrait: Bool
     let showsLogout: Bool
-    let select: (CaregiverSettingsItem) -> Void
+    let select: (CaregiverSettingsGroup) -> Void
     let logout: () -> Void
 
     var body: some View {
@@ -515,10 +515,10 @@ private struct CaregiverSettingsPanel: View {
             .padding(.top, 57)
 
                 VStack(spacing: 0) {
-                    ForEach(CaregiverSettingsItem.allCases) { item in
+                    ForEach(CaregiverSettingsGroup.allCases) { item in
                         Button { select(item) } label: {
                             HStack(spacing: 17) {
-                                if item == .family {
+                                if item == .people {
                                     Image("FamilyMembers")
                                         .resizable().interpolation(.high).scaledToFit()
                                         .frame(width: 30, height: 24)
@@ -531,7 +531,7 @@ private struct CaregiverSettingsPanel: View {
                                 }
                                 Text(item.rawValue)
                                     .font(.system(size: 16, weight: .medium))
-                                    .lineLimit(1)
+                                    .lineLimit(2)
                                 Spacer(minLength: 0)
                             }
                             .foregroundStyle(.black)
@@ -571,6 +571,7 @@ struct SafeZoneEditorPage: View {
     let nearbyZones: [SafeZone]
     let save: (SafeZone) -> Void
     let delete: (SafeZone) -> Void
+    let close: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @State private var selectedCenter: GeoPoint
     @State private var mapAvailable = false
@@ -584,9 +585,11 @@ struct SafeZoneEditorPage: View {
     private let presets = ["Home", "Market", "Hospital"]
 
     init(zone: SafeZone?, initialCenter: GeoPoint, nearbyZones: [SafeZone],
-         save: @escaping (SafeZone) -> Void, delete: @escaping (SafeZone) -> Void) {
+         save: @escaping (SafeZone) -> Void, delete: @escaping (SafeZone) -> Void,
+         close: (() -> Void)? = nil) {
         self.zone = zone; self.nearbyZones = nearbyZones
         self.save = save; self.delete = delete
+        self.close = close
         let point = zone?.center ?? initialCenter
         _selectedCenter = State(initialValue: point)
         _tag = State(initialValue: zone?.name ?? "Home")
@@ -600,13 +603,17 @@ struct SafeZoneEditorPage: View {
     }
     private var tagChoices: [String] { presets.contains(tag) ? presets : presets + [tag] }
 
+    private func closePage() {
+        if let close { close() } else { dismiss() }
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             Color.white.ignoresSafeArea()
             VStack(spacing: 0) {
                 CaregiverTopBar {
                     HStack {
-                        Button { dismiss() } label: {
+                        Button { closePage() } label: {
                             Label("Back", systemImage: "chevron.left")
                                 .font(.system(size: 21, weight: .medium)).foregroundStyle(.white)
                         }
@@ -690,14 +697,14 @@ struct SafeZoneEditorPage: View {
                                 .background(Color(red: 0.82, green: 0.90, blue: 0.90), in: Capsule())
                         }
                         HStack(spacing: 12) {
-                            Button("Cancel") { dismiss() }
+                            Button("Cancel") { closePage() }
                                 .foregroundStyle(.black)
                                 .frame(maxWidth: .infinity).frame(height: 49)
                                 .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
                             Button(zone == nil ? "Create Safe Zone" : "Save Changes") {
                                 let value = SafeZone(id: zone?.id ?? UUID().uuidString, name: tag,
                                                      center: selectedCenter, radiusMeters: Double(radius))
-                                save(value); dismiss()
+                                save(value); closePage()
                             }
                             .disabled(!selectedCenter.isValid || !mapAvailable)
                             .foregroundStyle(.white.opacity(mapAvailable ? 1 : 0.75))
@@ -728,7 +735,7 @@ struct SafeZoneEditorPage: View {
         } message: { Text("Enter a name for this safe zone.") }
         .confirmationDialog("Delete this safe zone?", isPresented: $confirmingDelete) {
             if let zone {
-                Button("Delete Safe Zone", role: .destructive) { delete(zone); dismiss() }
+                Button("Delete Safe Zone", role: .destructive) { delete(zone); closePage() }
             }
         } message: { Text("This safe zone will be removed.") }
     }

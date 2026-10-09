@@ -1,5 +1,7 @@
 import SwiftUI
 import PhotosUI
+import AVFoundation
+import Speech
 
 // Settings belong to this device until account and family services are connected.
 struct LocalCaregiver: Codable, Equatable {
@@ -56,12 +58,13 @@ struct CaregiverSettingsData: Codable, Equatable {
     var seniorRelationship = ""
     var emergencyContacts: [EmergencyContact] = []
     var primaryID = "self"
+    var allowAITripHistory = true
     var autoNavigation = true
     var lowRiskNotifications = true
     var recoveryNotifications = true
     var limitedMonitoringNotifications = true
     enum CodingKeys: String, CodingKey {
-        case caregiver, senior, members, primaryID, autoNavigation, lowRiskNotifications,
+        case caregiver, senior, members, primaryID, allowAITripHistory, autoNavigation, lowRiskNotifications,
              recoveryNotifications, limitedMonitoringNotifications, seniorRelationship, emergencyContacts
     }
     init() {}
@@ -71,6 +74,7 @@ struct CaregiverSettingsData: Codable, Equatable {
         senior = try c.decode(ElderProfile.self, forKey: .senior)
         members = try c.decode([LocalFamilyMember].self, forKey: .members)
         primaryID = try c.decode(String.self, forKey: .primaryID)
+        allowAITripHistory = try c.decodeIfPresent(Bool.self, forKey: .allowAITripHistory) ?? true
         autoNavigation = try c.decode(Bool.self, forKey: .autoNavigation)
         lowRiskNotifications = try c.decode(Bool.self, forKey: .lowRiskNotifications)
         recoveryNotifications = try c.decode(Bool.self, forKey: .recoveryNotifications)
@@ -82,7 +86,6 @@ struct CaregiverSettingsData: Codable, Equatable {
 @MainActor final class CaregiverSettingsStore: ObservableObject {
     @Published private(set) var data: CaregiverSettingsData
     private let defaults: UserDefaults
-    let sessionStartedAt = Date()
     private let key = "safeorbit.caregiver.settings.v1"
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -157,18 +160,193 @@ struct CaregiverSettingsData: Codable, Equatable {
 
 enum CaregiverSettingsItem: String, CaseIterable, Identifiable {
     case account = "Account Settings", senior = "Senior Profile", family = "Family Members"
-    case agent = "AI Agent Settings", location = "Location Settings", notifications = "Notifications", help = "Help"
+    case ai = "AI Settings", navigation = "Navigation Settings", location = "Safe Zones", notifications = "Notifications", help = "Help & Privacy"
     var id: String { rawValue }
     var symbol: String {
         switch self {
         case .account: "gearshape"
         case .senior: "person.crop.circle"
         case .family: "person.3"
-        case .agent: "sparkles"
         case .location: "mappin.and.ellipse"
+        case .ai: "sparkles"
+        case .navigation: "arrow.triangle.turn.up.right.diamond"
         case .notifications: "bell"
         case .help: "questionmark.circle"
         }
+    }
+}
+
+enum CaregiverSettingsGroup: String, CaseIterable, Identifiable {
+    case people = "Profiles & Family"
+    case ai = "AI Settings"
+    case navigation = "Navigation Settings"
+    case notifications = "Notifications"
+    case zones = "Safe Zones"
+    case help = "Help & Privacy"
+    var id: String { rawValue }
+    var symbol: String {
+        switch self {
+        case .people: "person.3"
+        case .ai: "sparkles"
+        case .navigation: "arrow.triangle.turn.up.right.diamond"
+        case .notifications: "bell"
+        case .zones: "mappin.and.ellipse"
+        case .help: "questionmark.circle"
+        }
+    }
+}
+struct CaregiverSettingsGroupPage: View {
+    let group: CaregiverSettingsGroup
+    @ObservedObject var settings: CaregiverSettingsStore
+    @ObservedObject var onboarding: OnboardingStore
+    @ObservedObject var zones: SafeZoneSessionStore
+    let back: () -> Void
+    var body: some View {
+        switch group {
+        case .people: SettingsProfilesFamilyPage(settings: settings, back: back)
+        case .ai: SettingsAIPage(settings: settings, back: back)
+        case .navigation: detail(.navigation)
+        case .notifications: detail(.notifications)
+        case .zones: detail(.location)
+        case .help: detail(.help)
+        }
+    }
+    private func detail(_ item: CaregiverSettingsItem) -> some View {
+        CaregiverSettingsDetail(item: item, settings: settings, onboarding: onboarding, zones: zones, back: back)
+    }
+}
+
+struct SettingsAIPage: View {
+    @ObservedObject var settings: CaregiverSettingsStore
+    let back: () -> Void
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var microphonePermission = AVAudioApplication.shared.recordPermission
+    @State private var speechPermission = SFSpeechRecognizer.authorizationStatus()
+    var body: some View {
+        SettingsPage("AI Settings", back: back) {
+            SettingsSection("Data use") {
+                SettingsCard {
+                    Toggle(isOn: settings.binding(\.allowAITripHistory)) {
+                        Label("Use trip history", systemImage: "clock.arrow.circlepath")
+                    }.frame(minHeight: 44)
+                    SettingsNote(text: "Allow Agent to use sample trip records in answers. Turning this off clears the current chat.")
+                }
+            }
+            SettingsSection("Voice input permissions") {
+                SettingsCard {
+                    permissionRow("Microphone", symbol: "mic", status: microphoneStatus)
+                    Divider()
+                    permissionRow("Speech recognition", symbol: "waveform", status: speechStatus)
+                    Divider()
+                    Button {
+                        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                        UIApplication.shared.open(url)
+                    } label: {
+                        HStack {
+                            Text("Open iPhone Settings")
+                            Spacer()
+                            Image(systemName: "arrow.up.right").font(.footnote)
+                        }.frame(minHeight: 44)
+                    }
+                }
+            }
+        }
+        .onAppear(perform: refreshPermissions)
+        .onChange(of: scenePhase) { _, phase in if phase == .active { refreshPermissions() } }
+    }
+    private func permissionRow(_ title: String, symbol: String, status: String) -> some View {
+        HStack(spacing: 12) {
+            Label(title, systemImage: symbol)
+            Spacer(minLength: 8)
+            Text(status).font(.subheadline).foregroundStyle(.secondary)
+        }.frame(minHeight: 44).accessibilityElement(children: .combine)
+    }
+    private var microphoneStatus: String {
+        switch microphonePermission {
+        case .granted: "Allowed"
+        case .denied: "Denied"
+        case .undetermined: "Not requested"
+        @unknown default: "Unavailable"
+        }
+    }
+    private var speechStatus: String {
+        switch speechPermission {
+        case .authorized: "Allowed"
+        case .denied: "Denied"
+        case .restricted: "Restricted"
+        case .notDetermined: "Not requested"
+        @unknown default: "Unavailable"
+        }
+    }
+    private func refreshPermissions() {
+        microphonePermission = AVAudioApplication.shared.recordPermission
+        speechPermission = SFSpeechRecognizer.authorizationStatus()
+    }
+}
+
+// Keep the underlying page mounted so nested editors preserve its draft and scroll position.
+struct SettingsSlideModifier<Destination: View>: ViewModifier {
+    let isPresented: Bool
+    var reduceMotionOverride: Bool? = nil
+    @ViewBuilder let destination: () -> Destination
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    private var reduceMotion: Bool { reduceMotionOverride ?? systemReduceMotion }
+
+    func body(content: Content) -> some View {
+        ZStack {
+            content
+                .allowsHitTesting(!isPresented)
+                .accessibilityElement(children: .contain)
+                .accessibilityHidden(isPresented)
+            GeometryReader { geometry in
+                ZStack {
+                    if isPresented {
+                        destination()
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                            .background(Color.white.ignoresSafeArea())
+                            .accessibilityAddTraits(.isModal)
+                            .transition(reduceMotion ? .opacity : .asymmetric(
+                                insertion: .offset(x: -geometry.size.width),
+                                removal: .offset(x: -geometry.size.width)))
+                    }
+                }
+            }
+            .allowsHitTesting(isPresented)
+            .accessibilityElement(children: .contain)
+            .accessibilityHidden(!isPresented)
+            .zIndex(1)
+        }
+        .animation(.easeInOut(duration: 0.28), value: isPresented)
+        .onChange(of: isPresented) { _, _ in
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
+    }
+}
+
+private struct SettingsItemSlideModifier<Item: Identifiable, Destination: View>: ViewModifier {
+    @Binding var item: Item?
+    @State private var lastItem: Item?
+    @ViewBuilder let destination: (Item) -> Destination
+
+    func body(content: Content) -> some View {
+        content.settingsSlide(isPresented: Binding(get: { item != nil }, set: { if !$0 { item = nil } })) {
+            // Retain the outgoing item's content until its removal animation finishes.
+            if let value = item ?? lastItem { destination(value) }
+        }
+        .onChange(of: item?.id, initial: true) { _, _ in
+            if let item { lastItem = item }
+        }
+    }
+}
+
+extension View {
+    func settingsSlide<Destination: View>(isPresented: Binding<Bool>,
+                                         @ViewBuilder destination: @escaping () -> Destination) -> some View {
+        modifier(SettingsSlideModifier(isPresented: isPresented.wrappedValue, destination: destination))
+    }
+    func settingsSlide<Item: Identifiable, Destination: View>(item: Binding<Item?>,
+                                                            @ViewBuilder destination: @escaping (Item) -> Destination) -> some View {
+        modifier(SettingsItemSlideModifier(item: item, destination: destination))
     }
 }
 
@@ -193,11 +371,11 @@ struct SettingsPage<Content: View>: View {
                 }.foregroundStyle(.white)
             }
             ScrollView {
-                VStack(spacing: 22) {
+                VStack(spacing: 20) {
                     content
-                }.padding(.horizontal, 24).padding(.top, 18).padding(.bottom, 32)
+                }.padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 32)
             }
-            .background(.white, in: UnevenRoundedRectangle(topLeadingRadius: 29, topTrailingRadius: 29))
+            .background(Color(uiColor: .systemGroupedBackground), in: UnevenRoundedRectangle(topLeadingRadius: 29, topTrailingRadius: 29))
             .background(alignment: .top) { OrbitStyle.teal.frame(height: 40) }
         }
         .background(.white).tint(OrbitStyle.teal).preferredColorScheme(.light)
@@ -208,8 +386,28 @@ struct SettingsPage<Content: View>: View {
 struct SettingsCard<Content: View>: View {
     @ViewBuilder let content: Content
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) { content }
-            .padding(20).frame(maxWidth: .infinity, alignment: .leading).caregiverCard(radius: 25, opacity: 0.09)
+        VStack(alignment: .leading, spacing: 14) { content }
+            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white, in: RoundedRectangle(cornerRadius: 22))
+    }
+}
+struct SettingsSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+    init(_ title: String, @ViewBuilder content: () -> Content) { self.title = title; self.content = content() }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(.headline).padding(.horizontal, 6).accessibilityAddTraits(.isHeader)
+            content
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+struct SettingsPrivacyPage: View {
+    let back: () -> Void
+    var body: some View {
+        SettingsPage("Privacy Policy", back: back) {
+            SettingsCard { SettingsNote(text: "A privacy policy is not yet available for this demo.") }
+        }
     }
 }
 struct SettingsNote: View {
@@ -234,14 +432,23 @@ struct SettingsField: View {
 struct SettingsPhotoPicker: View {
     @Binding var photo: String?
     @Binding var loading: Bool
+    var compact = false
     @State private var selection: PhotosPickerItem?
     @State private var error: String?
     var body: some View {
         VStack(spacing: 10) {
             PhotosPicker(selection: $selection, matching: .images) {
-                VStack(spacing: 10) {
-                    ProfileAvatar(photo: photo, size: 86)
-                    Text("Change photo").font(.system(size: 14, weight: .medium))
+                if compact {
+                    HStack(spacing: 14) {
+                        ProfileAvatar(photo: photo, size: 48)
+                        Text("Change photo").font(.system(size: 16, weight: .medium))
+                        Spacer()
+                    }.frame(minHeight: 48)
+                } else {
+                    VStack(spacing: 10) {
+                        ProfileAvatar(photo: photo, size: 86)
+                        Text("Change photo").font(.system(size: 14, weight: .medium))
+                    }
                 }
             }.disabled(loading)
             if loading { ProgressView() }
@@ -277,16 +484,18 @@ struct CaregiverSettingsDetail: View {
     @State private var editingMember: LocalFamilyMember?
     @State private var editingZone: SafeZone?
     @State private var addingZone = false
+    @State private var showingPrivacy = false
 
     var body: some View {
         Group {
-            if item == .account { SettingsProfileEditor(settings: settings, senior: false, back: back) }
-            else if item == .senior { SettingsProfileEditor(settings: settings, senior: true, back: back) }
+            if item == .account { SettingsProfilesFamilyPage(settings: settings, back: back) }
+            else if item == .senior { SettingsProfilesFamilyPage(settings: settings, back: back) }
             else {
                 SettingsPage(item.rawValue, back: back) {
                     switch item {
                     case .family: family
-                    case .agent: agent
+                    case .ai: EmptyView()
+                    case .navigation: navigation
                     case .location: location
                     case .notifications: notifications
                     case .help: help
@@ -295,11 +504,12 @@ struct CaregiverSettingsDetail: View {
                 }
             }
         }
-        .fullScreenCover(item: $editingMember) { member in
+        .settingsSlide(item: $editingMember) { member in
             SettingsMemberDetail(member: member, isSelf: member.id == "self", settings: settings) { editingMember = nil }
         }
-        .fullScreenCover(item: $editingZone) { zone in zoneEditor(zone) }
-        .fullScreenCover(isPresented: $addingZone) { zoneEditor(nil) }
+        .settingsSlide(item: $editingZone) { zone in zoneEditor(zone) }
+        .settingsSlide(isPresented: $addingZone) { zoneEditor(nil) }
+        .settingsSlide(isPresented: $showingPrivacy) { SettingsPrivacyPage(back: { showingPrivacy = false }) }
     }
 
     private var family: some View {
@@ -314,248 +524,228 @@ struct CaregiverSettingsDetail: View {
     }
     private func familyRow(_ member: LocalFamilyMember) -> some View {
         Button { editingMember = member } label: {
-            Text(member.name).font(.system(size: 17, weight: .medium)).foregroundStyle(.primary)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
+            HStack(spacing: 12) {
+                Image(systemName: "person.crop.circle").font(.title2).foregroundStyle(OrbitStyle.teal)
+                Text(member.name).foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "chevron.right").font(.footnote).foregroundStyle(.tertiary)
+            }.frame(minHeight: 44).contentShape(Rectangle())
         }
     }
-    private var agent: some View {
-        VStack(spacing: 22) {
-            SettingsCard {
-                Label("Support on the way home", systemImage: "sparkles").font(.system(size: 18, weight: .semibold)).foregroundStyle(OrbitStyle.teal)
-                Toggle("Automatic voice navigation", isOn: settings.binding(\.autoNavigation))
-                SettingsNote(text: "Start guidance home when a low-risk situation is detected.")
-            }
-            SettingsNote(text: "Saved automatically on this phone. Automatic monitoring and navigation are not connected in this version.")
+    private var navigation: some View {
+        SettingsCard {
+            Toggle(isOn: settings.binding(\.autoNavigation)) {
+                Label("Automatic voice navigation", systemImage: "arrow.triangle.turn.up.right.diamond")
+            }.frame(minHeight: 44)
+            SettingsNote(text: "Start guidance home when a low-risk situation is detected.")
         }
     }
     private var notifications: some View {
-        VStack(spacing: 22) {
-            SettingsCard {
-                Toggle("Low-risk alerts", isOn: settings.binding(\.lowRiskNotifications))
-                SettingsNote(text: "Know when guidance home is needed.")
-                Divider()
-                Toggle("Safe return & recovery", isOn: settings.binding(\.recoveryNotifications))
-                SettingsNote(text: "Know when a risk has ended.")
-                Divider()
-                Toggle("Monitoring limited", isOn: settings.binding(\.limitedMonitoringNotifications))
-                SettingsNote(text: "Know when location updates are unavailable.")
-            }
-            SettingsCard {
-                HStack {
-                    Label("High-risk alerts", systemImage: "exclamationmark.shield").font(.system(size: 17, weight: .semibold))
-                    Spacer()
-                    Text("Always on").font(.system(size: 13, weight: .medium)).foregroundStyle(OrbitStyle.teal)
-                }
-                SettingsNote(text: "High-risk alerts cannot be turned off here.")
-            }
-            SettingsNote(text: "Preferences are saved on this phone. Push notifications are not connected yet; these switches do not change iPhone permissions.")
+        SettingsCard {
+            Toggle(isOn: settings.binding(\.lowRiskNotifications)) { Label("Low-risk alerts", systemImage: "bell") }.frame(minHeight: 44)
+            Divider()
+            Toggle(isOn: settings.binding(\.recoveryNotifications)) { Label("Safe return & recovery", systemImage: "checkmark.shield") }.frame(minHeight: 44)
+            Divider()
+            Toggle(isOn: settings.binding(\.limitedMonitoringNotifications)) { Label("Monitoring limited", systemImage: "location.slash") }.frame(minHeight: 44)
+            Divider()
+            HStack(spacing: 12) {
+                Label("High-risk alerts", systemImage: "exclamationmark.shield")
+                Spacer(minLength: 8)
+                Text("Always on").font(.subheadline).foregroundStyle(.secondary)
+            }.frame(minHeight: 44)
         }
     }
     private var location: some View {
-        VStack(spacing: 22) {
-            SettingsCard {
-                Label("Monitoring status", systemImage: "location.circle").font(.system(size: 18, weight: .semibold)).foregroundStyle(OrbitStyle.teal)
-                Text(onboarding.previewSession ? "Sample location" : (onboarding.location == nil ? "Location unavailable" : "Location available"))
-                SettingsNote(text: onboarding.previewSession ? "The home map shows a local sample near Nanjing University. No senior device is connected." : (onboarding.locationError ?? "Location updates come from the connected service."))
+        SettingsCard {
+            let visible = zones.visibleZones(in: onboarding.location)
+            if visible.isEmpty { SettingsNote(text: "Add a familiar place such as home or the market.") }
+            ForEach(visible) { zone in
+                Button { editingZone = zone } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "mappin.circle").font(.title2).foregroundStyle(OrbitStyle.teal)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(zone.name).foregroundStyle(.primary)
+                            Text("\(Int(zone.radiusMeters)) m radius").font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.footnote).foregroundStyle(.tertiary)
+                    }.frame(minHeight: 44)
+                }.accessibilityLabel("Edit " + zone.name + " safe zone")
+                Divider()
             }
-            SettingsCard {
-                Text("Safe zones").font(.system(size: 18, weight: .semibold)).foregroundStyle(OrbitStyle.teal)
-                let visible = zones.visibleZones(in: onboarding.location)
-                if visible.isEmpty { SettingsNote(text: "Add a familiar place such as home or the market.") }
-                ForEach(visible) { zone in
-                    Button { editingZone = zone } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "mappin.circle.fill").font(.system(size: 28)).foregroundStyle(OrbitStyle.teal)
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(zone.name).font(.system(size: 17, weight: .medium)).foregroundStyle(.primary)
-                                Text("\(Int(zone.radiusMeters)) m radius").font(.system(size: 13)).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right").foregroundStyle(OrbitStyle.teal)
-                        }.frame(minHeight: 50)
-                    }.accessibilityLabel("Edit " + zone.name + " safe zone")
-                    if zone.id != visible.last?.id { Divider() }
-                }
-                Button { addingZone = true } label: { Label("Add safe zone", systemImage: "plus.circle").frame(minHeight: 44) }
-                SettingsNote(text: "Safe-zone changes last for this app session.")
-            }
-            SettingsCard {
-                Label("Senior phone", systemImage: "iphone").font(.system(size: 18, weight: .semibold)).foregroundStyle(OrbitStyle.teal)
-                Text("Not connected")
-                SettingsNote(text: "Phone binding and replacement are paused while account access is frozen.")
-            }
+            Button { addingZone = true } label: { Label("Add safe zone", systemImage: "plus.circle").frame(minHeight: 44) }
         }
     }
     @ViewBuilder private func zoneEditor(_ zone: SafeZone?) -> some View {
         SafeZoneEditorPage(zone: zone, initialCenter: onboarding.location?.coordinate ?? LocationPreviewData.campus,
-                           nearbyZones: zones.visibleZones(in: onboarding.location), save: { zones.save($0) }, delete: { zones.delete($0) })
+                           nearbyZones: zones.visibleZones(in: onboarding.location), save: { zones.save($0) }, delete: { zones.delete($0) },
+                           close: { editingZone = nil; addingZone = false })
     }
     private var help: some View {
-        VStack(spacing: 22) {
-            SettingsCard {
-                Label("Getting started", systemImage: "hand.wave").font(.system(size: 18, weight: .semibold)).foregroundStyle(OrbitStyle.teal)
-                SettingsNote(text: "Location shows the senior's position and familiar places. Agent answers questions about sample trips. Records contains the calendar, trip details and trends.")
+        VStack(spacing: 20) {
+            SettingsSection("Getting started") {
+                SettingsCard {
+                    DisclosureGroup("Where do I find trips and guidance?") {
+                        SettingsNote(text: "Location shows familiar places. Agent answers questions about trips. Records shows the calendar, trip details and trends.").padding(.top, 8)
+                    }.frame(minHeight: 44)
+                }
+            }
+            SettingsSection("Frequently asked questions") {
+                SettingsCard {
+                    DisclosureGroup("What is a safe zone?") { SettingsNote(text: "A familiar place, such as home or the market. Leaving a safe zone alone does not mean something is wrong.").padding(.top, 8) }.frame(minHeight: 44)
+                    Divider()
+                    DisclosureGroup("What do the risk colors mean?") { SettingsNote(text: "Green means normal. Yellow indicates low risk. Red indicates high risk and needs family attention.").padding(.top, 8) }.frame(minHeight: 44)
+                    Divider()
+                    DisclosureGroup("How do I change a safe zone?") { SettingsNote(text: "Open Safe Zones, choose a place or add one, then move the pin, choose a radius and save. Changes last for this app session.").padding(.top, 8) }.frame(minHeight: 44)
+                }
             }
             SettingsCard {
-                Text("Frequently asked questions").font(.system(size: 18, weight: .semibold)).foregroundStyle(OrbitStyle.teal)
-                DisclosureGroup("What is a safe zone?") { SettingsNote(text: "A familiar place, such as home or the market. Leaving a safe zone alone does not mean something is wrong.").padding(.top, 8) }
+                Button { showingPrivacy = true } label: {
+                    HStack {
+                        Label("Privacy Policy", systemImage: "hand.raised")
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.footnote).foregroundStyle(.tertiary)
+                    }.frame(minHeight: 44)
+                }.foregroundStyle(.primary)
                 Divider()
-                DisclosureGroup("What do the risk colors mean?") { SettingsNote(text: "Green means normal. Yellow indicates a low-risk situation. Red indicates a high-risk situation that needs family attention.").padding(.top, 8) }
-                Divider()
-                DisclosureGroup("Are these live records?") { SettingsNote(text: "This version uses local sample locations and August 2026 trip records. Account access, live monitoring and push notifications are paused.").padding(.top, 8) }
-                Divider()
-                DisclosureGroup("How do I change a safe zone?") { SettingsNote(text: "Open Location Settings or tap a safe-zone marker on the home map. Move the pin, choose a radius and save. Changes remain for the current app session.").padding(.top, 8) }
+                DisclosureGroup("About this demo") {
+                    SettingsNote(text: "Trips and locations use sample data. Preferences and profiles are saved on this phone. Live monitoring, voice navigation and push notifications are not connected. Emergency dispatch is unavailable.").padding(.top, 8)
+                }.frame(minHeight: 44)
             }
-            SettingsNote(text: "SafeOrbit · Classroom demo\nThis version has no emergency dispatch service.")
+        }
+    }
+
+}
+
+@MainActor final class SettingsProfileDraft: ObservableObject {
+    @Published var caregiver: LocalCaregiver { didSet { saved = false } }
+    @Published var profile: ElderProfile { didSet { saved = false } }
+    @Published var relationship: String { didSet { saved = false } }
+    @Published var contacts: [EmergencyContact] { didSet { saved = false } }
+    @Published var editingContact: EmergencyContact?
+    @Published var removingContact: EmergencyContact?
+    @Published var saved = false
+    @Published var photoLoading = false
+    let senior: Bool
+    init(data: CaregiverSettingsData, senior: Bool) {
+        caregiver = data.caregiver; profile = data.senior
+        relationship = data.seniorRelationship; contacts = data.emergencyContacts
+        self.senior = senior
+    }
+    var valid: Bool {
+        senior ? profile.isValid && !relationship.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && relationship.count <= 60 && contacts.allSatisfy(\.isValid) : caregiver.isValid
+    }
+    var canSave: Bool { valid && !photoLoading }
+    func save(to settings: CaregiverSettingsStore) {
+        guard canSave else { return }
+        saved = senior ? settings.saveSenior(profile, relationship: relationship, contacts: contacts) : settings.saveCaregiver(caregiver)
+    }
+    func updateContact(_ contact: EmergencyContact) {
+        if let index = contacts.firstIndex(where: { $0.id == contact.id }) { contacts[index] = contact }
+        else { contacts.append(contact) }
+        editingContact = nil
+    }
+}
+
+struct SettingsProfilesFamilyPage: View {
+    @ObservedObject var settings: CaregiverSettingsStore
+    let back: () -> Void
+    @StateObject private var account: SettingsProfileDraft
+    @StateObject private var senior: SettingsProfileDraft
+    @State private var editingMember: LocalFamilyMember?
+    init(settings: CaregiverSettingsStore, back: @escaping () -> Void) {
+        self.settings = settings; self.back = back
+        _account = StateObject(wrappedValue: SettingsProfileDraft(data: settings.data, senior: false))
+        _senior = StateObject(wrappedValue: SettingsProfileDraft(data: settings.data, senior: true))
+    }
+    var body: some View {
+        SettingsPage("Profiles & Family", back: back) {
+            SettingsSection("Account Settings") {
+                SettingsProfileSection(settings: settings, draft: account)
+            }
+            SettingsSection("Senior Profile") {
+                SettingsProfileSection(settings: settings, draft: senior)
+            }
+            SettingsSection("Family Members") {
+                SettingsCard {
+                    memberRow(LocalFamilyMember(id: "self", name: settings.data.caregiver.name,
+                        phone: settings.data.caregiver.phone, relationship: ""))
+                    ForEach(settings.data.members) { member in
+                        Divider()
+                        memberRow(member)
+                    }
+                }
+            }
+        }
+        .settingsSlide(item: $senior.editingContact) { contact in
+            EmergencyContactEditor(contact: contact, save: { senior.updateContact($0) }, back: { senior.editingContact = nil })
+        }
+        .settingsSlide(item: $editingMember) { member in
+            SettingsMemberDetail(member: member, isSelf: member.id == "self", settings: settings, back: { editingMember = nil })
+        }
+    }
+    private func memberRow(_ member: LocalFamilyMember) -> some View {
+        Button { editingMember = member } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "person.crop.circle").font(.title2).foregroundStyle(OrbitStyle.teal)
+                Text(member.name).foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "chevron.right").font(.footnote).foregroundStyle(.tertiary)
+            }.frame(minHeight: 44).contentShape(Rectangle())
         }
     }
 }
 
-struct SettingsProfileEditor: View {
+struct SettingsProfileSection: View {
     @ObservedObject var settings: CaregiverSettingsStore
-    let senior: Bool
-    let back: () -> Void
-    @State private var caregiver: LocalCaregiver
-    @State private var profile: ElderProfile
-    @State private var relationship: String
-    @State private var contacts: [EmergencyContact]
-    @State private var editingContact: EmergencyContact?
-    @State private var removingContact: EmergencyContact?
-    @State private var saved = false
-    @State private var photoLoading = false
-    @State private var unavailableAction: String?
-    @State private var showingPrivacy = false
-    init(settings: CaregiverSettingsStore, senior: Bool, back: @escaping () -> Void) {
-        self.settings = settings; self.senior = senior; self.back = back
-        _caregiver = State(initialValue: settings.data.caregiver)
-        _profile = State(initialValue: settings.data.senior)
-        _relationship = State(initialValue: settings.data.seniorRelationship)
-        _contacts = State(initialValue: settings.data.emergencyContacts)
-    }
-    private var valid: Bool {
-        senior ? profile.isValid && !relationship.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && relationship.count <= 60 && contacts.allSatisfy(\.isValid) : caregiver.isValid
-    }
+    @ObservedObject var draft: SettingsProfileDraft
     var body: some View {
-        SettingsPage(senior ? "Senior Profile" : "Account Settings", back: back) {
-            SettingsCard {
-                SettingsPhotoPicker(photo: senior ? $profile.photo : $caregiver.photo, loading: $photoLoading)
-                SettingsField(label: "Full name", value: senior ? $profile.name : $caregiver.name)
-                CountryPhoneInput(phone: senior ? $profile.phone : $caregiver.phone, label: "Phone number")
-                if senior {
-                    SettingsField(label: "Relationship to you", value: $relationship)
-                } else {
-                    SettingsField(label: "Email (optional)", value: $caregiver.email)
-                        .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
-                }
-            }
-            if senior {
-                emergencyContacts
-                saveControls
-            } else {
-                saveControls
-                accountSections
-            }
-        }
-        .onChange(of: caregiver) { _, _ in saved = false }.onChange(of: profile) { _, _ in saved = false }
-        .onChange(of: relationship) { _, _ in saved = false }.onChange(of: contacts) { _, _ in saved = false }
-        .fullScreenCover(item: $editingContact) { contact in
-            EmergencyContactEditor(contact: contact, save: { value in
-                if let index = contacts.firstIndex(where: { $0.id == value.id }) { contacts[index] = value }
-                else { contacts.append(value) }
-                editingContact = nil
-            }, back: { editingContact = nil })
-        }
-        .fullScreenCover(isPresented: $showingPrivacy) {
-            SettingsPage("Privacy Policy", back: { showingPrivacy = false }) {
-                SettingsCard {
-                    SettingsNote(text: "A formal privacy policy has not been provided for this classroom demo. This page is not a published privacy policy.")
-                }
-            }
-        }
-        .alert(unavailableAction ?? "Unavailable", isPresented: Binding(get: { unavailableAction != nil }, set: { if !$0 { unavailableAction = nil } })) {
-            Button("OK", role: .cancel) { unavailableAction = nil }
-        } message: { Text("This feature is not connected yet. Account sign-in and registration remain paused. No account or device changes were made.") }
-        .confirmationDialog("Remove this emergency contact?", isPresented: Binding(get: { removingContact != nil }, set: { if !$0 { removingContact = nil } }), titleVisibility: .visible) {
-            Button("Remove contact", role: .destructive) {
-                if let contact = removingContact { contacts.removeAll { $0.id == contact.id } }
-                removingContact = nil
-            }
-            Button("Cancel", role: .cancel) { removingContact = nil }
-        }
-    }
-    private var saveControls: some View {
-        Group {
-            PrimaryButton(title: "Save", busy: false, enabled: valid && !photoLoading, capsule: true) {
-                saved = senior ? settings.saveSenior(profile, relationship: relationship, contacts: contacts) : settings.saveCaregiver(caregiver)
-            }
-            if !valid {
-                Text(senior ? "Enter a name, valid phone number and relationship." : "Enter a name, valid phone number and valid email if provided.")
-                    .font(.footnote).foregroundStyle(.red)
-            }
-            if saved { Label("Saved on this phone", systemImage: "checkmark.circle.fill").font(.subheadline).foregroundStyle(OrbitStyle.teal) }
-            SettingsNote(text: "Changes are saved on this phone only. Return without saving to discard your edits.")
-        }
-    }
-    private var emergencyContacts: some View {
         SettingsCard {
-            Text("Emergency contacts").font(.system(size: 18, weight: .semibold)).foregroundStyle(OrbitStyle.teal)
-            if contacts.isEmpty { SettingsNote(text: "No emergency contacts added.") }
-            ForEach(contacts) { contact in
-                VStack(alignment: .leading, spacing: 6) {
+            SettingsPhotoPicker(photo: draft.senior ? $draft.profile.photo : $draft.caregiver.photo, loading: $draft.photoLoading, compact: true)
+            Divider()
+            SettingsField(label: "Full name", value: draft.senior ? $draft.profile.name : $draft.caregiver.name)
+            Divider()
+            CountryPhoneInput(phone: draft.senior ? $draft.profile.phone : $draft.caregiver.phone, label: "Phone number")
+            Divider()
+            if draft.senior {
+                SettingsField(label: "Relationship to you", value: $draft.relationship)
+                Divider()
+                Text("Emergency contacts").font(.subheadline.weight(.medium)).accessibilityAddTraits(.isHeader)
+                if draft.contacts.isEmpty { Text("No emergency contacts added.").font(.footnote).foregroundStyle(.secondary) }
+                ForEach(draft.contacts) { contact in
                     HStack {
-                        Button { editingContact = contact } label: {
-                            VStack(alignment: .leading, spacing: 6) {
+                        Button { draft.editingContact = contact } label: {
+                            VStack(alignment: .leading, spacing: 4) {
                                 Text(contact.name).font(.system(size: 17, weight: .medium))
                                 Text(contact.relationship).font(.subheadline).foregroundStyle(.secondary)
                                 Text(contact.phone).font(.subheadline).foregroundStyle(.secondary)
                             }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         }.accessibilityLabel("Edit " + contact.name)
-                        Button { removingContact = contact } label: { Image(systemName: "minus.circle").frame(width: 44, height: 44) }
+                        Button { draft.removingContact = contact } label: { Image(systemName: "minus.circle").frame(width: 44, height: 44) }
                             .foregroundStyle(.red).accessibilityLabel("Remove " + contact.name)
                     }
+                    Divider()
                 }
-                Divider()
+                Button { draft.editingContact = EmergencyContact() } label: { Label("Add emergency contact", systemImage: "plus.circle").frame(minHeight: 44) }
+            } else {
+                SettingsField(label: "Email (optional)", value: $draft.caregiver.email)
+                    .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
             }
-            Button { editingContact = EmergencyContact() } label: { Label("Add emergency contact", systemImage: "plus.circle").frame(minHeight: 44) }
+            Divider()
+            PrimaryButton(title: "Save", busy: false, enabled: draft.canSave, capsule: true) { draft.save(to: settings) }
+                .accessibilityLabel(draft.senior ? "Save senior profile" : "Save account settings")
+            if !draft.valid {
+                Text(draft.senior ? "Enter a name, valid phone number and relationship." : "Enter a name, valid phone number and valid email if provided.")
+                    .font(.footnote).foregroundStyle(.red)
+            }
+            if draft.saved { Label("Saved", systemImage: "checkmark.circle.fill").font(.subheadline).foregroundStyle(OrbitStyle.teal) }
         }
-    }
-    private var accountSections: some View {
-        Group {
-            SettingsCard {
-                sectionHeading("Login & security")
-                HStack { Text("Login method"); Spacer(); Text("Paused").foregroundStyle(.secondary) }
-                SettingsNote(text: "Account access is paused. Your profile phone number is saved locally and is not a bound login number.")
-                actionRow("Change password")
-                actionRow("Change bound phone")
-                actionRow("Change bound email")
+        .confirmationDialog("Remove this emergency contact?", isPresented: Binding(get: { draft.removingContact != nil }, set: { if !$0 { draft.removingContact = nil } }), titleVisibility: .visible) {
+            Button("Remove contact", role: .destructive) {
+                if let contact = draft.removingContact { draft.contacts.removeAll { $0.id == contact.id } }
+                draft.removingContact = nil
             }
-            SettingsCard {
-                sectionHeading("Signed-in devices")
-                Text(UIDevice.current.name).font(.system(size: 17, weight: .medium))
-                SettingsNote(text: "This device · Local demo session")
-                Text("Last used").font(.subheadline).foregroundStyle(.secondary)
-                Text(settings.sessionStartedAt, format: .dateTime).font(.subheadline).foregroundStyle(.secondary)
-                actionRow("Sign out other devices")
-            }
-            SettingsCard {
-                Button { showingPrivacy = true } label: {
-                    HStack { Text("Privacy Policy"); Spacer(); Image(systemName: "chevron.right") }.frame(minHeight: 44)
-                }
-            }
-            SettingsCard {
-                sectionHeading("Account actions")
-                actionRow("Sign out")
-                actionRow("Delete account", destructive: true)
-            }
-        }
-    }
-    private func sectionHeading(_ title: String) -> some View {
-        Text(title).font(.system(size: 18, weight: .semibold)).foregroundStyle(OrbitStyle.teal)
-    }
-    private func actionRow(_ title: String, destructive: Bool = false) -> some View {
-        Button { unavailableAction = title } label: {
-            HStack { Text(title); Spacer(); Image(systemName: "chevron.right") }
-                .foregroundStyle(destructive ? Color.red : OrbitStyle.teal).frame(minHeight: 44)
+            Button("Cancel", role: .cancel) { draft.removingContact = nil }
         }
     }
 }
@@ -572,7 +762,7 @@ struct EmergencyContactEditor: View {
                 CountryPhoneInput(phone: $contact.phone, label: "Phone number")
             }
             PrimaryButton(title: "Done", busy: false, enabled: contact.isValid, capsule: true) { save(contact) }
-            SettingsNote(text: "Changes are added to your draft. Tap Save on Senior Profile to keep them.")
+            SettingsNote(text: "Tap Save in the Senior Profile section to keep this contact.")
         }
     }
 }
@@ -586,7 +776,9 @@ struct SettingsMemberDetail: View {
         SettingsPage("Family Member", back: back) {
             SettingsCard {
                 detail("Full name", member.name)
+                Divider()
                 detail("Relationship to senior", member.relationship)
+                Divider()
                 detail("Contact", member.phone)
             }
             if !isSelf {

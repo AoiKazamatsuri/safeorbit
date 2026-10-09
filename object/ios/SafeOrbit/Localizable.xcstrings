@@ -88,6 +88,9 @@
     "＋ New Tag" : {
 
     },
+    "About this demo" : {
+
+    },
     "Add" : {
 
     },
@@ -101,9 +104,6 @@
 
     },
     "Always on" : {
-
-    },
-    "Are these live records?" : {
 
     },
     "Ask a question" : {
@@ -182,9 +182,6 @@
     "Edit profile" : {
 
     },
-    "Emergency contacts" : {
-
-    },
     "Enter a name for this safe zone." : {
 
     },
@@ -212,12 +209,6 @@
     "Forgot password?" : {
 
     },
-    "Frequently asked questions" : {
-
-    },
-    "Getting started" : {
-
-    },
     "Hide password" : {
 
     },
@@ -227,28 +218,16 @@
     "How do I change a safe zone?" : {
 
     },
-    "Last used" : {
-
-    },
-    "Location available" : {
-
-    },
     "Location unavailable" : {
 
     },
     "Log Out" : {
 
     },
-    "Login method" : {
-
-    },
     "Low-risk alerts" : {
 
     },
     "Monitoring limited" : {
-
-    },
-    "Monitoring status" : {
 
     },
     "Navigate" : {
@@ -266,10 +245,7 @@
     "No trips in this period" : {
 
     },
-    "Not connected" : {
-
-    },
-    "OK" : {
+    "Open iPhone Settings" : {
 
     },
     "Open settings" : {
@@ -285,9 +261,6 @@
 
     },
     "Paste link" : {
-
-    },
-    "Paused" : {
 
     },
     "Phone connection QR code" : {
@@ -344,16 +317,10 @@
     "Safe Zone Radius" : {
 
     },
-    "Safe zones" : {
-
-    },
-    "Sample location" : {
-
-    },
     "Save Changes" : {
 
     },
-    "Saved on this phone" : {
+    "Saved" : {
 
     },
     "Scan code" : {
@@ -363,9 +330,6 @@
 
     },
     "Senior location" : {
-
-    },
-    "Senior phone" : {
 
     },
     "Share link" : {
@@ -389,16 +353,10 @@
     "Suggested questions" : {
 
     },
-    "Support on the way home" : {
-
-    },
     "Tag" : {
 
     },
     "Tag name" : {
-
-    },
-    "This feature is not connected yet. Account sign-in and registration remain paused. No account or device changes were made." : {
 
     },
     "This safe zone will be removed." : {
@@ -408,6 +366,9 @@
 
     },
     "Use at least 8 characters." : {
+
+    },
+    "Use trip history" : {
 
     },
     "View Less" : {
@@ -426,6 +387,9 @@
 
     },
     "What is a safe zone?" : {
+
+    },
+    "Where do I find trips and guidance?" : {
 
     },
     "Your location" : {
