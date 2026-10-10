@@ -2,6 +2,12 @@
 
 ## 范围
 
+本轮依据用户确认的Figma尺寸调整：首页胶囊导航栏下缘到屏幕物理底边为30逻辑点，不在底部安全区之外再加30；不同屏幕必要时保护实际按钮的系统安全区。设置共用底部对齐基准，安全区白色编辑卡下缘与首页胶囊保持同一30点基准，首页老人卡片保持与导航栏间距、防止小屏重叠，地图署名保留。修改LocationUI.swift和CaregiverChrome.swift；T12增加SettingsTests.swift的真实布局边界测试。其他已有页面切换、草稿、权限、Recording排版、绿色安全区及蓝色虚线、拖动范围圆修复保持。本轮新证据放object/ios/Verification/T12/bottom-30；完整iOS测试、Release及队列检查原样记录，未独立验证，不自动Git提交、推送或验收。
+
+
+本轮依据用户要求排查并修复安全区编辑拖动定位点时圆形底部裁切：检查定位针与范围圆渲染，修复连续拖动中的不完整显示，保留原绿色、米制半径、坐标保存、地图平移缩放及布局。T8主修SafeZoneSelectionMap.swift及LocationTests.swift并补连续移动、半径和取消回归测试；T12重交共享地图工件，T13重交共享测试工件而导航行为不变。证据放object/ios/Verification/T8/pin-drag-clipping，完整iOS测试、Release及队列检查原样记录，未独立验证。本轮不自动Git提交、推送或用户验收。
+
+
 本轮最新配色要求覆盖此前安全区统一蓝色的要求：所有地图的安全区标识、编辑定位针及表示区域的圆形恢复原OrbitStyle.teal绿色主题色；老人轨迹保留systemBlue蓝色虚线，当前位置和导航配色不变。只改相关配色，不改布局、交互及此前已确认功能；新增证据允许放object/ios/Verification/T12/safe-zone-green。完整iOS测试、Release与队列检查的命令及结果记回执，标注未独立验证；不自动Git提交、推送或验收。
 
 

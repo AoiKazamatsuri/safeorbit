@@ -1,5 +1,36 @@
 import SwiftUI
 
+enum CaregiverBottomLayout {
+    static let barPadding: CGFloat = 7
+    static let buttonHeight: CGFloat = 54
+    static var barHeight: CGFloat { buttonHeight + barPadding * 2 }
+
+    static func gap(safeAreaBottom: CGFloat) -> CGFloat {
+        // Figma measures to the screen edge. The capsule's inner padding protects its buttons.
+        max(30, safeAreaBottom - barPadding)
+    }
+
+    static func cardBottomPadding(safeAreaBottom: CGFloat) -> CGFloat {
+        barHeight + 12 + gap(safeAreaBottom: safeAreaBottom) - safeAreaBottom
+    }
+}
+
+struct CaregiverBottomOverlay<Content: View>: View {
+    let content: Content
+    init(@ViewBuilder content: () -> Content) { self.content = content() }
+    var body: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                content
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.bottom, CaregiverBottomLayout.gap(safeAreaBottom: geometry.safeAreaInsets.bottom))
+            .ignoresSafeArea(.container, edges: .bottom)
+        }
+    }
+}
+
 /// The teal strip used above caregiver pages that are not the full-screen location map.
 struct CaregiverTopBar<Content: View>: View {
     let height: CGFloat

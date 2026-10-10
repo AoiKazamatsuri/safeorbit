@@ -1,0 +1,40 @@
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/bottom30-layout.xcresult -only-testing:SafeOrbitTests/SettingsTests/testBottomOverlayIsThirtyPointsFromScreenEdgeAcrossLayouts CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/bottom30-layout-test.log 2>&1
+exit: 0
+	 Executed 1 test, with 0 failures (0 unexpected) in 1.175 (1.194) seconds
+	 Executed 1 test, with 0 failures (0 unexpected) in 1.175 (1.194) seconds
+	 Executed 1 test, with 0 failures (0 unexpected) in 1.175 (1.195) seconds
+** TEST SUCCEEDED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/bottom30-full.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/bottom30-full-test.log 2>&1
+exit: 0
+Bottom overlay 393.0x852.0, nested=false, bottom gap=30.0pt
+Bottom overlay 393.0x852.0, nested=true, bottom gap=30.0pt
+Bottom overlay 375.0x812.0, nested=false, bottom gap=30.0pt
+Bottom overlay 375.0x812.0, nested=true, bottom gap=30.0pt
+Bottom overlay 320.0x568.0, nested=false, bottom gap=30.0pt
+Bottom overlay 320.0x568.0, nested=true, bottom gap=30.0pt
+	 Executed 58 tests, with 0 failures (0 unexpected) in 60.683 (60.701) seconds
+	 Executed 58 tests, with 0 failures (0 unexpected) in 60.683 (60.701) seconds
+** TEST SUCCEEDED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/settings-ui-blue-release CODE_SIGNING_ALLOWED=NO build > /private/tmp/bottom30-release.log 2>&1
+exit: 0
+** BUILD SUCCEEDED **
+```
+
+```text
+sh object/dev/queue.sh check > /private/tmp/bottom30-queue.log
+exit: 0
+{"ok": true, "protection": "ready", "seq": 341, "tasks": 13, "protocol": 2}
+```
+
+```text
+git diff --check
+exit: 0
+(no output)
+```

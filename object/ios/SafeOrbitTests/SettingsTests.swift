@@ -3,6 +3,34 @@ import SwiftUI
 @testable import SafeOrbit
 
 final class SettingsTests: XCTestCase {
+    @MainActor func testBottomOverlayIsThirtyPointsFromScreenEdgeAcrossLayouts() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        for size in [CGSize(width: 393, height: 852), CGSize(width: 375, height: 812), CGSize(width: 320, height: 568)] {
+            for nested in [false, true] {
+                let marker = UIView()
+                let overlay = CaregiverBottomOverlay {
+                    SlideTestMarker(view: marker).frame(width: 294, height: CaregiverBottomLayout.barHeight)
+                }
+                let root = nested ? AnyView(VStack { Spacer(); overlay }) : AnyView(overlay)
+                let window = UIWindow(windowScene: scene)
+                window.frame = CGRect(origin: .zero, size: size)
+                window.rootViewController = UIHostingController(rootView: root.environment(\.dynamicTypeSize, .accessibility1))
+                window.makeKeyAndVisible()
+                window.rootViewController?.view.frame = window.bounds
+                window.rootViewController?.view.layoutIfNeeded()
+                try await Task.sleep(for: .milliseconds(150))
+                let frame = marker.convert(marker.bounds, to: window)
+                print("Bottom overlay \(size.width)x\(size.height), nested=\(nested), bottom gap=\(window.bounds.maxY - frame.maxY)pt")
+                XCTAssertEqual(window.bounds.maxY - frame.maxY, 30, accuracy: 0.5, "\(size), nested=\(nested)")
+                XCTAssertEqual(frame.height, CaregiverBottomLayout.barHeight, accuracy: 0.5)
+                window.isHidden = true
+                previous?.makeKeyAndVisible()
+            }
+        }
+        XCTAssertEqual(CaregiverBottomLayout.gap(safeAreaBottom: 64), 57)
+    }
+
     @MainActor func testImmediatePageWrapperPreservesContentAnimations() async throws {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let previous = scene.windows.first(where: \.isKeyWindow)

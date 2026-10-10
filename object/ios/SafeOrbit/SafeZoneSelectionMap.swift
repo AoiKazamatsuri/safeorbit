@@ -53,6 +53,36 @@ struct SafeZoneSelectionMap: View {
     }
 }
 
+/// Keep the renderer's tile coverage fixed while the selected circle moves.
+/// Replacing a small polygon on each pan update can leave partially refreshed tiles.
+final class SafeZoneRangeOverlay: NSObject, MKOverlay {
+    let coordinate = CLLocationCoordinate2D(latitude: 0, longitude: 0)
+    let boundingMapRect = MKMapRect.world
+}
+
+final class SafeZoneRangeRenderer: MKOverlayPathRenderer {
+    private(set) var circleMapRect: MKMapRect
+
+    init(overlay: SafeZoneRangeOverlay, center: GeoPoint, radius: Int) {
+        circleMapRect = SafeZoneSelectionMap.circle(center: center, radius: radius).boundingMapRect
+        super.init(overlay: overlay)
+        fillColor = UIColor(OrbitStyle.teal).withAlphaComponent(0.25)
+        strokeColor = UIColor(OrbitStyle.teal).withAlphaComponent(0.55)
+        lineWidth = 1
+    }
+
+    override func createPath() {
+        path = CGPath(ellipseIn: rect(for: circleMapRect), transform: nil)
+    }
+
+    func updateCircle(center: GeoPoint, radius: Int) {
+        circleMapRect = SafeZoneSelectionMap.circle(center: center, radius: radius).boundingMapRect
+        invalidatePath()
+        // Refresh both the vacated area and the complete new circle, including its lower edge.
+        setNeedsDisplay()
+    }
+}
+
 struct SafeZoneMapView: UIViewRepresentable {
     let initialCenter: GeoPoint
     let radiusMeters: Int
@@ -91,7 +121,8 @@ struct SafeZoneMapView: UIViewRepresentable {
         var parent: SafeZoneMapView
         let pin = MKPointAnnotation()
         private(set) var selectedCenter: GeoPoint
-        private var circle: MKPolygon?
+        private var circle: SafeZoneRangeOverlay?
+        private var circleRenderer: SafeZoneRangeRenderer?
         private var circleCenter: GeoPoint?
         private var circleRadius: Int?
         private var available = false
@@ -134,21 +165,21 @@ struct SafeZoneMapView: UIViewRepresentable {
             let center = draggedCenter ?? selectedCenter
             guard center.isValid,
                   force || circleCenter != center || circleRadius != parent.radiusMeters else { return }
-            if let circle { map.removeOverlay(circle) }
-            let updated = SafeZoneSelectionMap.circle(center: center, radius: parent.radiusMeters)
-            circle = updated
             circleCenter = center
             circleRadius = parent.radiusMeters
-            map.addOverlay(updated)
+            if let circleRenderer {
+                circleRenderer.updateCircle(center: center, radius: parent.radiusMeters)
+            } else {
+                let overlay = SafeZoneRangeOverlay()
+                circle = overlay
+                circleRenderer = SafeZoneRangeRenderer(overlay: overlay, center: center, radius: parent.radiusMeters)
+                map.addOverlay(overlay)
+            }
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-            guard let circle = overlay as? MKPolygon else { return MKOverlayRenderer(overlay: overlay) }
-            let renderer = MKPolygonRenderer(polygon: circle)
-            renderer.fillColor = UIColor(OrbitStyle.teal).withAlphaComponent(0.25)
-            renderer.strokeColor = UIColor(OrbitStyle.teal).withAlphaComponent(0.55)
-            renderer.lineWidth = 1
-            return renderer
+            guard overlay === circle, let circleRenderer else { return MKOverlayRenderer(overlay: overlay) }
+            return circleRenderer
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
@@ -186,31 +217,33 @@ struct SafeZoneMapView: UIViewRepresentable {
                 let delta = CGPoint(x: touch.x - touchStart.x, y: touch.y - touchStart.y)
                 let coordinate = map.convert(CGPoint(x: start.x + delta.x, y: start.y + delta.y),
                                              toCoordinateFrom: map)
-                let point = MainlandCoordinates.toWGS84(GeoPoint(latitude: coordinate.latitude,
-                                                               longitude: coordinate.longitude))
-                if point.isValid {
-                    pin.coordinate = coordinate
-                    draggedCenter = point
-                    updateCircle(in: map)
-                }
+                movePin(to: coordinate, in: map)
             }
             if gesture.state == .ended {
-                commitSelection(in: map)
-                endDirectDrag(in: map)
+                finishDirectDrag(in: map, commit: true)
             } else if [.cancelled, .failed].contains(gesture.state), dragOrigin != nil {
-                pin.coordinate = selectedCenter.appleCoordinate
-                endDirectDrag(in: map)
+                finishDirectDrag(in: map, commit: false)
             }
         }
 
-        private func endDirectDrag(in map: MKMapView) {
+        func movePin(to coordinate: CLLocationCoordinate2D, in map: MKMapView) {
+            let point = MainlandCoordinates.toWGS84(GeoPoint(latitude: coordinate.latitude,
+                                                           longitude: coordinate.longitude))
+            guard point.isValid else { return }
+            pin.coordinate = coordinate
+            draggedCenter = point
+            updateCircle(in: map)
+        }
+
+        func finishDirectDrag(in map: MKMapView, commit: Bool) {
+            if commit {
+                commitSelection(in: map)
+            } else {
+                pin.coordinate = selectedCenter.appleCoordinate
+            }
             draggedCenter = nil
             dragOrigin = nil
-            // Recreate the renderer after the touch transaction so its final geometry is visible.
-            DispatchQueue.main.async { [weak self, weak map] in
-                guard let self, let map else { return }
-                self.updateCircle(in: map, force: true)
-            }
+            updateCircle(in: map, force: true)
         }
 
         func commitSelection(in map: MKMapView) {

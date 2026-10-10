@@ -54,12 +54,76 @@ final class LocationTests: XCTestCase {
         XCTAssertEqual(saved.longitude, target.longitude, accuracy: 0.000001)
         XCTAssertEqual(map.region.center.latitude, camera.center.latitude, accuracy: 0.000001)
         XCTAssertEqual(map.region.span.latitudeDelta, camera.span.latitudeDelta, accuracy: 0.000001)
-        let circle = try XCTUnwrap(map.overlays.first as? MKPolygon)
+        let overlay = try XCTUnwrap(map.overlays.first)
+        let renderer = try XCTUnwrap(coordinator.mapView(map, rendererFor: overlay) as? SafeZoneRangeRenderer)
+        let circle = SafeZoneSelectionMap.circle(center: saved, radius: 200)
+        XCTAssertEqual(renderer.circleMapRect.origin.x, circle.boundingMapRect.origin.x, accuracy: 0.001)
+        XCTAssertEqual(renderer.circleMapRect.origin.y, circle.boundingMapRect.origin.y, accuracy: 0.001)
         XCTAssertEqual(circle.coordinate.latitude, coordinator.pin.coordinate.latitude, accuracy: 0.000001)
         let edge = circle.points()[0].coordinate
         XCTAssertEqual(CLLocation(latitude: edge.latitude, longitude: edge.longitude)
             .distance(from: CLLocation(latitude: circle.coordinate.latitude, longitude: circle.coordinate.longitude)), 200, accuracy: 2)
 
+    }
+
+    @MainActor func testSafeZoneRangeKeepsCompletePathDuringRepeatedDragsAndRadiusChanges() throws {
+        let original = LocationPreviewData.campus
+        var selections: [GeoPoint] = []
+        let adapter = SafeZoneMapView(initialCenter: original, radiusMeters: 200,
+                                     onSelection: { selections.append($0) }, onState: { _, _ in })
+        let coordinator = adapter.makeCoordinator()
+        let map = MKMapView(frame: CGRect(x: 0, y: 0, width: 393, height: 700))
+        coordinator.configure(map)
+        defer { coordinator.loadTimeout?.cancel(); map.delegate = nil }
+        let overlay = try XCTUnwrap(map.overlays.first as? SafeZoneRangeOverlay)
+        let renderer = try XCTUnwrap(coordinator.mapView(map, rendererFor: overlay) as? SafeZoneRangeRenderer)
+        let camera = map.region
+        for index in 0..<40 {
+            let target = GeoPoint(latitude: original.latitude + Double(index % 8 - 4) * 0.001,
+                                  longitude: original.longitude + Double(index / 8 - 2) * 0.001)
+            coordinator.movePin(to: target.appleCoordinate, in: map)
+            XCTAssertEqual(map.overlays.count, 1)
+            XCTAssertTrue(map.overlays.first === overlay)
+            XCTAssertTrue(coordinator.mapView(map, rendererFor: overlay) === renderer)
+            renderer.createPath()
+            let path = try XCTUnwrap(renderer.path)
+            let bounds = renderer.rect(for: renderer.circleMapRect)
+            XCTAssertEqual(path.boundingBoxOfPath.minY, bounds.minY, accuracy: 0.001)
+            XCTAssertEqual(path.boundingBoxOfPath.maxY, bounds.maxY, accuracy: 0.001)
+            for point in [CGPoint(x: bounds.midX, y: bounds.minY + bounds.height * 0.02),
+                          CGPoint(x: bounds.midX, y: bounds.maxY - bounds.height * 0.02),
+                          CGPoint(x: bounds.minX + bounds.width * 0.02, y: bounds.midY),
+                          CGPoint(x: bounds.maxX - bounds.width * 0.02, y: bounds.midY)] {
+                XCTAssertTrue(path.contains(point))
+            }
+            XCTAssertTrue(overlay.boundingMapRect.contains(renderer.circleMapRect))
+        }
+        XCTAssertTrue(selections.isEmpty, "Moving the pin must not commit a draft before release")
+        XCTAssertEqual(coordinator.selectedCenter, original)
+        XCTAssertEqual(map.region.center.latitude, camera.center.latitude, accuracy: 0.000001)
+        XCTAssertEqual(map.region.span.latitudeDelta, camera.span.latitudeDelta, accuracy: 0.000001)
+
+        coordinator.finishDirectDrag(in: map, commit: false)
+        XCTAssertTrue(selections.isEmpty)
+        let originalRect = SafeZoneSelectionMap.circle(center: original, radius: 200).boundingMapRect
+        XCTAssertEqual(renderer.circleMapRect.origin.y, originalRect.origin.y, accuracy: 0.001)
+        XCTAssertEqual(coordinator.pin.coordinate.latitude, original.appleCoordinate.latitude, accuracy: 0.000001)
+
+        let target = GeoPoint(latitude: original.latitude + 0.001, longitude: original.longitude + 0.001)
+        coordinator.movePin(to: target.appleCoordinate, in: map)
+        coordinator.finishDirectDrag(in: map, commit: true)
+        XCTAssertEqual(selections.count, 1)
+        XCTAssertEqual(selections[0].latitude, target.latitude, accuracy: 0.000001)
+        for radius in [100, 200, 500, 1000, 2000] {
+            coordinator.parent = SafeZoneMapView(initialCenter: original, radiusMeters: radius,
+                                                onSelection: { _ in }, onState: { _, _ in })
+            coordinator.updateCircle(in: map, force: true)
+            renderer.createPath()
+            let expected = SafeZoneSelectionMap.circle(center: coordinator.selectedCenter, radius: radius).boundingMapRect
+            XCTAssertEqual(renderer.circleMapRect.size.width, expected.size.width, accuracy: 0.001)
+            XCTAssertTrue(map.overlays.first === overlay)
+            XCTAssertTrue(overlay.boundingMapRect.contains(renderer.circleMapRect))
+        }
     }
 
     @MainActor func testSafeZoneMapFailureDisablesSaveAndRenderingRecovers() async {

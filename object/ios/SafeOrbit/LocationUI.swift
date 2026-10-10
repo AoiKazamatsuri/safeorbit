@@ -79,21 +79,23 @@ enum CaregiverRiskState: String {
 struct CaregiverTabBar: View {
     @Binding var selection: CaregiverTab
     var body: some View {
+        CaregiverBottomOverlay {
         HStack(spacing: 0) {
             ForEach(CaregiverTab.allCases, id: \.self) { tab in
                 Button { selection = tab } label: {
                     Image(systemName: tab.symbol)
                         .font(.system(size: 28, weight: .semibold))
-                        .frame(maxWidth: .infinity).frame(height: 54)
+                        .frame(maxWidth: .infinity).frame(height: CaregiverBottomLayout.buttonHeight)
                         .foregroundStyle(.black)
                         .background(selection == tab ? Color(red: 0.82, green: 0.90, blue: 0.90) : .clear, in: Capsule())
                 }.accessibilityLabel(tab.rawValue).accessibilityAddTraits(selection == tab ? .isSelected : [])
             }
         }
-        .padding(7).frame(maxWidth: 294)
+        .padding(CaregiverBottomLayout.barPadding).frame(maxWidth: 294)
         .background {
             Capsule().fill(.white)
                 .shadow(color: .black.opacity(0.133), radius: 9, y: 4)
+        }
         }
     }
 }
@@ -148,7 +150,7 @@ struct CaregiverHomePage: View {
                     .accessibilityElement(children: tab == .records ? .contain : .ignore)
                     .accessibilityHidden(tab != .records)
                 if !keyboardVisible && !navigation.isPresented && !recordsDetailPresented && !zoneEditorPresented {
-                    VStack { Spacer(); CaregiverTabBar(selection: $tab) }
+                    CaregiverTabBar(selection: $tab)
                 }
             }
             .allowsHitTesting(!showingSettings)
@@ -230,6 +232,7 @@ struct LocationPage: View {
 
     private var point: CLLocationCoordinate2D? { snapshot?.coordinate.isValid == true ? snapshot?.coordinate.appleCoordinate : nil }
     var body: some View {
+        GeometryReader { geometry in
         ZStack(alignment: .top) {
             Map(position: $camera) {
                 if !navigation.isPresented {
@@ -372,7 +375,7 @@ struct LocationPage: View {
                         .padding(.bottom, 8)
                 }
                 SeniorLocationCard(profile: profile, snapshot: snapshot, navigate: navigate, riskState: riskState)
-                    .padding(.bottom, 80)
+                    .padding(.bottom, CaregiverBottomLayout.cardBottomPadding(safeAreaBottom: geometry.safeAreaInsets.bottom))
             }.padding(.horizontal, 20).padding(.top, 4)
             } else {
                 WalkingNavigationOverlay(model: navigation,
@@ -385,6 +388,7 @@ struct LocationPage: View {
                     follow: { followsUser = true; showsOverview = false; followCurrentPosition() },
                     overview: { followsUser = false; showsOverview = true; showRouteOverview() }, end: { navigation.end() })
             }
+        }
         }
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: snapshot?.recordedAt) { _, _ in
@@ -627,6 +631,7 @@ struct SafeZoneEditorPage: View {
     @State private var editorOverlayHeight: CGFloat = 0
 
     var body: some View {
+        GeometryReader { geometry in
         ZStack(alignment: .bottom) {
             Color.white.ignoresSafeArea()
             VStack(spacing: 0) {
@@ -646,14 +651,15 @@ struct SafeZoneEditorPage: View {
                                          selectedCenter = point
                                          address = ""
                                          Task { await resolveAddress() }
-                                     }, onAvailability: { mapAvailable = $0 }, bottomOverlayInset: editorOverlayHeight + 12)
+                                     }, onAvailability: { mapAvailable = $0 },
+                                     bottomOverlayInset: editorOverlayHeight + 12 + max(0,
+                                         CaregiverBottomLayout.gap(safeAreaBottom: geometry.safeAreaInsets.bottom) - geometry.safeAreaInsets.bottom))
                     .ignoresSafeArea(edges: .bottom)
                     .clipShape(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
                     .background(alignment: .top) { OrbitStyle.teal.frame(height: 40) }
             }
             .ignoresSafeArea(edges: .bottom)
-            VStack(spacing: 0) {
-                    Spacer(minLength: 0)
+            CaregiverBottomOverlay {
                     VStack(spacing: 0) {
                     HStack(spacing: 12) {
                         Text(address.isEmpty ? coordinateText : address)
@@ -745,6 +751,7 @@ struct SafeZoneEditorPage: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { editorOverlayHeight = $0 }
             }
             .padding(.horizontal, 20)
+        }
         }
         .background(.white)
         .task { await resolveAddress() }
