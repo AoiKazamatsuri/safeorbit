@@ -8,14 +8,16 @@ private struct ChatLine: Identifiable {
 
 struct AgentChatPage: View {
     let keyboardVisible: Bool
+    let isActive: Bool
     @ObservedObject var settings: CaregiverSettingsStore
     @StateObject private var speech = SpeechInput()
     @State private var draft = ""
     @State private var lines: [ChatLine] = []
     @FocusState private var composing: Bool
 
-    @MainActor init(keyboardVisible: Bool, settings: CaregiverSettingsStore? = nil) {
+    @MainActor init(keyboardVisible: Bool, settings: CaregiverSettingsStore? = nil, isActive: Bool = true) {
         self.keyboardVisible = keyboardVisible
+        self.isActive = isActive
         self.settings = settings ?? CaregiverSettingsStore()
     }
 
@@ -75,6 +77,12 @@ struct AgentChatPage: View {
         .background(Color.white.ignoresSafeArea(edges: .bottom))
         .onChange(of: speech.transcript) { _, value in if !value.isEmpty { draft = value } }
         .onDisappear { speech.stop() }
+        .onChange(of: isActive) { _, active in
+            if !active { composing = false; speech.stop() }
+        }
+        .onChange(of: speech.listening) { _, listening in
+            if listening && !isActive { speech.stop() }
+        }
         .onAppear { if lines.isEmpty { ask(DemoRecords.quickQuestions[0]) } }
         .onChange(of: settings.data.allowAITripHistory) { _, _ in lines.removeAll() }
     }

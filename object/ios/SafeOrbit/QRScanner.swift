@@ -82,7 +82,7 @@ struct ScanPage: View {
                 }
                 PrimaryButton(title: "Connect", busy: busy, enabled: BindingPayload.token(from: payload) != nil) { bind(payload) }
             }
-        }.sheet(isPresented: $showScanner) {
+        }.settingsSlide(isPresented: $showScanner) {
             NavigationStack {
                 QRScanner { result in
                     showScanner = false

@@ -1,0 +1,175 @@
+
+实际模拟器核对：新增安全区页仅暴露自身辅助功能控件且首页底栏隐藏；取消返回首页。成员新增页空输入Save禁用，取消返回原Family Members滚动位置。AI Settings实际麦克风及语音识别开关均为1；点击已授权麦克风关闭跳转iOS设置，模拟器进入系统设置首页；不改系统授权，返回应用后两开关仍为1。最终新增安全区地图署名可见，地图铺到底部，编辑卡下缘沿安全区与首页底栏对齐。
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/settings-ui-blue.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/settings-ui-blue-test.log 2>&1
+exit: 65
+/Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/CaregiverChrome.swift:40:19: error: missing argument for parameter 'wrappedValue' in call
+   |                   `- error: missing argument for parameter 'wrappedValue' in call
+** TEST FAILED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/settings-ui-blue-fixed.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/settings-ui-blue-fixed-test.log 2>&1
+exit: 65
+/Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/RecordsUI.swift:215:61: error: result values in '? :' expression have mismatching types 'VStackLayout' and 'HStackLayout'
+    |                                                             `- error: result values in '? :' expression have mismatching types 'VStackLayout' and 'HStackLayout'
+** TEST FAILED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/settings-ui-blue-final.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/settings-ui-blue-final-test.log 2>&1
+exit: 0
+	 Executed 55 tests, with 0 failures (0 unexpected) in 57.489 (57.504) seconds
+	 Executed 55 tests, with 0 failures (0 unexpected) in 57.489 (57.505) seconds
+** TEST SUCCEEDED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/settings-ui-blue-verified.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/settings-ui-blue-verified-test.log 2>&1
+exit: 65
+/Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/RecordsUI.swift:127:150: error: Consecutive statements on a line must be separated by ';' (in target 'SafeOrbit' from project 'SafeOrbit')
+/Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/RecordsUI.swift:127:150: error: Expected expression (in target 'SafeOrbit' from project 'SafeOrbit')
+** TEST FAILED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/settings-ui-blue-complete.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/settings-ui-blue-complete-test.log 2>&1
+exit: 0
+	 Executed 55 tests, with 0 failures (0 unexpected) in 57.701 (57.715) seconds
+	 Executed 55 tests, with 0 failures (0 unexpected) in 57.701 (57.716) seconds
+** TEST SUCCEEDED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/settings-ui-blue-final-layout.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/settings-ui-blue-final-layout-test.log 2>&1
+exit: 0
+	 Executed 55 tests, with 0 failures (0 unexpected) in 58.447 (58.473) seconds
+	 Executed 55 tests, with 0 failures (0 unexpected) in 58.447 (58.474) seconds
+** TEST SUCCEEDED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/settings-ui-blue-isolation.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/settings-ui-blue-isolation-test.log 2>&1
+exit: 0
+	 Executed 55 tests, with 0 failures (0 unexpected) in 58.483 (58.504) seconds
+	 Executed 55 tests, with 0 failures (0 unexpected) in 58.483 (58.505) seconds
+** TEST SUCCEEDED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/settings-ui-blue-delivery.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/settings-ui-blue-delivery-test.log 2>&1
+exit: 0
+	 Executed 55 tests, with 0 failures (0 unexpected) in 58.631 (58.656) seconds
+	 Executed 55 tests, with 0 failures (0 unexpected) in 58.631 (58.657) seconds
+** TEST SUCCEEDED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/settings-ui-blue-accepted-layout.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/settings-ui-blue-accepted-layout-test.log 2>&1
+exit: 0
+	 Executed 55 tests, with 0 failures (0 unexpected) in 59.446 (59.479) seconds
+	 Executed 55 tests, with 0 failures (0 unexpected) in 59.446 (59.480) seconds
+** TEST SUCCEEDED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/settings-ui-blue-final-delivery.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/settings-ui-blue-final-delivery-test.log 2>&1
+exit: 0
+	 Executed 55 tests, with 0 failures (0 unexpected) in 58.868 (58.886) seconds
+	 Executed 55 tests, with 0 failures (0 unexpected) in 58.868 (58.887) seconds
+** TEST SUCCEEDED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/settings-ui-blue-release CODE_SIGNING_ALLOWED=NO build > /private/tmp/settings-ui-blue-release.log 2>&1
+exit: 0
+** BUILD SUCCEEDED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/settings-ui-blue-release CODE_SIGNING_ALLOWED=NO build > /private/tmp/settings-ui-blue-release-final.log 2>&1
+exit: 0
+** BUILD SUCCEEDED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/settings-ui-blue-release CODE_SIGNING_ALLOWED=NO build > /private/tmp/settings-ui-blue-delivery-release.log 2>&1
+exit: 0
+** BUILD SUCCEEDED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/settings-ui-blue-release CODE_SIGNING_ALLOWED=NO build > /private/tmp/settings-ui-blue-accepted-layout-release.log 2>&1
+exit: 0
+** BUILD SUCCEEDED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/settings-ui-blue-release CODE_SIGNING_ALLOWED=NO build > /private/tmp/settings-ui-blue-final-delivery-release.log 2>&1
+exit: 0
+** BUILD SUCCEEDED **
+```
+
+```text
+sh object/dev/queue.sh doctor
+exit: 0
+{"ok": true, "protection": "ready", "seq": 285, "tasks": 13, "protocol": 2}
+
+sh object/dev/queue.sh check
+exit: 0
+{"ok": true, "protection": "ready", "seq": 289, "tasks": 13, "protocol": 2}
+
+git diff --check
+exit: 0
+(no output)
+```
+
+## 最终生命周期补验与重交
+
+主标签保持挂载后，AgentChatPage通过isActive显式在切离页面时停止听写并解除键盘焦点；隐藏时若异步听写后来进入listening，也立即停止，原草稿不清空。涉及共享LocationUI和AgentChatUI，再返工重交T12/T8/T9/T10/T13。此项保留原停止听写行为，不增改系统权限。
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/settings-ui-blue-lifecycle.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/settings-ui-blue-lifecycle-test.log 2>&1
+exit: 0
+	 Executed 55 tests, with 0 failures (0 unexpected) in 58.595 (58.622) seconds
+	 Executed 55 tests, with 0 failures (0 unexpected) in 58.595 (58.623) seconds
+** TEST SUCCEEDED **
+
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/settings-ui-blue-release CODE_SIGNING_ALLOWED=NO build > /private/tmp/settings-ui-blue-lifecycle-release.log 2>&1
+exit: 0
+** BUILD SUCCEEDED **
+
+sh object/dev/queue.sh check
+exit: 0
+{"ok": true, "protection": "ready", "seq": 299, "tasks": 13, "protocol": 2}
+
+git diff --check
+exit: 0
+(no output)
+```
+
+## 页面切换与页面内部动画分别验证
+
+共用SettingsSlideModifier只通过无动画状态更新直接切换页面，移除对整棵视图树的transaction全局动画禁用，保留地图相机、聊天自动滚动及系统控件自己的动画。新增testImmediatePageWrapperPreservesContentAnimations，检查包装后的页面能收到显式动画事务且disablesAnimations为false；原立即进入返回及移除旧详情测试继续通过。只有CaregiverSettings.swift和SettingsTests.swift及T12自己的验证记录变化，其他任务登记的工件指纹未再改变，因此仅T12返工重交。下列为最终有效读数，前面的55项读数为此前修订阶段。未独立验证。
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/settings-ui-blue-content-animation.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/settings-ui-blue-content-animation-test.log 2>&1
+exit: 0
+Test Case '-[SafeOrbitTests.SettingsTests testImmediatePageWrapperPreservesContentAnimations]' passed (0.214 seconds).
+	 Executed 56 tests, with 0 failures (0 unexpected) in 1043.412 (1043.429) seconds
+	 Executed 56 tests, with 0 failures (0 unexpected) in 1043.412 (1043.430) seconds
+** TEST SUCCEEDED **
+
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/settings-ui-blue-release CODE_SIGNING_ALLOWED=NO build > /private/tmp/settings-ui-blue-content-animation-release.log 2>&1
+exit: 0
+** BUILD SUCCEEDED **
+
+sh object/dev/queue.sh check
+exit: 0
+{"ok": true, "protection": "ready", "seq": 306, "tasks": 13, "protocol": 2}
+
+git diff --check
+exit: 0
+(no output)
+```

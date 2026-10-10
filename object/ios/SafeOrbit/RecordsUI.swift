@@ -14,8 +14,10 @@ struct RecordsPage: View {
     @State private var expanded = false
     @State private var selectedDay: Date?
     @State private var selectedTrip: DemoTrip?
+    let onDetailPresentationChanged: (Bool) -> Void
 
-    init(showTrendInitially: Bool = false) {
+    init(showTrendInitially: Bool = false, onDetailPresentationChanged: @escaping (Bool) -> Void = { _ in }) {
+        self.onDetailPresentationChanged = onDetailPresentationChanged
         _section = State(initialValue: showTrendInitially ? .trend : .data)
     }
 
@@ -29,15 +31,15 @@ struct RecordsPage: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            CaregiverTopBar {
+            CaregiverTopBar(height: dynamicTypeSize.isAccessibilitySize ? 74 : 47) {
                 Text("Recording")
-                    .font(.system(size: 27, weight: .semibold))
+                    .recordingFont(27, weight: .semibold)
                     .foregroundStyle(.white)
             }
             ScrollView {
                 VStack(spacing: 23) {
                     sectionPicker.padding(.horizontal, 12)
-                    if section == .data { dataContent.padding(.horizontal, 12) }
+                    if section == .data { dataContent.padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 0 : 12) }
                     else { trendContent }
                 }
                 .padding(.horizontal, 20)
@@ -48,7 +50,9 @@ struct RecordsPage: View {
             .background(alignment: .top) { OrbitStyle.teal.frame(height: 40) }
         }
         .background(Color.white.ignoresSafeArea(edges: .bottom))
-        .fullScreenCover(item: $selectedTrip) { TripDetailPage(trip: $0) { selectedTrip = nil } }
+        .settingsSlide(item: $selectedTrip) { TripDetailPage(trip: $0) { selectedTrip = nil } }
+        .onChange(of: selectedTrip?.id) { _, id in onDetailPresentationChanged(id != nil) }
+        .onDisappear { onDetailPresentationChanged(false) }
     }
 
     private var sectionPicker: some View {
@@ -56,8 +60,8 @@ struct RecordsPage: View {
             ForEach(RecordsSection.allCases, id: \.self) { item in
                 Button { section = item } label: {
                     Text(item.rawValue)
-                        .font(.system(size: 16, weight: .medium))
-                        .frame(maxWidth: .infinity).frame(height: 30)
+                        .recordingFont(16, weight: .medium)
+                        .frame(maxWidth: .infinity).frame(minHeight: 30).padding(.vertical, 3)
                         .foregroundStyle(section == item ? .black : .white)
                         .background(section == item ? .white : .clear, in: Capsule())
                 }.accessibilityAddTraits(section == item ? .isSelected : [])
@@ -69,17 +73,17 @@ struct RecordsPage: View {
     private var dataContent: some View {
         VStack(spacing: 22) {
             calendarCard
-            HStack(spacing: 8) {
+            (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))) {
                 Button { shiftWeek(-1) } label: { Image(systemName: "chevron.left").frame(width: 26) }
                     .accessibilityLabel("Previous week")
                 Text(selectedDay == nil ? "This Week" : dayTitle(selectedDay!))
-                    .font(.system(size: 18, weight: .medium))
+                    .recordingFont(18, weight: .medium)
                 if selectedDay != nil {
                     Button("Clear") { selectedDay = nil }.font(.caption)
                 }
                 Spacer()
                 Text("\(shortDate(weekStart)) – \(shortDate(calendar.date(byAdding: .day, value: 6, to: weekStart)!))")
-                    .font(.system(size: 13)).foregroundStyle(.secondary)
+                    .recordingFont(13, weight: .regular).foregroundStyle(.secondary)
                 Button { shiftWeek(1) } label: { Image(systemName: "chevron.right").frame(width: 26) }
                     .accessibilityLabel("Next week")
             }
@@ -95,14 +99,14 @@ struct RecordsPage: View {
                 Button { shiftMonth(-1) } label: { Image(systemName: "chevron.left") }
                     .accessibilityLabel("Previous month")
                 Spacer()
-                Text(monthTitle(month)).font(.system(size: 19, weight: .medium))
+                Text(monthTitle(month)).recordingFont(19, weight: .medium)
                 Spacer()
                 Button { shiftMonth(1) } label: { Image(systemName: "chevron.right") }
                     .accessibilityLabel("Next month")
             }.buttonStyle(.plain)
             HStack(spacing: 0) {
                 ForEach(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], id: \.self) { label in
-                    Text(label).font(.system(size: 13)).foregroundStyle(.secondary)
+                    Text(dynamicTypeSize.isAccessibilitySize ? String(label.prefix(1)) : label).recordingFont(13, weight: .regular).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -120,9 +124,9 @@ struct RecordsPage: View {
                             expanded = true
                         } label: {
                             Text("\(day)")
-                                .font(.system(size: 16, weight: selectedDay.map { calendar.isDate($0, inSameDayAs: date) } == true ? .semibold : .regular))
+                                .recordingFont(16, weight: selectedDay.map { calendar.isDate($0, inSameDayAs: date) } == true ? .semibold : .regular)
                                 .foregroundStyle(risk == .high ? .white : .black)
-                                .frame(width: 30, height: 30)
+                                .frame(maxWidth: .infinity).frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 44 : 30)
                                 .background(riskColor(risk), in: Circle())
                                 .overlay {
                                     if incomplete { Circle().stroke(.gray, style: StrokeStyle(lineWidth: 1.5, dash: [3, 2])) }
@@ -134,7 +138,7 @@ struct RecordsPage: View {
                 }
             }
         }
-        .padding(14)
+        .padding(dynamicTypeSize.isAccessibilitySize ? 8 : 14)
         .caregiverCard()
     }
 
@@ -154,29 +158,29 @@ struct RecordsPage: View {
             } else {
                 ForEach(Array(weekTrips.prefix(expanded ? weekTrips.count : 4).enumerated()), id: \.element.id) { index, trip in
                     Button { selectedTrip = trip } label: {
-                        HStack(spacing: 9) {
+                        (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 9))) {
                             VStack(alignment: .leading, spacing: 3) {
-                                Text(shortDate(trip.date)).font(.system(size: 16, weight: .medium)).foregroundStyle(.black)
+                                Text(shortDate(trip.date)).recordingFont(16, weight: .medium).foregroundStyle(.black)
                                 Text(weekday(trip.date)).font(.caption).foregroundStyle(.secondary)
-                            }.frame(width: 63, alignment: .leading)
+                            }.frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 63, alignment: .leading)
                             Text(trip.risk == .high ? "Risk" : trip.risk.title)
-                                .font(.system(size: 11, weight: .medium))
+                                .recordingFont(11, weight: .medium).fixedSize()
                                 .padding(.horizontal, 8).padding(.vertical, 4)
                                 .foregroundStyle(trip.risk == .high ? .white : .black)
                                 .background(riskColor(trip.risk), in: Capsule())
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(trip.name).lineLimit(1)
-                                    .font(.system(size: 12)).foregroundStyle(.black)
+                                Text(trip.name).fixedSize(horizontal: false, vertical: true)
+                                    .recordingFont(12, weight: .regular).foregroundStyle(.black)
                                 if trip.deviations > 0 {
-                                    Text("Route Deviation").font(.system(size: 11)).foregroundStyle(.secondary)
+                                    Text("Route Deviation").recordingFont(11, weight: .regular).foregroundStyle(.secondary)
                                 }
                             }.frame(maxWidth: .infinity, alignment: .leading)
                             Text("\(trip.durationMinutes) min")
-                                .font(.system(size: 11)).foregroundStyle(.black)
-                            Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
+                                .recordingFont(11, weight: .regular).foregroundStyle(.black)
+                            Image(systemName: "chevron.right").recordingFont(13, weight: .semibold)
                                 .foregroundStyle(.black)
                         }
-                        .padding(.horizontal, 14).frame(minHeight: 50)
+                        .padding(.horizontal, 14).padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 12 : 0).frame(minHeight: 50)
                     }.buttonStyle(.plain)
                     if index < min(weekTrips.count, expanded ? weekTrips.count : 4) - 1 {
                         Divider().padding(.horizontal, 12)
@@ -185,7 +189,7 @@ struct RecordsPage: View {
                 if weekTrips.count > 4 {
                     Button { expanded.toggle() } label: {
                         Label(expanded ? "View Less" : "View More", systemImage: expanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 16)).foregroundStyle(.black)
+                            .recordingFont(16, weight: .regular).foregroundStyle(.black)
                             .frame(maxWidth: .infinity).frame(height: 36)
                     }
                 }
@@ -207,15 +211,15 @@ struct RecordsPage: View {
         let values = DemoRecords.weeklyDeviations()
         let weekStarts = DemoRecords.weekStarts()
         return VStack(alignment: .leading, spacing: 12) {
-            Text("Route Deviation Trend").font(.system(size: 22, weight: .semibold))
-            HStack(alignment: .center, spacing: 8) {
+            Text("Route Deviation Trend").recordingFont(22, weight: .semibold)
+            (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(alignment: .center, spacing: 0))) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(current)").font(.system(size: 47, weight: .bold))
+                    Text("\(current)").recordingFont(47, weight: .bold)
                     Text("events").foregroundStyle(.secondary)
                     Text(percentChange(current, previous))
-                        .font(.system(size: 20, weight: .medium)).padding(.top, 8)
+                        .recordingFont(20, weight: .medium).padding(.top, 8)
                     Text("vs last month").font(.caption).foregroundStyle(.secondary)
-                }.frame(width: 115, alignment: .leading)
+                }.frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 90, alignment: .leading)
                 VStack(spacing: 2) {
                 Chart {
                     ForEach(values.indices, id: \.self) { index in
@@ -229,18 +233,29 @@ struct RecordsPage: View {
                     }
                 }
                 .chartYScale(domain: 0...max(3, (values.max() ?? 0) + 1))
+                .chartXScale(domain: 0...7, range: .plotDimension(padding: 18))
                 .chartXAxis(.hidden)
                 .chartYAxis {
-                    AxisMarks(position: .leading, values: [0, 1, 2, 3])
-                }
-                .frame(height: 128)
-                HStack(spacing: 0) {
-                    ForEach(0..<8, id: \.self) { index in
-                        Text("\(calendar.component(.month, from: weekStarts[index]) == 7 ? "Jul" : "Aug")\n\(calendar.component(.day, from: weekStarts[index]))")
-                            .font(.system(size: 8)).multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
+                    AxisMarks(position: .leading, values: [0, 1, 2, 3]) { value in
+                        AxisGridLine()
+                        AxisValueLabel { if let number = value.as(Int.self) { Text("\(number)").recordingFont(10, weight: .medium) } }
                     }
-                }.foregroundStyle(.secondary)
+                }
+                .frame(height: dynamicTypeSize.isAccessibilitySize ? 190 : 145)
+                HStack {
+                    Text(shortDate(weekStarts[0]))
+                    Spacer(minLength: 4)
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        Text(shortDate(weekStarts[3]))
+                        Spacer(minLength: 4)
+                    }
+                    Text(shortDate(weekStarts[7]))
+                }
+                .recordingFont(10, weight: .medium)
+                .lineLimit(1).fixedSize(horizontal: false, vertical: true)
+                .foregroundStyle(.secondary)
+
+
                 }
             }
         }
@@ -273,25 +288,25 @@ struct RecordsPage: View {
     private func metricCard(_ metric: (String, String, Int, Int, String)) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .center, spacing: 5) {
-                Image(systemName: metric.1).font(.system(size: 15))
+                Image(systemName: metric.1).recordingFont(15, weight: .regular)
                     .frame(width: 26, height: 26).background(OrbitStyle.pale, in: Circle())
-                Text(metric.0).font(.system(size: 11, weight: .medium)).lineLimit(2)
-            }.frame(height: 31, alignment: .leading)
+                Text(metric.0).recordingFont(11, weight: .medium).fixedSize(horizontal: false, vertical: true)
+            }.frame(minHeight: 31, alignment: .leading)
             HStack(alignment: .bottom, spacing: 4) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("\(metric.2)\(metric.4 == "%" ? "%" : "")")
-                        .font(.system(size: 30, weight: .semibold)).minimumScaleFactor(0.7)
+                        .recordingFont(30, weight: .semibold)
                     if metric.4 != "%" { Text(metric.4).font(.caption).foregroundStyle(.secondary) }
                 }
                 Spacer(minLength: 2)
                 HStack(alignment: .bottom, spacing: 4) {
                     bar(metric.3, maxValue: max(metric.2, metric.3), lighter: true)
                     bar(metric.2, maxValue: max(metric.2, metric.3), lighter: false)
-                }.frame(height: 43, alignment: .bottom)
+                }.frame(minHeight: 43, alignment: .bottom)
             }
             Text(metric.4 == "%" ? percentagePointChange(metric.2, metric.3) : percentChange(metric.2, metric.3))
-                .font(.system(size: 17, weight: .medium))
-            Text("vs last month").font(.system(size: 11)).foregroundStyle(.secondary)
+                .recordingFont(17, weight: .medium)
+            Text("vs last month").recordingFont(11, weight: .regular).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, minHeight: 138, alignment: .leading)
         .padding(11)
@@ -300,12 +315,12 @@ struct RecordsPage: View {
 
     private func bar(_ value: Int, maxValue: Int, lighter: Bool) -> some View {
         VStack(spacing: 2) {
-            Text("\(value)\(maxValue > 10 ? "%" : "")").font(.system(size: 9))
+            Text("\(value)\(maxValue > 10 ? "%" : "")").recordingFont(10, weight: .medium).fixedSize()
                 .foregroundStyle(OrbitStyle.teal)
             RoundedRectangle(cornerRadius: 3)
                 .fill(lighter ? OrbitStyle.pale : OrbitStyle.teal.opacity(0.65))
                 .frame(width: 22, height: CGFloat(max(8, value * 32 / max(1, maxValue))))
-        }
+        }.frame(minWidth: dynamicTypeSize.isAccessibilitySize ? 55 : 28)
     }
 
     private func shiftMonth(_ amount: Int) {
@@ -366,10 +381,10 @@ struct TripDetailPage: View {
             CaregiverTopBar {
                 HStack(spacing: 12) {
                     Button(action: back) { Image(systemName: "chevron.left")
-                        .font(.system(size: 21, weight: .semibold)) }
+                        .recordingFont(21, weight: .semibold) }
                         .accessibilityLabel("Back to records")
                     Text("\(trip.month == 8 ? "Aug" : "Jul") \(trip.day)")
-                        .font(.system(size: 25, weight: .semibold))
+                        .recordingFont(25, weight: .semibold)
                     Spacer()
                 }
                 .foregroundStyle(.white)
@@ -377,14 +392,14 @@ struct TripDetailPage: View {
             }
             Map(initialPosition: .region(region)) {
                 MapPolyline(coordinates: route)
-                    .stroke(OrbitStyle.teal, style: StrokeStyle(lineWidth: 4, lineCap: .round, dash: [6, 5]))
+                    .stroke(OrbitMapStyle.blue, style: StrokeStyle(lineWidth: 4, lineCap: .round, dash: [6, 5]))
                 Annotation("Home", coordinate: route.first!) {
-                    Image(systemName: "house.fill").font(.system(size: 18))
-                        .foregroundStyle(.white).padding(10).background(OrbitStyle.teal, in: Circle())
+                    Image(systemName: "house.fill").recordingFont(18, weight: .regular)
+                        .foregroundStyle(.white).padding(10).background(OrbitMapStyle.blue, in: Circle())
                 }
                 Annotation("Market", coordinate: route.last!) {
-                    Image(systemName: "storefront.fill").font(.system(size: 18))
-                        .foregroundStyle(.white).padding(10).background(OrbitStyle.teal, in: Circle())
+                    Image(systemName: "storefront.fill").recordingFont(18, weight: .regular)
+                        .foregroundStyle(.white).padding(10).background(OrbitMapStyle.blue, in: Circle())
                 }
                 if trip.deviations > 0 {
                     Annotation("Deviation", coordinate: route[3]) {
@@ -412,7 +427,7 @@ struct TripDetailPage: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(time(event.minute)).foregroundStyle(.secondary)
                                     Text(event.title).foregroundStyle(.black)
-                                }.font(.system(size: 16))
+                                }.recordingFont(16, weight: .regular)
                                 Spacer()
                             }
                             .frame(minHeight: 76, alignment: .top)
@@ -434,7 +449,7 @@ struct TripDetailPage: View {
         pill("\(trip.calls) \(trip.calls == 1 ? "call" : "calls")")
     }
     private func pill(_ text: String) -> some View {
-        Text(text).font(.system(size: 14)).lineLimit(1)
+        Text(text).recordingFont(14, weight: .regular).lineLimit(1)
             .padding(.horizontal, 10).padding(.vertical, 5)
             .background(OrbitStyle.pale, in: Capsule())
     }

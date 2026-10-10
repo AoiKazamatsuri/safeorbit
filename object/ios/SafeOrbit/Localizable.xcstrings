@@ -182,6 +182,9 @@
     "Edit profile" : {
 
     },
+    "Emergency contacts" : {
+
+    },
     "Enter a name for this safe zone." : {
 
     },
@@ -240,6 +243,9 @@
 
     },
     "Next week" : {
+
+    },
+    "No emergency contacts added." : {
 
     },
     "No trips in this period" : {
@@ -317,7 +323,13 @@
     "Safe Zone Radius" : {
 
     },
+    "Save account settings" : {
+
+    },
     "Save Changes" : {
+
+    },
+    "Save senior profile" : {
 
     },
     "Saved" : {

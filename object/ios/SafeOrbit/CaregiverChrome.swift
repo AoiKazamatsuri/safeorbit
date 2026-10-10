@@ -29,3 +29,24 @@ extension View {
         }
     }
 }
+
+// Shared map accent matches the system-blue current-location dot in both rendering APIs.
+enum OrbitMapStyle {
+    static let uiBlue = UIColor.systemBlue
+    static let blue = Color(uiColor: uiBlue)
+}
+
+private struct RecordingFont: ViewModifier {
+    @ScaledMetric(relativeTo: .body) var size: CGFloat = 10
+    let weight: Font.Weight
+    init(size: CGFloat, weight: Font.Weight) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: .body)
+        self.weight = weight
+    }
+    func body(content: Content) -> some View { content.font(.system(size: max(10, size), weight: weight)) }
+}
+extension View {
+    func recordingFont(_ size: CGFloat, weight: Font.Weight = .regular) -> some View {
+        modifier(RecordingFont(size: max(10, size), weight: size <= 10 ? .medium : weight))
+    }
+}

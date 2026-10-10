@@ -216,12 +216,74 @@ struct CaregiverSettingsGroupPage: View {
     }
 }
 
+enum VoicePermissionStatus: Equatable { case notRequested, allowed, denied, restricted, unavailable }
+enum VoicePermissionKind: CaseIterable, Hashable { case microphone, speech }
+
+@MainActor final class VoicePermissionStore: ObservableObject {
+    @Published private(set) var microphone: VoicePermissionStatus = .notRequested
+    @Published private(set) var speech: VoicePermissionStatus = .notRequested
+    @Published private(set) var busy: VoicePermissionKind?
+    let read: (VoicePermissionKind) -> VoicePermissionStatus
+    let request: (VoicePermissionKind) async -> Void
+    let openSettings: () -> Void
+    init(read: ((VoicePermissionKind) -> VoicePermissionStatus)? = nil,
+         request: ((VoicePermissionKind) async -> Void)? = nil,
+         openSettings: (() -> Void)? = nil) {
+        self.read = read ?? Self.systemStatus; self.request = request ?? Self.systemRequest
+        self.openSettings = openSettings ?? {
+            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+        }
+        refresh()
+    }
+    func refresh() { microphone = read(.microphone); speech = read(.speech) }
+    func status(_ kind: VoicePermissionKind) -> VoicePermissionStatus { kind == .microphone ? microphone : speech }
+    func change(_ kind: VoicePermissionKind, to on: Bool) async {
+        guard busy == nil else { return }
+        let status = read(kind)
+        if status == .notRequested && on {
+            busy = kind
+            await request(kind)
+            busy = nil
+        } else if (status == .allowed && !on) || (status == .denied && on) {
+            openSettings()
+        }
+        refresh()
+    }
+    static func systemStatus(_ kind: VoicePermissionKind) -> VoicePermissionStatus {
+        if kind == .microphone {
+            switch AVAudioApplication.shared.recordPermission {
+            case .granted: return .allowed
+            case .denied: return .denied
+            case .undetermined: return .notRequested
+            @unknown default: return .unavailable
+            }
+        }
+        switch SFSpeechRecognizer.authorizationStatus() {
+        case .authorized: return .allowed
+        case .denied: return .denied
+        case .restricted: return .restricted
+        case .notDetermined: return .notRequested
+        @unknown default: return .unavailable
+        }
+    }
+    static func systemRequest(_ kind: VoicePermissionKind) async {
+        if kind == .microphone {
+            _ = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
+                AVAudioApplication.requestRecordPermission { c.resume(returning: $0) }
+            }
+        } else {
+            _ = await withCheckedContinuation { (c: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
+                SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0) }
+            }
+        }
+    }
+}
+
 struct SettingsAIPage: View {
     @ObservedObject var settings: CaregiverSettingsStore
     let back: () -> Void
     @Environment(\.scenePhase) private var scenePhase
-    @State private var microphonePermission = AVAudioApplication.shared.recordPermission
-    @State private var speechPermission = SFSpeechRecognizer.authorizationStatus()
+    @StateObject private var permissions = VoicePermissionStore()
     var body: some View {
         SettingsPage("AI Settings", back: back) {
             SettingsSection("Data use") {
@@ -234,69 +296,42 @@ struct SettingsAIPage: View {
             }
             SettingsSection("Voice input permissions") {
                 SettingsCard {
-                    permissionRow("Microphone", symbol: "mic", status: microphoneStatus)
+                    permissionToggle(.microphone, title: "Microphone", symbol: "mic")
                     Divider()
-                    permissionRow("Speech recognition", symbol: "waveform", status: speechStatus)
+                    permissionToggle(.speech, title: "Speech recognition", symbol: "waveform")
                     Divider()
-                    Button {
-                        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-                        UIApplication.shared.open(url)
-                    } label: {
-                        HStack {
-                            Text("Open iPhone Settings")
-                            Spacer()
-                            Image(systemName: "arrow.up.right").font(.footnote)
-                        }.frame(minHeight: 44)
-                    }
+                    SettingsNote(text: "These switches show iPhone permissions. To turn access off, change it in iPhone Settings.")
+                    Button("Open iPhone Settings", action: permissions.openSettings).frame(minHeight: 44)
                 }
             }
         }
-        .onAppear(perform: refreshPermissions)
-        .onChange(of: scenePhase) { _, phase in if phase == .active { refreshPermissions() } }
+        .onAppear { permissions.refresh() }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { permissions.refresh() } }
     }
-    private func permissionRow(_ title: String, symbol: String, status: String) -> some View {
-        HStack(spacing: 12) {
-            Label(title, systemImage: symbol)
-            Spacer(minLength: 8)
-            Text(status).font(.subheadline).foregroundStyle(.secondary)
-        }.frame(minHeight: 44).accessibilityElement(children: .combine)
-    }
-    private var microphoneStatus: String {
-        switch microphonePermission {
-        case .granted: "Allowed"
-        case .denied: "Denied"
-        case .undetermined: "Not requested"
-        @unknown default: "Unavailable"
+    private func permissionToggle(_ kind: VoicePermissionKind, title: String, symbol: String) -> some View {
+        let status = permissions.status(kind)
+        return VStack(alignment: .leading, spacing: 4) {
+            Toggle(isOn: Binding(get: { permissions.status(kind) == .allowed }, set: { on in
+                Task { await permissions.change(kind, to: on) }
+            })) { Label(title, systemImage: symbol) }
+                .frame(minHeight: 44)
+                .disabled(permissions.busy != nil || status == .restricted || status == .unavailable)
+            if status == .restricted { SettingsNote(text: "Access is restricted by iPhone settings.") }
+            if status == .unavailable { SettingsNote(text: "Permission is unavailable on this device.") }
         }
-    }
-    private var speechStatus: String {
-        switch speechPermission {
-        case .authorized: "Allowed"
-        case .denied: "Denied"
-        case .restricted: "Restricted"
-        case .notDetermined: "Not requested"
-        @unknown default: "Unavailable"
-        }
-    }
-    private func refreshPermissions() {
-        microphonePermission = AVAudioApplication.shared.recordPermission
-        speechPermission = SFSpeechRecognizer.authorizationStatus()
     }
 }
 
 // Keep the underlying page mounted so nested editors preserve its draft and scroll position.
 struct SettingsSlideModifier<Destination: View>: ViewModifier {
     let isPresented: Bool
-    var reduceMotionOverride: Bool? = nil
     @ViewBuilder let destination: () -> Destination
-    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
-    private var reduceMotion: Bool { reduceMotionOverride ?? systemReduceMotion }
 
     func body(content: Content) -> some View {
         ZStack {
             content
                 .allowsHitTesting(!isPresented)
-                .accessibilityElement(children: .contain)
+                .accessibilityElement(children: isPresented ? .ignore : .contain)
                 .accessibilityHidden(isPresented)
             GeometryReader { geometry in
                 ZStack {
@@ -305,9 +340,7 @@ struct SettingsSlideModifier<Destination: View>: ViewModifier {
                             .frame(width: geometry.size.width, height: geometry.size.height)
                             .background(Color.white.ignoresSafeArea())
                             .accessibilityAddTraits(.isModal)
-                            .transition(reduceMotion ? .opacity : .asymmetric(
-                                insertion: .offset(x: -geometry.size.width),
-                                removal: .offset(x: -geometry.size.width)))
+
                     }
                 }
             }
@@ -316,7 +349,6 @@ struct SettingsSlideModifier<Destination: View>: ViewModifier {
             .accessibilityHidden(!isPresented)
             .zIndex(1)
         }
-        .animation(.easeInOut(duration: 0.28), value: isPresented)
         .onChange(of: isPresented) { _, _ in
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
@@ -330,7 +362,7 @@ private struct SettingsItemSlideModifier<Item: Identifiable, Destination: View>:
 
     func body(content: Content) -> some View {
         content.settingsSlide(isPresented: Binding(get: { item != nil }, set: { if !$0 { item = nil } })) {
-            // Retain the outgoing item's content until its removal animation finishes.
+            // Keep the item available for the destination update; the page itself switches immediately.
             if let value = item ?? lastItem { destination(value) }
         }
         .onChange(of: item?.id, initial: true) { _, _ in
@@ -375,10 +407,15 @@ struct SettingsPage<Content: View>: View {
                     content
                 }.padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 32)
             }
-            .background(Color(uiColor: .systemGroupedBackground), in: UnevenRoundedRectangle(topLeadingRadius: 29, topTrailingRadius: 29))
+            .background(Color(uiColor: .systemGroupedBackground), in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
+            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
             .background(alignment: .top) { OrbitStyle.teal.frame(height: 40) }
         }
-        .background(.white).tint(OrbitStyle.teal).preferredColorScheme(.light)
+        .background {
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea(.container, edges: .bottom)
+        }
+        .tint(OrbitStyle.teal).preferredColorScheme(.light)
         .toolbar(.hidden, for: .navigationBar)
         .scrollDismissesKeyboard(.interactively)
     }
@@ -653,6 +690,7 @@ struct SettingsProfilesFamilyPage: View {
     @StateObject private var account: SettingsProfileDraft
     @StateObject private var senior: SettingsProfileDraft
     @State private var editingMember: LocalFamilyMember?
+    @State private var addingMember = false
     init(settings: CaregiverSettingsStore, back: @escaping () -> Void) {
         self.settings = settings; self.back = back
         _account = StateObject(wrappedValue: SettingsProfileDraft(data: settings.data, senior: false))
@@ -674,11 +712,18 @@ struct SettingsProfilesFamilyPage: View {
                         Divider()
                         memberRow(member)
                     }
+                    Divider()
+                    Button { addingMember = true } label: {
+                        Label("Add family member", systemImage: "person.badge.plus").frame(minHeight: 44)
+                    }
                 }
             }
         }
         .settingsSlide(item: $senior.editingContact) { contact in
             EmergencyContactEditor(contact: contact, save: { senior.updateContact($0) }, back: { senior.editingContact = nil })
+        }
+        .settingsSlide(isPresented: $addingMember) {
+            SettingsMemberEditor(settings: settings, back: { addingMember = false })
         }
         .settingsSlide(item: $editingMember) { member in
             SettingsMemberDetail(member: member, isSelf: member.id == "self", settings: settings, back: { editingMember = nil })
@@ -766,6 +811,31 @@ struct EmergencyContactEditor: View {
         }
     }
 }
+struct SettingsMemberEditor: View {
+    @ObservedObject var settings: CaregiverSettingsStore
+    let back: () -> Void
+    @State private var name = ""
+    @State private var phone = ""
+    @State private var relationship = ""
+    private var valid: Bool { !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.count <= 60 && PhoneNumber.isValid(phone) && relationship.count <= 60 }
+    var body: some View {
+        SettingsPage("Add Family Member", back: back) {
+            SettingsCard {
+                SettingsField(label: "Full name", value: $name)
+                Divider()
+                CountryPhoneInput(phone: $phone, label: "Phone number")
+                Divider()
+                SettingsField(label: "Relationship to senior (optional)", value: $relationship)
+                PrimaryButton(title: "Save", busy: false, enabled: valid, capsule: true) {
+                    let member = LocalFamilyMember(name: name, phone: phone, relationship: relationship.trimmingCharacters(in: .whitespacesAndNewlines))
+                    if settings.saveMember(member) { back() }
+                }
+                Button("Cancel", action: back).frame(maxWidth: .infinity, minHeight: 44)
+            }
+        }
+    }
+}
+
 struct SettingsMemberDetail: View {
     let member: LocalFamilyMember
     let isSelf: Bool

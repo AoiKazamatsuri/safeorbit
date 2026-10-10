@@ -103,11 +103,12 @@ struct CaregiverHomePage: View {
     @StateObject private var zoneStore = SafeZoneSessionStore()
     @StateObject private var settingsStore = CaregiverSettingsStore()
     @State private var selectedSettings: CaregiverSettingsGroup?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tab: CaregiverTab = .location
     @StateObject private var navigation = WalkingNavigationModel()
     @State private var showingSettings: Bool
     @State private var keyboardVisible = false
+    @State private var recordsDetailPresented = false
+    @State private var zoneEditorPresented = false
     init(store: OnboardingStore, settingsInitiallyOpen: Bool = false) {
         self.store = store
         _showingSettings = State(initialValue: settingsInitiallyOpen)
@@ -119,32 +120,46 @@ struct CaregiverHomePage: View {
         return .normal
     }
     private func setSettings(_ open: Bool) {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.28)) { showingSettings = open }
+        showingSettings = open
     }
     var body: some View {
         ZStack {
-            if tab == .location {
+            ZStack {
                 LocationPage(profile: store.elder, snapshot: store.location,
                              message: store.locationError, loading: store.locationLoading,
                              refresh: { Task { await store.refreshLocation() } },
                              agent: { tab = .agent }, navigate: { Task { await navigation.start(to: store.location) } },
                              settings: { setSettings(true) }, riskState: riskState,
                              zoneStore: zoneStore, usesPreviewTrail: store.previewSession,
-                             navigation: navigation, refreshDestination: { await store.refreshLocation(); return store.location })
-            } else if tab == .agent {
-                AgentChatPage(keyboardVisible: keyboardVisible, settings: settingsStore)
-            } else {
-                RecordsPage()
+                             navigation: navigation, refreshDestination: { await store.refreshLocation(); return store.location },
+                             onEditorPresentationChanged: { zoneEditorPresented = $0 })
+                    .opacity(tab == .location ? 1 : 0)
+                    .allowsHitTesting(tab == .location)
+                    .accessibilityElement(children: tab == .location ? .contain : .ignore)
+                    .accessibilityHidden(tab != .location)
+                AgentChatPage(keyboardVisible: keyboardVisible, settings: settingsStore, isActive: tab == .agent && !showingSettings && selectedSettings == nil)
+                    .opacity(tab == .agent ? 1 : 0)
+                    .allowsHitTesting(tab == .agent)
+                    .accessibilityElement(children: tab == .agent ? .contain : .ignore)
+                    .accessibilityHidden(tab != .agent)
+                RecordsPage(onDetailPresentationChanged: { recordsDetailPresented = $0 })
+                    .opacity(tab == .records ? 1 : 0)
+                    .allowsHitTesting(tab == .records)
+                    .accessibilityElement(children: tab == .records ? .contain : .ignore)
+                    .accessibilityHidden(tab != .records)
+                if !keyboardVisible && !navigation.isPresented && !recordsDetailPresented && !zoneEditorPresented {
+                    VStack { Spacer(); CaregiverTabBar(selection: $tab) }
+                }
             }
-            if !keyboardVisible && !navigation.isPresented {
-                VStack { Spacer(); CaregiverTabBar(selection: $tab) }
-            }
+            .allowsHitTesting(!showingSettings)
+            .accessibilityElement(children: showingSettings ? .ignore : .contain)
+            .accessibilityHidden(showingSettings)
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     if showingSettings {
                         Color.black.opacity(0.36).ignoresSafeArea()
                             .onTapGesture { setSettings(false) }
-                            .transition(.opacity)
+
                         CaregiverSettingsPanel(
                             name: settingsStore.data.caregiver.name,
                             photo: settingsStore.data.caregiver.photo,
@@ -155,7 +170,7 @@ struct CaregiverHomePage: View {
                             logout: { Task { await store.signOut(); setSettings(false) } }
                         )
                         .frame(width: geometry.size.width * 0.765, height: geometry.size.height)
-                        .transition(reduceMotion ? .opacity : .move(edge: .leading))
+
                     }
                 }
             }
@@ -198,6 +213,7 @@ struct LocationPage: View {
     var usesPreviewTrail = false
     @ObservedObject var navigation = WalkingNavigationModel()
     var refreshDestination: (() async -> ElderLocationSnapshot?)? = nil
+    var onEditorPresentationChanged: (Bool) -> Void = { _ in }
     @Environment(\.scenePhase) private var scenePhase
     @State private var previousCamera: MapCameraPosition?
     @State private var followsUser = false
@@ -236,11 +252,11 @@ struct LocationPage: View {
                 if let snapshot {
                     if usesPreviewTrail && snapshot.trail.count > 1 {
                         MapPolyline(coordinates: snapshot.trail.filter(\.isValid).map(\.appleCoordinate))
-                            .stroke(OrbitStyle.teal, style: StrokeStyle(lineWidth: 2.3, lineCap: .round, dash: [4, 5]))
+                            .stroke(OrbitMapStyle.blue, style: StrokeStyle(lineWidth: 2.3, lineCap: .round, dash: [4, 5]))
                     } else if !usesPreviewTrail {
                         ForEach(Array(snapshot.trail.filter(\.isValid).enumerated()), id: \.offset) { _, sample in
                             MapCircle(center: sample.appleCoordinate, radius: 2.5)
-                                .foregroundStyle(OrbitStyle.teal)
+                                .foregroundStyle(OrbitMapStyle.blue)
                         }
                     }
                     if let point {
@@ -268,10 +284,10 @@ struct LocationPage: View {
                 if navigation.isPresented {
                     if let route = navigation.route {
                         MapPolyline(coordinates: route.coordinates)
-                            .stroke(OrbitStyle.teal, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                            .stroke(OrbitMapStyle.blue, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
                     }
                     if let destination = navigation.destination, destination.coordinate.isValid {
-                        Marker(usesPreviewTrail ? "\(profile.name) · Demo" : profile.name, coordinate: destination.coordinate.appleCoordinate).tint(OrbitStyle.teal)
+                        Marker(usesPreviewTrail ? "\(profile.name) · Demo" : profile.name, coordinate: destination.coordinate.appleCoordinate).tint(OrbitMapStyle.blue)
                     }
                     if let fix = navigation.fix {
                         Annotation("Your location", coordinate: fix.point.appleCoordinate) {
@@ -421,14 +437,15 @@ struct LocationPage: View {
             if navigation.isPresented { showRouteOverview() } else { focusOnSenior() }
         }
         .onDisappear { navigation.end() }
-        .fullScreenCover(item: $zoneEditor) { selection in
+        .onChange(of: zoneEditor?.id) { _, id in onEditorPresentationChanged(id != nil) }
+        .settingsSlide(item: $zoneEditor) { selection in
             SafeZoneEditorPage(
                 zone: selection.zone,
                 initialCenter: selection.zone?.center ?? visibleRegion.map {
                     MainlandCoordinates.toWGS84(GeoPoint(latitude: $0.center.latitude, longitude: $0.center.longitude))
                 } ?? snapshot?.coordinate ?? GeoPoint(latitude: 32.05664, longitude: 118.77361),
                 nearbyZones: zoneStore.visibleZones(in: snapshot),
-                save: { zoneStore.save($0) }, delete: { zoneStore.delete($0) }
+                save: { zoneStore.save($0) }, delete: { zoneStore.delete($0) }, close: { zoneEditor = nil }
             )
         }
     }
@@ -607,6 +624,8 @@ struct SafeZoneEditorPage: View {
         if let close { close() } else { dismiss() }
     }
 
+    @State private var editorOverlayHeight: CGFloat = 0
+
     var body: some View {
         ZStack(alignment: .bottom) {
             Color.white.ignoresSafeArea()
@@ -627,18 +646,21 @@ struct SafeZoneEditorPage: View {
                                          selectedCenter = point
                                          address = ""
                                          Task { await resolveAddress() }
-                                     }, onAvailability: { mapAvailable = $0 })
-                    .clipShape(UnevenRoundedRectangle(topLeadingRadius: 34, topTrailingRadius: 34))
+                                     }, onAvailability: { mapAvailable = $0 }, bottomOverlayInset: editorOverlayHeight + 12)
                     .ignoresSafeArea(edges: .bottom)
+                    .clipShape(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
+                    .background(alignment: .top) { OrbitStyle.teal.frame(height: 40) }
             }
+            .ignoresSafeArea(edges: .bottom)
             VStack(spacing: 0) {
                     Spacer(minLength: 0)
+                    VStack(spacing: 0) {
                     HStack(spacing: 12) {
                         Text(address.isEmpty ? coordinateText : address)
                             .font(.system(size: 16)).lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 29)).foregroundStyle(.black)
+                            .font(.system(size: 29)).foregroundStyle(OrbitStyle.teal)
                             .frame(width: 46, height: 46)
                             .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Circle())
                     }
@@ -718,9 +740,11 @@ struct SafeZoneEditorPage: View {
                         }
                     }
                     .padding(19)
-                    .caregiverCard(radius: 28)
+                    .caregiverCard(radius: 20)
+                    }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { editorOverlayHeight = $0 }
             }
-            .padding(.horizontal, 20).padding(.bottom, 26)
+            .padding(.horizontal, 20)
         }
         .background(.white)
         .task { await resolveAddress() }
@@ -851,7 +875,7 @@ struct WalkingNavigationOverlay: View {
             VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 14) {
                 Image(systemName: model.directionSymbol)
-                    .font(.system(size: 32, weight: .semibold)).foregroundStyle(OrbitStyle.teal)
+                    .font(.system(size: 32, weight: .semibold)).foregroundStyle(OrbitMapStyle.blue)
                 VStack(alignment: .leading, spacing: 4) {
                     if model.route != nil && model.issue == nil && !model.loading && !model.arrived {
                         Text(WalkingNavigationModel.distanceText(model.turnMeters)).font(.title2.bold())
@@ -883,12 +907,12 @@ struct WalkingNavigationOverlay: View {
             NavigationSummaryCard(model: model, confirmingExit: $confirmingExit, end: end)
         }
         .padding(.horizontal, 20).padding(.top, 8)
-        .tint(OrbitStyle.teal)
+        .tint(OrbitMapStyle.blue)
     }
     private func navigationButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(OrbitStyle.teal).frame(width: 48, height: 48)
+                .foregroundStyle(OrbitMapStyle.blue).frame(width: 48, height: 48)
                 .background(.white, in: Circle()).shadow(color: .black.opacity(0.13), radius: 5, y: 2)
         }.accessibilityLabel(label)
     }
@@ -910,7 +934,7 @@ struct NavigationSummaryCard: View {
                 HStack(spacing: 8) {
                     Button { confirmingExit = true } label: {
                         Image(systemName: "xmark").font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.secondary).frame(width: 44, height: 44)
+                            .foregroundStyle(OrbitMapStyle.blue).frame(width: 44, height: 44)
                     }
                     .accessibilityLabel("Exit navigation")
                     .accessibilityIdentifier("request-exit-navigation")
@@ -938,7 +962,7 @@ struct NavigationSummaryCard: View {
     }
     private func metric(_ value: String, label: String) -> some View {
         VStack(spacing: 6) {
-            Text(value).font(.system(.title2, design: .default, weight: .bold)).foregroundStyle(OrbitStyle.teal).fixedSize()
+            Text(value).font(.system(.title2, design: .default, weight: .bold)).foregroundStyle(OrbitMapStyle.blue).fixedSize()
             Text(label).font(.subheadline).foregroundStyle(.secondary).fixedSize()
         }.frame(maxWidth: .infinity)
     }
@@ -946,7 +970,7 @@ struct NavigationSummaryCard: View {
         Button("Exit navigation", action: end)
             .font(.headline).fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, minHeight: 56)
-            .foregroundStyle(.white).background(OrbitStyle.teal, in: Capsule())
+            .foregroundStyle(.white).background(OrbitMapStyle.blue, in: Capsule())
             .buttonStyle(.plain)
             .accessibilityIdentifier("end-navigation")
     }
@@ -954,7 +978,7 @@ struct NavigationSummaryCard: View {
         Button("Cancel") { confirmingExit = false }
             .font(.headline).fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, minHeight: 56)
-            .foregroundStyle(OrbitStyle.teal).background(OrbitStyle.teal.opacity(0.10), in: Capsule())
+            .foregroundStyle(OrbitMapStyle.blue).background(OrbitMapStyle.blue.opacity(0.10), in: Capsule())
             .buttonStyle(.plain)
             .accessibilityIdentifier("cancel-exit-navigation")
     }
@@ -1003,7 +1027,7 @@ private func locationPreview() -> ElderLocationSnapshot {
 private struct CurrentLocationDot: View {
     let heading: Double?
     let label: LocalizedStringKey
-    private let blue = Color(uiColor: .systemBlue)
+    private let blue = OrbitMapStyle.blue
 
     var body: some View {
         ZStack {

@@ -3,46 +3,85 @@ import SwiftUI
 @testable import SafeOrbit
 
 final class SettingsTests: XCTestCase {
-    @MainActor func testSettingsSlideEntersFromLeftAndLeavesToLeft() async throws {
-        try await verifySlide(reduceMotion: false)
+    @MainActor func testImmediatePageWrapperPreservesContentAnimations() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
+        let state = ContentAnimationState()
+        window.rootViewController = UIHostingController(rootView: ContentAnimationProbe(state: state)
+            .settingsSlide(isPresented: .constant(false)) { Color.clear })
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; previous?.makeKeyAndVisible() }
+        try await Task.sleep(for: .milliseconds(100))
+        withAnimation(.linear(duration: 1)) { state.moved = true }
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertTrue(state.sawAnimation, "Map and chat animations must reach the underlying page")
+        XCTAssertFalse(state.sawDisabledAnimations)
     }
-    @MainActor func testSettingsSlideReduceMotionDoesNotMoveHorizontally() async throws {
-        try await verifySlide(reduceMotion: true)
-    }
-    @MainActor private func verifySlide(reduceMotion: Bool) async throws {
+
+    @MainActor func testSettingsPagesSwitchImmediatelyAndRemoveOldDraft() async throws {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let previous = scene.windows.first(where: \.isKeyWindow)
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
         let state = SlideTestState()
-        let marker = UIView()
-        marker.backgroundColor = .red
-        window.rootViewController = UIHostingController(rootView: SlideTestPage(state: state, marker: marker, reduceMotion: reduceMotion))
+        let marker = UIView(); marker.backgroundColor = .red
+        window.rootViewController = UIHostingController(rootView: SlideTestPage(state: state, marker: marker))
         window.makeKeyAndVisible()
         defer { window.isHidden = true; previous?.makeKeyAndVisible() }
         try await Task.sleep(for: .milliseconds(100))
         state.item = .init(id: "detail")
-        try await Task.sleep(for: .milliseconds(120))
-        let entering = try slideFrame(marker, in: window)
-        if reduceMotion { XCTAssertEqual(entering.minX, 0, accuracy: 1) }
-        else { XCTAssertLessThan(entering.minX, -1); XCTAssertGreaterThan(entering.maxX, 1) }
-        try await Task.sleep(for: .milliseconds(250))
-        XCTAssertEqual(try slideFrame(marker, in: window).minX, 0, accuracy: 1)
+        try await Task.sleep(for: .milliseconds(40))
+        XCTAssertNotNil(marker.window)
+        XCTAssertEqual(marker.convert(marker.bounds, to: window).minX, 0, accuracy: 1)
+        XCTAssertTrue(marker.layer.animationKeys()?.isEmpty ?? true)
         state.item = nil
-        try await Task.sleep(for: .milliseconds(100))
-        let leaving = try slideFrame(marker, in: window)
-        if reduceMotion { XCTAssertEqual(leaving.minX, 0, accuracy: 1) }
-        else { XCTAssertLessThan(leaving.minX, -1); XCTAssertGreaterThan(leaving.maxX, 1) }
-        try await Task.sleep(for: .milliseconds(300))
-        XCTAssertNil(marker.window, "Outgoing detail must be removed so its draft resets on re-entry")
+        try await Task.sleep(for: .milliseconds(40))
+        XCTAssertNil(marker.window)
         state.item = .init(id: "another-detail")
-        try await Task.sleep(for: .milliseconds(350))
-        XCTAssertNotNil(marker.window, "Settings must support reopening after returning")
+        try await Task.sleep(for: .milliseconds(40))
+        XCTAssertNotNil(marker.window)
     }
-    @MainActor private func slideFrame(_ marker: UIView, in window: UIWindow) throws -> CGRect {
-        XCTAssertNotNil(marker.window, "The destination must remain mounted during its exit animation")
-        let layer = try XCTUnwrap(marker.layer.presentation())
-        return layer.convert(layer.bounds, to: window.layer.presentation() ?? window.layer)
+    @MainActor func testVoiceSwitchReflectsAuthorizationAndRoutesChanges() async {
+        var states: [VoicePermissionKind: VoicePermissionStatus] = [.microphone: .notRequested, .speech: .restricted]
+        var requested: [VoicePermissionKind] = []; var settingsOpens = 0
+        let store = VoicePermissionStore(read: { states[$0]! }, request: {
+            requested.append($0); states[$0] = .allowed
+        }, openSettings: { settingsOpens += 1 })
+        await store.change(.microphone, to: true)
+        XCTAssertEqual(requested, [.microphone]); XCTAssertEqual(store.microphone, .allowed)
+        await store.change(.microphone, to: false)
+        XCTAssertEqual(settingsOpens, 1); XCTAssertEqual(store.microphone, .allowed)
+        await store.change(.speech, to: true)
+        XCTAssertEqual(requested, [.microphone]); XCTAssertEqual(settingsOpens, 1)
+        states[.microphone] = .denied; store.refresh()
+        await store.change(.microphone, to: true)
+        XCTAssertEqual(settingsOpens, 2); XCTAssertEqual(store.microphone, .denied)
+        states[.speech] = .notRequested
+        let denied = VoicePermissionStore(read: { states[$0]! }, request: { states[$0] = .denied }, openSettings: {})
+        await denied.change(.speech, to: true)
+        XCTAssertEqual(denied.speech, .denied)
+        states[.speech] = .unavailable; denied.refresh()
+        await denied.change(.speech, to: true)
+        XCTAssertEqual(denied.speech, .unavailable)
+    }
+    @MainActor func testAddingLocalMemberKeepsProfileDraftsAndPersists() throws {
+        let suite = "org.safeorbit.member-add." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = CaregiverSettingsStore(defaults: defaults)
+        let account = SettingsProfileDraft(data: store.data, senior: false)
+        let senior = SettingsProfileDraft(data: store.data, senior: true)
+        account.caregiver.name = "Unsaved account"; senior.profile.name = "Unsaved senior"
+        XCTAssertFalse(store.saveMember(.init(name: "", phone: "+12025550102")))
+        XCTAssertFalse(store.saveMember(.init(name: "Member", phone: "invalid")))
+        let member = LocalFamilyMember(name: "New member", phone: "+12025550102", relationship: "")
+        XCTAssertTrue(store.saveMember(member))
+        XCTAssertEqual(CaregiverSettingsStore(defaults: defaults).data.members, [member])
+        XCTAssertEqual(account.caregiver.name, "Unsaved account")
+        XCTAssertEqual(senior.profile.name, "Unsaved senior")
+        XCTAssertEqual(store.data.caregiver.name, "Emma Liu")
     }
 
     @MainActor func testProfilesValidateAndPersistWithoutSavingDraft() throws {
@@ -234,7 +273,7 @@ final class SettingsTests: XCTestCase {
         let zones = SafeZoneSessionStore()
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let previous = scene.windows.first(where: \.isKeyWindow)
-        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("FrontendSnapshots/settings-inline")
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("FrontendSnapshots/settings-ui-blue")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let member = LocalFamilyMember(name: "Sample Member", phone: "+12025550102", relationship: "Daughter")
         let contact = EmergencyContact(name: "Sample Contact", relationship: "Son", phone: "+12025550103")
@@ -242,6 +281,7 @@ final class SettingsTests: XCTestCase {
             ($0.rawValue.lowercased().replacingOccurrences(of: " ", with: "-"), AnyView(CaregiverSettingsGroupPage(group: $0, settings: store, onboarding: onboarding, zones: zones, back: {})))
         }
         pages += [
+            ("add-family-member", AnyView(SettingsMemberEditor(settings: store, back: {}))),
             ("member-detail", AnyView(SettingsMemberDetail(member: member, isSelf: false, settings: store, back: {}))),
             ("self-detail", AnyView(SettingsMemberDetail(member: .init(id: "self", name: "Emma Liu", phone: "+12025550101"), isSelf: true, settings: store, back: {}))),
             ("emergency-contact", AnyView(EmergencyContactEditor(contact: contact, save: { _ in }, back: {}))),
@@ -301,14 +341,25 @@ private struct SlideTestMarker: UIViewRepresentable {
 private struct SlideTestPage: View {
     @ObservedObject var state: SlideTestState
     let marker: UIView
-    let reduceMotion: Bool
     var body: some View {
-        if reduceMotion {
-            Color.blue.modifier(SettingsSlideModifier(isPresented: state.item != nil, reduceMotionOverride: true) {
-                SlideTestMarker(view: marker)
-            })
-        } else {
-            Color.blue.settingsSlide(item: $state.item) { _ in SlideTestMarker(view: marker) }
-        }
+        Color.blue.settingsSlide(item: $state.item) { _ in SlideTestMarker(view: marker) }
+    }
+}
+
+@MainActor private final class ContentAnimationState: ObservableObject {
+    @Published var moved = false
+    var sawAnimation = false
+    var sawDisabledAnimations = false
+}
+private struct ContentAnimationProbe: View {
+    @ObservedObject var state: ContentAnimationState
+    var body: some View {
+        Color.blue.frame(width: 20, height: 20).offset(x: state.moved ? 20 : 0)
+            .transaction { transaction in
+                if state.moved {
+                    state.sawAnimation = state.sawAnimation || transaction.animation != nil
+                    state.sawDisabledAnimations = state.sawDisabledAnimations || transaction.disablesAnimations
+                }
+            }
     }
 }

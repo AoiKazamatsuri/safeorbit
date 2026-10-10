@@ -6,6 +6,7 @@ struct SafeZoneSelectionMap: View {
     let radiusMeters: Int
     let onSelection: (GeoPoint) -> Void
     let onAvailability: (Bool) -> Void
+    var bottomOverlayInset: CGFloat = 12
 
     @State private var issue: String?
     @State private var retryID = 0
@@ -16,7 +17,7 @@ struct SafeZoneSelectionMap: View {
                             onSelection: onSelection, onState: { available, message in
                                 issue = message
                                 onAvailability(available)
-                            })
+                            }, bottomOverlayInset: bottomOverlayInset)
                 .id(retryID)
             if let issue {
                 VStack {
@@ -57,6 +58,7 @@ struct SafeZoneMapView: UIViewRepresentable {
     let radiusMeters: Int
     let onSelection: (GeoPoint) -> Void
     let onState: (Bool, String?) -> Void
+    var bottomOverlayInset: CGFloat = 12
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -68,13 +70,14 @@ struct SafeZoneMapView: UIViewRepresentable {
         map.isRotateEnabled = false
         map.isPitchEnabled = false
         map.showsCompass = false
-        map.layoutMargins = UIEdgeInsets(top: 0, left: 12, bottom: 12, right: 12)
+        map.layoutMargins = UIEdgeInsets(top: 0, left: 12, bottom: bottomOverlayInset, right: 12)
         context.coordinator.configure(map)
         return map
     }
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.parent = self
+        map.layoutMargins = UIEdgeInsets(top: 0, left: 12, bottom: bottomOverlayInset, right: 12)
         // Updating the controls must not reset the user's map camera.
         context.coordinator.updateCircle(in: map, force: true)
     }
@@ -142,8 +145,8 @@ struct SafeZoneMapView: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             guard let circle = overlay as? MKPolygon else { return MKOverlayRenderer(overlay: overlay) }
             let renderer = MKPolygonRenderer(polygon: circle)
-            renderer.fillColor = UIColor(red: 0.28, green: 0.47, blue: 0.46, alpha: 0.25)
-            renderer.strokeColor = UIColor(red: 0.28, green: 0.47, blue: 0.46, alpha: 0.55)
+            renderer.fillColor = UIColor(OrbitStyle.teal).withAlphaComponent(0.25)
+            renderer.strokeColor = UIColor(OrbitStyle.teal).withAlphaComponent(0.55)
             renderer.lineWidth = 1
             return renderer
         }
@@ -243,7 +246,7 @@ struct SafeZoneMapView: UIViewRepresentable {
 
         private static func pinImage() -> UIImage {
             UIGraphicsImageRenderer(size: CGSize(width: 36, height: 55)).image { _ in
-                UIColor.black.setFill()
+                UIColor(OrbitStyle.teal).setFill()
                 UIBezierPath(roundedRect: CGRect(x: 16, y: 24, width: 4, height: 25), cornerRadius: 2).fill()
                 UIBezierPath(ovalIn: CGRect(x: 13, y: 46, width: 10, height: 8)).fill()
                 UIBezierPath(ovalIn: CGRect(x: 3, y: 1, width: 30, height: 30)).fill()

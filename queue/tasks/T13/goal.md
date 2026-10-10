@@ -2,6 +2,12 @@
 
 ## 范围
 
+本轮最新配色要求覆盖此前安全区统一蓝色的要求：所有地图的安全区标识、编辑定位针及表示区域的圆形恢复原OrbitStyle.teal绿色主题色；老人轨迹保留systemBlue蓝色虚线，当前位置和导航配色不变。只改相关配色，不改布局、交互及此前已确认功能；新增证据允许放object/ios/Verification/T12/safe-zone-green。完整iOS测试、Release与队列检查的命令及结果记回执，标注未独立验证；不自动Git提交、推送或验收。
+
+
+本轮依据用户完整确认方案及地图统一蓝色补充：导航路线、目的地、方向及相关导航控件标识与当前位置统一systemBlue，SwiftUI和UIKit共用CaregiverChrome.swift的OrbitMapStyle；当前点扇形继续沿用同一蓝色。App自有页面直接进入返回，保留地图相机及聊天滚动行为；底层交互隔离及草稿滚动保留。 本轮不自动Git提交、推送或验收；新普通与小屏大字证据允许共用object/ios/Verification/T12/ui-blue，核对完整iOS测试、Release构建及队列检查，原样命令和读数记回执，未独立验证。
+
+
 - 要交付：Location首页老人当前位置与导航家属当前位置的地图箭头统一为白边蓝色圆点及渐变方向扇形，导航获取指南针朝向并补偿地图旋转，优先有效指南针，其次有效GPS移动方向，无传感器方向时沿附近路线前进方向显示扇形；首页沿用现有方向数据；复用Location地图，白色浮动转向和底部导航卡；底部仅显示剩余米数、剩余时长与预计到达时间，左侧叉号在卡片内切换退出导航/取消按钮；默认全览显示家属、老人样例标记与完整路线，保留跟随、全览、静音、结束恢复；连续定位与步骤推进，剩余距离和比例估时；三次超过40米偏离重算，自动请求至少隔30秒；每30秒刷新老人，移动超过30米重算；三次20米内到达；五分钟老人位置过期暂停，家属精度超过50米或超过15秒不推进；错误重试、生命周期暂停恢复及取消旧请求。演示老人位置明确标记，不伪造真实路线。
 - 不包含：驾车、后台锁屏导航、老人定位后端、第三方依赖、truth/reference修改、用户验收、推送。
 - 允许修改的位置：object/ios/SafeOrbit/LocationUI.swift、WalkingNavigation.swift及导航专用新Swift文件；object/ios/SafeOrbitTests/LocationTests.swift及导航专用新测试；object/ios/README.md、自动提取Localizable.xcstrings、必要的工程配置及object/dev/generate-ios.mjs、object/ios/Verification/T13。T8、T9、T10、T12共享工件经队列返工重交，仅更新共享指纹，原要求与限制保留。
@@ -16,3 +22,5 @@
 | A4 | 回归 | 完整iOS测试、Release构建、队列暂存检查 | 退出码0，原样读数记录 |
 
 验收安排：执行者自验，未独立验证；真实路线、语音、大陆坐标留真机验证，用户最终验收。
+
+本轮允许补充共用颜色工件object/ios/SafeOrbit/CaregiverChrome.swift；T8同时允许首页LocationUI地图颜色与层级隔离，其他原允许位置和排除范围保持。

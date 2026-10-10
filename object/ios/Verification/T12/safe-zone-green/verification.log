@@ -1,0 +1,25 @@
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/safe-zone-green.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/safe-zone-green-test.log 2>&1
+exit: 0
+	 Executed 56 tests, with 0 failures (0 unexpected) in 59.397 (59.412) seconds
+	 Executed 56 tests, with 0 failures (0 unexpected) in 59.397 (59.413) seconds
+** TEST SUCCEEDED **
+```
+
+```text
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/settings-ui-blue-release CODE_SIGNING_ALLOWED=NO build > /private/tmp/safe-zone-green-release.log 2>&1
+exit: 0
+** BUILD SUCCEEDED **
+```
+
+```text
+sh object/dev/queue.sh check > /private/tmp/safe-zone-green-queue.log
+exit: 0
+{"ok": true, "protection": "ready", "seq": 317, "tasks": 13, "protocol": 2}
+```
+
+```text
+git diff --check
+exit: 0
+(no output)
+```

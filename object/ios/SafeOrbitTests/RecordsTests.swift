@@ -84,6 +84,20 @@ final class RecordsTests: XCTestCase {
             attachment.name = name
             attachment.lifetime = .keepAlways
             add(attachment)
+            if name.contains("records-") && name != "records-detail" {
+                func scrollView(in view: UIView) -> UIScrollView? {
+                    if let scroll = view as? UIScrollView { return scroll }
+                    return view.subviews.lazy.compactMap { scrollView(in: $0) }.first
+                }
+                if let scroll = scrollView(in: window.rootViewController!.view) {
+                    scroll.setContentOffset(CGPoint(x: 0, y: max(0, scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom)), animated: false)
+                    try await Task.sleep(for: .milliseconds(300))
+                    let bottom = UIGraphicsImageRenderer(size: size).image { _ in
+                        window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+                    }
+                    try XCTUnwrap(bottom.pngData()).write(to: folder.appendingPathComponent("\(name)-bottom.png"))
+                }
+            }
             window.isHidden = true
             previous?.makeKeyAndVisible()
         }
