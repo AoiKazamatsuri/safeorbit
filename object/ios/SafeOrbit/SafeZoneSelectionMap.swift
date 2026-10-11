@@ -1,5 +1,8 @@
 import SwiftUI
 import MapKit
+#if !targetEnvironment(simulator)
+import AMapNaviKit
+#endif
 
 struct SafeZoneSelectionMap: View {
     let initialCenter: GeoPoint
@@ -13,12 +16,14 @@ struct SafeZoneSelectionMap: View {
 
     var body: some View {
         ZStack {
+            AMapConsentSurface {
             SafeZoneMapView(initialCenter: initialCenter, radiusMeters: radiusMeters,
                             onSelection: onSelection, onState: { available, message in
                                 issue = message
                                 onAvailability(available)
                             }, bottomOverlayInset: bottomOverlayInset)
                 .id(retryID)
+            }
             if let issue {
                 VStack {
                     VStack(spacing: 10) {
@@ -53,36 +58,35 @@ struct SafeZoneSelectionMap: View {
     }
 }
 
-/// Keep the renderer's tile coverage fixed while the selected circle moves.
-/// Replacing a small polygon on each pan update can leave partially refreshed tiles.
-final class SafeZoneRangeOverlay: NSObject, MKOverlay {
-    let coordinate = CLLocationCoordinate2D(latitude: 0, longitude: 0)
-    let boundingMapRect = MKMapRect.world
-}
-
-final class SafeZoneRangeRenderer: MKOverlayPathRenderer {
-    private(set) var circleMapRect: MKMapRect
-
-    init(overlay: SafeZoneRangeOverlay, center: GeoPoint, radius: Int) {
-        circleMapRect = SafeZoneSelectionMap.circle(center: center, radius: radius).boundingMapRect
-        super.init(overlay: overlay)
-        fillColor = UIColor(OrbitStyle.teal).withAlphaComponent(0.25)
-        strokeColor = UIColor(OrbitStyle.teal).withAlphaComponent(0.55)
-        lineWidth = 1
+/// Draft state is separate from the map camera and retains WGS-84 values.
+struct SafeZoneSelectionState {
+    private(set) var selectedCenter: GeoPoint
+    private(set) var draggedCenter: GeoPoint?
+    private(set) var available = false
+    private(set) var issue: String?
+    var circleCenter: GeoPoint { draggedCenter ?? selectedCenter }
+    init(center: GeoPoint) { selectedCenter = center }
+    mutating func move(displayed: CLLocationCoordinate2D) -> Bool {
+        let point = MainlandCoordinates.toWGS84(GeoPoint(latitude: displayed.latitude, longitude: displayed.longitude))
+        guard point.isValid else { return false }
+        draggedCenter = point
+        return true
     }
-
-    override func createPath() {
-        path = CGPath(ellipseIn: rect(for: circleMapRect), transform: nil)
+    mutating func finish(commit: Bool) -> GeoPoint? {
+        defer { draggedCenter = nil }
+        guard commit, let draggedCenter, draggedCenter.isValid else { return nil }
+        selectedCenter = draggedCenter
+        return selectedCenter
     }
-
-    func updateCircle(center: GeoPoint, radius: Int) {
-        circleMapRect = SafeZoneSelectionMap.circle(center: center, radius: radius).boundingMapRect
-        invalidatePath()
-        // Refresh both the vacated area and the complete new circle, including its lower edge.
-        setNeedsDisplay()
+    mutating func report(available: Bool, issue: String?) -> Bool {
+        guard self.available != available || self.issue != issue else { return false }
+        self.available = available
+        self.issue = issue
+        return true
     }
 }
 
+#if !targetEnvironment(simulator)
 struct SafeZoneMapView: UIViewRepresentable {
     let initialCenter: GeoPoint
     let radiusMeters: Int
@@ -92,52 +96,56 @@ struct SafeZoneMapView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
-    func makeUIView(context: Context) -> MKMapView {
-        let map = MKMapView()
+    func makeUIView(context: Context) -> UIView {
+        let surface = UIView()
+        guard AMapRuntime.prepare() else { return surface }
+        let map = MAMapView(frame: surface.bounds)
+        map.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        surface.addSubview(map)
         map.overrideUserInterfaceStyle = .light
         map.isScrollEnabled = true
         map.isZoomEnabled = true
         map.isRotateEnabled = false
-        map.isPitchEnabled = false
+        map.isRotateCameraEnabled = false
         map.showsCompass = false
         map.layoutMargins = UIEdgeInsets(top: 0, left: 12, bottom: bottomOverlayInset, right: 12)
         context.coordinator.configure(map)
-        return map
+        return surface
     }
 
-    func updateUIView(_ map: MKMapView, context: Context) {
+    func updateUIView(_ surface: UIView, context: Context) {
+        guard let map = surface.subviews.first as? MAMapView else { return }
         context.coordinator.parent = self
         map.layoutMargins = UIEdgeInsets(top: 0, left: 12, bottom: bottomOverlayInset, right: 12)
+        map.logoCenter = CGPoint(x: 45, y: max(20, map.bounds.height - bottomOverlayInset - 12))
         // Updating the controls must not reset the user's map camera.
         context.coordinator.updateCircle(in: map, force: true)
     }
 
-    static func dismantleUIView(_ map: MKMapView, coordinator: Coordinator) {
+    static func dismantleUIView(_ surface: UIView, coordinator: Coordinator) {
         coordinator.loadTimeout?.cancel()
-        map.delegate = nil
+        coordinator.map?.delegate = nil
     }
 
-    final class Coordinator: NSObject, MKMapViewDelegate {
+    final class Coordinator: NSObject, MAMapViewDelegate {
         var parent: SafeZoneMapView
-        let pin = MKPointAnnotation()
-        private(set) var selectedCenter: GeoPoint
-        private var circle: SafeZoneRangeOverlay?
-        private var circleRenderer: SafeZoneRangeRenderer?
+        let pin = MAPointAnnotation()
+        private(set) var selection: SafeZoneSelectionState
+        var selectedCenter: GeoPoint { selection.selectedCenter }
+        private var circle: MACircle?
+        private var circleRenderer: MACircleRenderer?
         private var circleCenter: GeoPoint?
         private var circleRadius: Int?
-        private var available = false
-        private var issue: String?
-        private weak var map: MKMapView?
+        fileprivate weak var map: MAMapView?
         private var dragOrigin: CLLocationCoordinate2D?
-        private var draggedCenter: GeoPoint?
         var loadTimeout: Task<Void, Never>?
 
         init(parent: SafeZoneMapView) {
             self.parent = parent
-            selectedCenter = parent.initialCenter
+            selection = SafeZoneSelectionState(center: parent.initialCenter)
         }
 
-        func configure(_ map: MKMapView) {
+        func configure(_ map: MAMapView) {
             self.map = map
             map.delegate = self
             guard selectedCenter.isValid else {
@@ -153,46 +161,49 @@ struct SafeZoneMapView: UIViewRepresentable {
                                             latitudinalMeters: distance, longitudinalMeters: distance)
             // Keep the pin above the address and editing cards without changing its coordinate.
             region.center.latitude -= region.span.latitudeDelta * 0.15
-            map.setRegion(region, animated: false)
+            map.setRegion(MACoordinateRegion(center: region.center, span: MACoordinateSpan(latitudeDelta: region.span.latitudeDelta, longitudeDelta: region.span.longitudeDelta)), animated: false)
             loadTimeout = Task { @MainActor [weak self] in
                 do { try await Task.sleep(for: .seconds(15)) } catch { return }
-                guard let self, !self.available else { return }
+                guard let self, !self.selection.available else { return }
                 self.report(false, issue: "Map unavailable. Check your internet connection.")
             }
         }
 
-        func updateCircle(in map: MKMapView, force: Bool = false) {
-            let center = draggedCenter ?? selectedCenter
+        func updateCircle(in map: MAMapView, force: Bool = false) {
+            let center = selection.circleCenter
             guard center.isValid,
                   force || circleCenter != center || circleRadius != parent.radiusMeters else { return }
             circleCenter = center
             circleRadius = parent.radiusMeters
-            if let circleRenderer {
-                circleRenderer.updateCircle(center: center, radius: parent.radiusMeters)
+            if let circle {
+                circle.setCircleWithCenterCoordinate(center.appleCoordinate, radius: Double(parent.radiusMeters))
+                circleRenderer?.setNeedsUpdate()
             } else {
-                let overlay = SafeZoneRangeOverlay()
+                let overlay = MACircle(center: center.appleCoordinate, radius: Double(parent.radiusMeters))!
                 circle = overlay
-                circleRenderer = SafeZoneRangeRenderer(overlay: overlay, center: center, radius: parent.radiusMeters)
-                map.addOverlay(overlay)
+                map.add(overlay)
             }
         }
 
-        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-            guard overlay === circle, let circleRenderer else { return MKOverlayRenderer(overlay: overlay) }
-            return circleRenderer
+        func mapView(_ mapView: MAMapView!, rendererFor overlay: MAOverlay!) -> MAOverlayRenderer! {
+            guard overlay as AnyObject === circle, let circle else { return nil }
+            let renderer = MACircleRenderer(circle: circle)!
+            renderer.fillColor = UIColor(OrbitStyle.teal).withAlphaComponent(0.25)
+            renderer.strokeColor = UIColor(OrbitStyle.teal).withAlphaComponent(0.55)
+            renderer.lineWidth = 1
+            circleRenderer = renderer
+            return renderer
         }
 
-        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            guard annotation === pin else { return nil }
+        func mapView(_ mapView: MAMapView!, viewFor annotation: MAAnnotation!) -> MAAnnotationView! {
+            guard annotation as AnyObject === pin else { return nil }
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: "safe-zone-pin")
-                ?? MKAnnotationView(annotation: annotation, reuseIdentifier: "safe-zone-pin")
+                ?? MAAnnotationView(annotation: annotation, reuseIdentifier: "safe-zone-pin")!
             view.annotation = annotation
             view.image = Self.pinImage()
             view.centerOffset = CGPoint(x: 0, y: -27.5)
-            // A dedicated pan keeps the pin gesture separate from MapKit's map gestures.
             view.isDraggable = false
             view.canShowCallout = false
-            view.displayPriority = .required
             view.accessibilityLabel = "Safe zone pin"
             view.accessibilityHint = "Drag to choose the center."
             if view.gestureRecognizers?.contains(where: { $0.name == "safe-zone-direct-drag" }) != true {
@@ -226,52 +237,39 @@ struct SafeZoneMapView: UIViewRepresentable {
             }
         }
 
-        func movePin(to coordinate: CLLocationCoordinate2D, in map: MKMapView) {
-            let point = MainlandCoordinates.toWGS84(GeoPoint(latitude: coordinate.latitude,
-                                                           longitude: coordinate.longitude))
-            guard point.isValid else { return }
+        func movePin(to coordinate: CLLocationCoordinate2D, in map: MAMapView) {
+            guard selection.move(displayed: coordinate) else { return }
             pin.coordinate = coordinate
-            draggedCenter = point
             updateCircle(in: map)
         }
 
-        func finishDirectDrag(in map: MKMapView, commit: Bool) {
-            if commit {
-                commitSelection(in: map)
-            } else {
-                pin.coordinate = selectedCenter.appleCoordinate
-            }
-            draggedCenter = nil
+        func finishDirectDrag(in map: MAMapView, commit: Bool) {
+            if let point = selection.finish(commit: commit) { parent.onSelection(point) }
+            pin.coordinate = selectedCenter.appleCoordinate
             dragOrigin = nil
             updateCircle(in: map, force: true)
         }
 
-        func commitSelection(in map: MKMapView) {
-            let displayed = GeoPoint(latitude: pin.coordinate.latitude, longitude: pin.coordinate.longitude)
-            let point = MainlandCoordinates.toWGS84(displayed)
-            if point.isValid {
-                selectedCenter = point
-                updateCircle(in: map)
-                parent.onSelection(point)
-            } else {
+        func commitSelection(in map: MAMapView) {
+            guard selection.move(displayed: pin.coordinate) else {
                 pin.coordinate = selectedCenter.appleCoordinate
+                return
             }
+            finishDirectDrag(in: map, commit: true)
         }
 
-        func mapViewDidFinishRenderingMap(_ mapView: MKMapView, fullyRendered: Bool) {
-            guard fullyRendered, selectedCenter.isValid else { return }
+        func mapViewDidFinishLoadingMap(_ mapView: MAMapView!) {
+            guard selectedCenter.isValid else { return }
             loadTimeout?.cancel()
             report(true, issue: nil)
         }
 
-        func mapViewDidFailLoadingMap(_ mapView: MKMapView, withError error: Error) {
+        func mapViewDidFailLoadingMap(_ mapView: MAMapView!, withError error: Error!) {
             report(false, issue: "Map unavailable. Check your internet connection.")
         }
 
         private func report(_ available: Bool, issue: String?) {
-            guard self.available != available || self.issue != issue else { return }
-            self.available = available
-            self.issue = issue
+            guard selection.report(available: available, issue: issue) else { return }
             DispatchQueue.main.async { [weak self] in
                 self?.parent.onState(available, issue)
             }
@@ -299,3 +297,17 @@ private final class PinPanGestureRecognizer: UIPanGestureRecognizer {
         super.touchesBegan(touches, with: event)
     }
 }
+
+#else
+struct SafeZoneMapView: View {
+    let initialCenter: GeoPoint
+    let radiusMeters: Int
+    let onSelection: (GeoPoint) -> Void
+    let onState: (Bool, String?) -> Void
+    var bottomOverlayInset: CGFloat = 12
+    var body: some View {
+        AMapCanvas(camera: .constant(.automatic), bottomOverlayInset: bottomOverlayInset)
+            .onAppear { onState(false, "AMap requires a physical iPhone on this simulator runtime.") }
+    }
+}
+#endif

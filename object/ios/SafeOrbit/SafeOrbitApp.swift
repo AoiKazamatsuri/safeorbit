@@ -1,14 +1,37 @@
 import SwiftUI
 
 @main struct SafeOrbitApp: App {
-    // Temporarily open the home screen; OnboardingRoot retains the account flow.
-    var body: some Scene { WindowGroup { HomeRoot() } }
+    // Role choice is available; account and binding flows remain paused.
+    var body: some Scene { WindowGroup { DemoRoleRoot() } }
+}
+struct DemoRoleRoot: View {
+    @StateObject private var router = DemoRoleRouter()
+    var body: some View {
+        Group {
+            switch router.role {
+            case .caregiver: HomeRoot(chooseRole: router.returnToSelection)
+            case .elder: ElderRoot(chooseRole: router.returnToSelection)
+            case nil:
+                NavigationStack {
+                    RolePage(family: { router.choose(.caregiver) }, elder: { router.choose(.elder) })
+                }
+            }
+        }.preferredColorScheme(.light)
+    }
+}
+private struct ElderRoot: View {
+    @StateObject private var session = ElderDemoSession(usesLiveNavigation: true)
+    let chooseRole: () -> Void
+    var body: some View {
+        NavigationStack { ElderHomePage(session: session, chooseRole: chooseRole) }
+    }
 }
 struct HomeRoot: View {
+    var chooseRole: (() -> Void)? = nil
     @StateObject private var store = OnboardingStore(homeAccessEnabled: true)
     var body: some View {
         NavigationStack {
-            CaregiverHomePage(store: store)
+            CaregiverHomePage(store: store, chooseRole: chooseRole)
         }
         .tint(OrbitStyle.teal)
         .environment(\.locale, Locale(identifier: "en"))

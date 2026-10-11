@@ -52,7 +52,7 @@ struct CaregiverTopBar<Content: View>: View {
 
 extension View {
     /// Keep the shadow on the card silhouette; applying it to the whole view also shadows its contents.
-    func caregiverCard(radius: CGFloat = 25, opacity: Double = 0.14) -> some View {
+    func caregiverCard(radius: CGFloat = 24, opacity: Double = 0.14) -> some View {
         background {
             RoundedRectangle(cornerRadius: radius)
                 .fill(.white)
@@ -79,5 +79,38 @@ private struct RecordingFont: ViewModifier {
 extension View {
     func recordingFont(_ size: CGFloat, weight: Font.Weight = .regular) -> some View {
         modifier(RecordingFont(size: max(10, size), weight: size <= 10 ? .medium : weight))
+    }
+}
+
+// SF Pro is the system's default design. Keep the two audiences' scales separate.
+enum CaregiverTextStyle: CaseIterable {
+    case body, secondary, caption
+    var size: CGFloat { switch self { case .body: 16; case .secondary: 14; case .caption: 10 } }
+    var weight: Font.Weight { self == .secondary ? .regular : .medium }
+}
+enum ElderTextStyle: CaseIterable {
+    case heading, body
+    var size: CGFloat { self == .heading ? 24 : 20 }
+}
+private struct OrbitTextFont: ViewModifier {
+    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 16
+    let weight: Font.Weight
+    init(size: CGFloat, weight: Font.Weight) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: .body)
+        self.weight = weight
+    }
+    func body(content: Content) -> some View {
+        content.font(.system(size: max(10, size), weight: weight, design: .default))
+    }
+}
+extension View {
+    func caregiverText(_ style: CaregiverTextStyle = .body) -> some View {
+        modifier(OrbitTextFont(size: style.size, weight: style.weight))
+    }
+    func elderText(_ style: ElderTextStyle = .body) -> some View {
+        modifier(OrbitTextFont(size: style.size, weight: .medium))
+    }
+    func orbitDisplayFont(_ size: CGFloat, weight: Font.Weight = .medium) -> some View {
+        modifier(OrbitTextFont(size: size, weight: weight))
     }
 }

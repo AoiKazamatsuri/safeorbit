@@ -1,0 +1,43 @@
+未独立验证。所有下列成功读数均由执行者代跑，未记录用户验收。
+
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never -resultBundlePath /private/tmp/safeorbit-t14-verified.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/safeorbit-t14-verified.log 2>&1
+退出码：0
+Elder layout design home: ["go-home": (24.0, 794.0, 152.32, 50.0), "call-family": (190.31999999999996, 794.0, 187.68000000000004, 50.0)]
+Elder layout design navigation: ["guidance-card": (30.0, 658.0, 342.0, 116.0), "call-family": (22.0, 794.0, 358.0, 50.0)]
+Elder layout design call: ["dismiss-call": (326.0, 114.0, 44.0, 44.0), "call-card": (30.0, 728.0, 342.0, 116.0)]
+Elder layout design settings: ["go-home": (24.0, 794.0, 152.32, 50.0), "call-family": (190.31999999999996, 794.0, 187.68000000000004, 50.0)]
+Elder layout design role: [:]
+	 Executed 6 tests, with 0 failures (0 unexpected) in 56.431 (56.435) seconds
+	 Executed 21 tests, with 0 failures (0 unexpected) in 22.877 (22.883) seconds
+	 Executed 18 tests, with 0 failures (0 unexpected) in 19.054 (19.058) seconds
+	 Executed 6 tests, with 0 failures (0 unexpected) in 10.138 (10.139) seconds
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.008 (0.009) seconds
+	 Executed 13 tests, with 0 failures (0 unexpected) in 12.195 (12.200) seconds
+	 Executed 66 tests, with 0 failures (0 unexpected) in 120.703 (120.726) seconds
+	 Executed 66 tests, with 0 failures (0 unexpected) in 120.703 (120.726) seconds
+** TEST SUCCEEDED **
+
+xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/safeorbit-typography-release CODE_SIGNING_ALLOWED=NO build > /private/tmp/safeorbit-t14-release.log 2>&1
+退出码：0
+** BUILD SUCCEEDED **
+
+sh object/dev/queue.sh check > /private/tmp/safeorbit-t14-queue.log 2>&1
+退出码：0
+{"ok": true, "protection": "ready", "seq": 358, "tasks": 14, "protocol": 2}
+
+GIT_INDEX_FILE=/private/tmp/safeorbit-t14-review.index git read-tree HEAD
+退出码：0
+GIT_INDEX_FILE=/private/tmp/safeorbit-t14-review.index git add -- .shell/queue/ledger.jsonl queue/tasks object/ios object/dev/generate-ios.mjs
+退出码：0（需沙箱外写Git对象；真实索引不变）
+GIT_INDEX_FILE=/private/tmp/safeorbit-t14-review.index sh object/dev/queue.sh check --staged > /private/tmp/safeorbit-t14-staged-verified.log 2>&1
+退出码：0
+{"ok": true, "checked": "staged", "seq": 358}
+
+git diff --check
+退出码：0，输出为空
+git diff --cached --stat
+退出码：0，输出为空（真实索引保持未暂存）
+
+修复与重跑说明：首次字体构建缺少ScaledMetric初值，修复后59项测试通过；老人首轮编译把annotationTitles用于Map，改到各Annotation。截图发现初始地图未及时定位及空标题标注消失，补上地图出现时设置取景并采用具名标注隐藏标题。两次模拟器测试重装互相中断，均退出65，后续改为顺序测试。新增布局检查一次使用局部坐标测量关闭按钮，退出65；改用屏幕坐标并在真实渲染后读取后，老人6项及最终完整66项全部通过。没有忽略失败或删掉该检查。
+
+无新增第三方依赖；SF Pro、SwiftUI、Charts、MapKit、AVFoundation均为系统能力。真实语音听感、真机地图与定位未验证。截图为实际原生视图，地图和系统状态以运行环境为准。

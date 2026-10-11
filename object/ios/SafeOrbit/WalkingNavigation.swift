@@ -4,9 +4,11 @@ import MapKit
 import AVFoundation
 
 enum NavigationIssue: Error, LocalizedError, Equatable {
-    case missingDestination, staleDestination, locationDenied, locationUnavailable, routeUnavailable
+    case missingDestination, missingHome, staleDestination, locationDenied, locationUnavailable, routeUnavailable, sdkNotReady
     var errorDescription: String? {
         switch self {
+        case .missingHome: return "Set a home location before starting navigation."
+        case .sdkNotReady: return "Map services are unavailable. Enable map services or use a physical iPhone."
         case .missingDestination: return "Senior location is unavailable."
         case .staleDestination: return "Senior location is out of date. Refresh and try again."
         case .locationDenied: return "Allow location access in Settings to plan a route."
@@ -63,133 +65,6 @@ extension WalkingRouteProvider {
     func cancelRoute() {}
 }
 
-@MainActor final class AppleWalkingRouteProvider: NSObject, WalkingRouteProvider, CLLocationManagerDelegate {
-    private let manager = CLLocationManager()
-    private var locationContinuation: CheckedContinuation<GeoPoint, Error>?
-    private var locationRequestID: UUID?
-    private var timeout: Task<Void, Never>?
-    private var receive: ((Result<NavigationFix, NavigationIssue>) -> Void)?
-    private var headingReceiver: ((NavigationHeading) -> Void)?
-    private var directions: MKDirections?
-    override init() {
-        super.init()
-        manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyBest
-        manager.distanceFilter = kCLDistanceFilterNone
-        manager.activityType = .fitness
-    }
-    func currentPoint() async throws -> GeoPoint {
-        guard CLLocationManager.locationServicesEnabled(), manager.authorizationStatus != .denied,
-              manager.authorizationStatus != .restricted else { throw NavigationIssue.locationDenied }
-        guard locationContinuation == nil else { throw NavigationIssue.locationUnavailable }
-        let requestID = UUID()
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                locationRequestID = requestID
-                locationContinuation = continuation
-                timeout = Task { [weak self] in
-                    do { try await Task.sleep(for: .seconds(15)) } catch { return }
-                    self?.completeLocation(.failure(NavigationIssue.locationUnavailable))
-                }
-                if manager.authorizationStatus == .notDetermined { manager.requestWhenInUseAuthorization() }
-                else if receive != nil { manager.startUpdatingLocation() }
-                else { manager.requestLocation() }
-            }
-        } onCancel: {
-            Task { @MainActor [weak self] in
-                guard self?.locationRequestID == requestID else { return }
-                self?.completeLocation(.failure(CancellationError()))
-            }
-        }
-    }
-    func startUpdates(_ receive: @escaping (Result<NavigationFix, NavigationIssue>) -> Void) {
-        self.receive = receive
-        guard CLLocationManager.locationServicesEnabled() else { receive(.failure(.locationDenied)); return }
-        handleAuthorization(manager.authorizationStatus)
-    }
-    func startHeadingUpdates(_ receive: @escaping (NavigationHeading) -> Void) {
-        headingReceiver = receive
-        handleAuthorization(manager.authorizationStatus)
-    }
-    func stopUpdates() {
-        headingReceiver = nil
-        manager.stopUpdatingHeading()
-        receive = nil
-        manager.stopUpdatingLocation()
-        completeLocation(.failure(CancellationError()))
-    }
-    func cancelRoute() { directions?.cancel(); directions = nil }
-    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        let status = manager.authorizationStatus
-        Task { @MainActor [weak self] in self?.handleAuthorization(status) }
-    }
-    private func handleAuthorization(_ status: CLAuthorizationStatus) {
-        switch status {
-        case .authorizedAlways, .authorizedWhenInUse:
-            if receive != nil { manager.startUpdatingLocation() }
-            else if locationContinuation != nil { manager.requestLocation() }
-            if headingReceiver != nil, CLLocationManager.headingAvailable() { manager.startUpdatingHeading() }
-        case .denied, .restricted:
-            receive?(.failure(.locationDenied))
-            completeLocation(.failure(NavigationIssue.locationDenied))
-        default: break
-        }
-    }
-    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
-        let fix = NavigationFix(point: GeoPoint(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude),
-                                accuracy: location.horizontalAccuracy, timestamp: location.timestamp, course: location.course)
-        Task { @MainActor [weak self] in
-            self?.receive?(.success(fix))
-            if fix.isUsable(at: Date()) { self?.completeLocation(.success(fix.point)) }
-        }
-    }
-    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading heading: CLHeading) {
-        let sample = NavigationHeading(degrees: heading.trueHeading >= 0 ? heading.trueHeading : heading.magneticHeading,
-                                       accuracy: heading.headingAccuracy, timestamp: heading.timestamp)
-        Task { @MainActor [weak self] in self?.headingReceiver?(sample) }
-    }
-    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        Task { @MainActor [weak self] in
-            self?.receive?(.failure(.locationUnavailable))
-            self?.completeLocation(.failure(NavigationIssue.locationUnavailable))
-        }
-    }
-    private func completeLocation(_ result: Result<GeoPoint, Error>) {
-        timeout?.cancel(); timeout = nil
-        let continuation = locationContinuation; locationContinuation = nil; locationRequestID = nil
-        continuation?.resume(with: result)
-    }
-    func route(from: GeoPoint, to: GeoPoint) async throws -> WalkingRoute {
-        let request = MKDirections.Request()
-        request.source = MKMapItem(placemark: MKPlacemark(coordinate: from.appleCoordinate))
-        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: to.appleCoordinate))
-        request.transportType = .walking
-        request.requestsAlternateRoutes = false
-        let calculation = MKDirections(request: request)
-        directions = calculation
-        defer { if directions === calculation { directions = nil } }
-        let result: MKDirections.Response
-        do {
-            result = try await withTaskCancellationHandler { try await calculation.calculate() }
-                onCancel: { calculation.cancel() }
-        } catch {
-            if Task.isCancelled { throw CancellationError() }
-            throw NavigationIssue.routeUnavailable
-        }
-        guard let route = result.routes.first, route.polyline.pointCount > 1 else { throw NavigationIssue.routeUnavailable }
-        func coordinates(_ polyline: MKPolyline) -> [CLLocationCoordinate2D] {
-            let points = polyline.points()
-            return (0..<polyline.pointCount).map { points[$0].coordinate }
-        }
-        let segments = route.steps.filter { !$0.instructions.isEmpty && $0.distance > 0 && $0.polyline.pointCount > 1 }.map {
-            WalkingStep(instruction: $0.instructions, coordinates: coordinates($0.polyline), distanceMeters: $0.distance)
-        }
-        return WalkingRoute(coordinates: coordinates(route.polyline), distanceMeters: route.distance,
-                            expectedSeconds: route.expectedTravelTime, steps: segments.map(\.instruction), segments: segments)
-    }
-}
-
 @MainActor protocol NavigationSpeaking {
     func speak(_ text: String)
     func stop()
@@ -198,13 +73,13 @@ extension WalkingRouteProvider {
     private let synthesizer = AVSpeechSynthesizer()
     func speak(_ text: String) {
         let utterance = AVSpeechUtterance(string: text)
-        // The app currently uses English copy, including MapKit directions where available.
+        // Route instructions follow the English language setting configured in AMapRuntime.
         synthesizer.speak(utterance)
     }
     func stop() { synthesizer.stopSpeaking(at: .immediate) }
 }
 
-/// Projection onto the actual route geometry, in the same display coordinates as MapKit.
+/// Projection onto the actual route geometry, in the GCJ-02 display coordinates returned by AMap.
 struct RouteProjection {
     let along: Double
     let offRoute: Double
@@ -226,6 +101,8 @@ struct RouteProjection {
     }
 }
 
+enum NavigationDestinationKind { case senior, home }
+
 @MainActor final class WalkingNavigationModel: ObservableObject {
     @Published private(set) var route: WalkingRoute?
     @Published private(set) var issue: NavigationIssue?
@@ -242,6 +119,8 @@ struct RouteProjection {
     @Published private(set) var stepIndex = 0
     @Published private(set) var turnMeters = 0.0
     @Published private(set) var muted = false
+    let destinationKind: NavigationDestinationKind
+    let isDemoRoute: Bool
     private let provider: WalkingRouteProvider
     private let voice: NavigationSpeaking
     private let now: () -> Date
@@ -255,10 +134,14 @@ struct RouteProjection {
     private var stepEnds: [Double] = []
     @Published private var needsReplan = false
     private var planningTask: Task<Void, Never>?
-    init(provider: WalkingRouteProvider, voice: NavigationSpeaking? = nil, now: @escaping () -> Date = Date.init) {
+    init(provider: WalkingRouteProvider, voice: NavigationSpeaking? = nil, now: @escaping () -> Date = Date.init, destinationKind: NavigationDestinationKind = .senior, isDemoRoute: Bool = false) {
+        self.isDemoRoute = isDemoRoute
+        self.destinationKind = destinationKind
         self.provider = provider; self.voice = voice ?? NavigationVoice(); self.now = now
     }
-    convenience init() { self.init(provider: AppleWalkingRouteProvider()) }
+    convenience init(destinationKind: NavigationDestinationKind = .senior) {
+        self.init(provider: AMapWalkingRouteProvider(), destinationKind: destinationKind)
+    }
     /// Use device facing direction when stationary; route tangent keeps unsupported devices useful.
     var markerHeading: Double? {
         if let heading, heading.isUsable(at: now()) { return heading.degrees }
@@ -280,11 +163,11 @@ struct RouteProjection {
         return bearing
     }
     var instruction: String {
-        if arrived { return "Arrived near the senior’s latest location" }
+        if arrived { return arrivalInstruction }
         if suspended { return "Navigation paused" }
         if let issue { return issue.localizedDescription }
         if loading { return "Finding a walking route…" }
-        if needsReplan { return "Updating route to the senior’s latest location…" }
+        if needsReplan { return destinationKind == .home ? "Updating route home…" : "Updating route to the senior’s latest location…" }
         guard let route, route.steps.indices.contains(stepIndex) else { return "Follow the highlighted route" }
         return route.steps[stepIndex]
     }
@@ -296,8 +179,12 @@ struct RouteProjection {
         if text.contains("right") || text.contains("右") { return "arrow.turn.up.right" }
         return "arrow.up"
     }
+    private var arrivalInstruction: String {
+        destinationKind == .home ? "Arrived home" : "Arrived near the senior’s latest location"
+    }
     private func validDestination(_ snapshot: ElderLocationSnapshot?) -> NavigationIssue? {
-        guard let snapshot, snapshot.coordinate.isValid else { return .missingDestination }
+        guard let snapshot, snapshot.coordinate.isValid else { return destinationKind == .home ? .missingHome : .missingDestination }
+        if destinationKind == .home { return nil }
         let age = now().timeIntervalSince(snapshot.recordedAt)
         return age > 300 || age < -60 ? .staleDestination : nil
     }
@@ -362,7 +249,7 @@ struct RouteProjection {
     }
     func updateDestination(_ snapshot: ElderLocationSnapshot?) {
         guard isPresented, !arrived else { return }
-        if let snapshot, let old = destination, snapshot.recordedAt <= old.recordedAt { return }
+        if destinationKind == .senior, let snapshot, let old = destination, snapshot.recordedAt <= old.recordedAt { return }
         let wasStale = validDestination(destination) != nil
         destination = snapshot
         if let failure = validDestination(snapshot) { issue = failure; resetEvidence(); voice.stop(); return }
@@ -392,7 +279,7 @@ struct RouteProjection {
             }
             return
         }
-        if issue == .staleDestination || issue == .missingDestination { needsReplan = true }
+        if issue == .staleDestination || issue == .missingDestination || issue == .missingHome { needsReplan = true }
         if needsReplan && !loading && now().timeIntervalSince(lastPlanningAt ?? .distantPast) >= 30 {
             scheduleReplan()
         }
@@ -415,7 +302,7 @@ struct RouteProjection {
         if arrivalCount >= 3 {
             arrived = true; remainingMeters = 0; remainingSeconds = 0; estimatedArrival = now()
             provider.stopUpdates(); provider.cancelRoute(); voice.stop()
-            if !muted { voice.speak("Arrived near the senior’s latest location") }
+            if !muted { voice.speak(arrivalInstruction) }
             return
         }
         let ratio = projection.length > 0 ? min(1, max(0, projection.along / projection.length)) : 0
@@ -458,3 +345,45 @@ struct RouteProjection {
         meters >= 1000 ? String(format: "%.1f km", meters / 1000) : "\(Int(meters.rounded())) m"
     }
 }
+
+#if targetEnvironment(simulator)
+/// Fixed road geometry for the simulator preview; never provides device GPS or an SDK route.
+@MainActor final class PreviewWalkingRouteProvider: WalkingRouteProvider {
+    private var updates: Task<Void, Never>?
+    func currentPoint() async throws -> GeoPoint { LocationPreviewData.startingPoint }
+    func route(from: GeoPoint, to: GeoPoint) async throws -> WalkingRoute {
+        guard from == LocationPreviewData.startingPoint, to == LocationPreviewData.campus else {
+            throw NavigationIssue.routeUnavailable
+        }
+        let points = LocationPreviewData.trail.map(\.appleCoordinate)
+        let first = Array(points.prefix(4)), second = Array(points.dropFirst(3))
+        func length(_ points: [CLLocationCoordinate2D]) -> Double {
+            zip(points, points.dropFirst()).reduce(0) { sum, pair in
+                sum + CLLocation(latitude: pair.0.latitude, longitude: pair.0.longitude)
+                    .distance(from: CLLocation(latitude: pair.1.latitude, longitude: pair.1.longitude))
+            }
+        }
+        let distance = length(points)
+        let instructions = ["Turn right onto Ninghai Road", "Continue to the senior’s location"]
+        return WalkingRoute(coordinates: points, distanceMeters: distance,
+            expectedSeconds: distance / 1.2, steps: instructions,
+            segments: [WalkingStep(instruction: instructions[0], coordinates: first, distanceMeters: length(first)),
+                       WalkingStep(instruction: instructions[1], coordinates: second, distanceMeters: length(second))])
+    }
+    func startUpdates(_ receive: @escaping (Result<NavigationFix, NavigationIssue>) -> Void) {
+        updates?.cancel()
+        updates = Task { @MainActor in
+            while !Task.isCancelled {
+                receive(.success(NavigationFix(point: LocationPreviewData.startingPoint,
+                    accuracy: 5, timestamp: Date(), course: 100)))
+                do { try await Task.sleep(for: .seconds(1)) } catch { return }
+            }
+        }
+    }
+    func startHeadingUpdates(_ receive: @escaping (NavigationHeading) -> Void) {
+        receive(NavigationHeading(degrees: 100, accuracy: 5, timestamp: Date()))
+    }
+    func stopUpdates() { updates?.cancel(); updates = nil }
+    func cancelRoute() {}
+}
+#endif

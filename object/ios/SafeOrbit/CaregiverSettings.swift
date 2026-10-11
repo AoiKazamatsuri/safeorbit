@@ -393,7 +393,7 @@ struct SettingsPage<Content: View>: View {
         VStack(spacing: 0) {
             CaregiverTopBar {
                 ZStack {
-                    Text(title).font(.system(size: 27, weight: .semibold))
+                    Text(title).orbitDisplayFont(20)
                         .lineLimit(1).minimumScaleFactor(0.7).padding(.horizontal, 58).accessibilityAddTraits(.isHeader)
                     HStack {
                         Button(action: back) { Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold)).frame(width: 48, height: 44) }
@@ -415,7 +415,7 @@ struct SettingsPage<Content: View>: View {
             Color(uiColor: .systemGroupedBackground)
                 .ignoresSafeArea(.container, edges: .bottom)
         }
-        .tint(OrbitStyle.teal).preferredColorScheme(.light)
+        .caregiverText().tint(OrbitStyle.teal).preferredColorScheme(.light)
         .toolbar(.hidden, for: .navigationBar)
         .scrollDismissesKeyboard(.interactively)
     }
@@ -425,7 +425,7 @@ struct SettingsCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) { content }
             .padding(18).frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white, in: RoundedRectangle(cornerRadius: 22))
+            .background(.white, in: RoundedRectangle(cornerRadius: 24))
     }
 }
 struct SettingsSection<Content: View>: View {
@@ -434,7 +434,7 @@ struct SettingsSection<Content: View>: View {
     init(_ title: String, @ViewBuilder content: () -> Content) { self.title = title; self.content = content() }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.headline).padding(.horizontal, 6).accessibilityAddTraits(.isHeader)
+            Text(title).caregiverText().padding(.horizontal, 6).accessibilityAddTraits(.isHeader)
             content
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -450,7 +450,7 @@ struct SettingsPrivacyPage: View {
 struct SettingsNote: View {
     let text: String
     var body: some View {
-        Text(text).font(.system(size: 14)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        Text(text).caregiverText(.secondary).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -459,9 +459,9 @@ struct SettingsField: View {
     @Binding var value: String
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(label).font(.system(size: 14, weight: .medium)).foregroundStyle(.secondary)
-            TextField(label, text: $value).font(.system(size: 17)).padding(.horizontal, 16).padding(.vertical, 13)
-                .background(RoundedRectangle(cornerRadius: 22).stroke(OrbitStyle.teal.opacity(0.35), lineWidth: 1))
+            Text(label).caregiverText(.secondary).foregroundStyle(.secondary)
+            TextField(label, text: $value).caregiverText().padding(.horizontal, 16).padding(.vertical, 13)
+                .background(RoundedRectangle(cornerRadius: 24).stroke(OrbitStyle.teal.opacity(0.35), lineWidth: 1))
                 .accessibilityLabel(label)
         }
     }
@@ -478,19 +478,19 @@ struct SettingsPhotoPicker: View {
                 if compact {
                     HStack(spacing: 14) {
                         ProfileAvatar(photo: photo, size: 48)
-                        Text("Change photo").font(.system(size: 16, weight: .medium))
+                        Text("Change photo").caregiverText()
                         Spacer()
                     }.frame(minHeight: 48)
                 } else {
                     VStack(spacing: 10) {
                         ProfileAvatar(photo: photo, size: 86)
-                        Text("Change photo").font(.system(size: 14, weight: .medium))
+                        Text("Change photo").caregiverText(.secondary)
                     }
                 }
             }.disabled(loading)
             if loading { ProgressView() }
-            if photo != nil { Button("Remove photo") { photo = nil; selection = nil }.font(.footnote) }
-            if let error { Text(error).font(.footnote).foregroundStyle(.red) }
+            if photo != nil { Button("Remove photo") { photo = nil; selection = nil }.caregiverText(.caption) }
+            if let error { Text(error).caregiverText(.caption).foregroundStyle(.red) }
         }.frame(maxWidth: .infinity).onChange(of: selection) { _, item in
             Task { await load(item) }
         }
@@ -565,7 +565,7 @@ struct CaregiverSettingsDetail: View {
                 Image(systemName: "person.crop.circle").font(.title2).foregroundStyle(OrbitStyle.teal)
                 Text(member.name).foregroundStyle(.primary)
                 Spacer()
-                Image(systemName: "chevron.right").font(.footnote).foregroundStyle(.tertiary)
+                Image(systemName: "chevron.right").caregiverText(.caption).foregroundStyle(.tertiary)
             }.frame(minHeight: 44).contentShape(Rectangle())
         }
     }
@@ -588,7 +588,7 @@ struct CaregiverSettingsDetail: View {
             HStack(spacing: 12) {
                 Label("High-risk alerts", systemImage: "exclamationmark.shield")
                 Spacer(minLength: 8)
-                Text("Always on").font(.subheadline).foregroundStyle(.secondary)
+                Text("Always on").caregiverText(.secondary).foregroundStyle(.secondary)
             }.frame(minHeight: 44)
         }
     }
@@ -602,10 +602,10 @@ struct CaregiverSettingsDetail: View {
                         Image(systemName: "mappin.circle").font(.title2).foregroundStyle(OrbitStyle.teal)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(zone.name).foregroundStyle(.primary)
-                            Text("\(Int(zone.radiusMeters)) m radius").font(.subheadline).foregroundStyle(.secondary)
+                            Text("\(Int(zone.radiusMeters)) m radius").caregiverText(.secondary).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Image(systemName: "chevron.right").font(.footnote).foregroundStyle(.tertiary)
+                        Image(systemName: "chevron.right").caregiverText(.caption).foregroundStyle(.tertiary)
                     }.frame(minHeight: 44)
                 }.accessibilityLabel("Edit " + zone.name + " safe zone")
                 Divider()
@@ -641,7 +641,7 @@ struct CaregiverSettingsDetail: View {
                     HStack {
                         Label("Privacy Policy", systemImage: "hand.raised")
                         Spacer()
-                        Image(systemName: "chevron.right").font(.footnote).foregroundStyle(.tertiary)
+                        Image(systemName: "chevron.right").caregiverText(.caption).foregroundStyle(.tertiary)
                     }.frame(minHeight: 44)
                 }.foregroundStyle(.primary)
                 Divider()
@@ -735,7 +735,7 @@ struct SettingsProfilesFamilyPage: View {
                 Image(systemName: "person.crop.circle").font(.title2).foregroundStyle(OrbitStyle.teal)
                 Text(member.name).foregroundStyle(.primary)
                 Spacer()
-                Image(systemName: "chevron.right").font(.footnote).foregroundStyle(.tertiary)
+                Image(systemName: "chevron.right").caregiverText(.caption).foregroundStyle(.tertiary)
             }.frame(minHeight: 44).contentShape(Rectangle())
         }
     }
@@ -755,15 +755,15 @@ struct SettingsProfileSection: View {
             if draft.senior {
                 SettingsField(label: "Relationship to you", value: $draft.relationship)
                 Divider()
-                Text("Emergency contacts").font(.subheadline.weight(.medium)).accessibilityAddTraits(.isHeader)
-                if draft.contacts.isEmpty { Text("No emergency contacts added.").font(.footnote).foregroundStyle(.secondary) }
+                Text("Emergency contacts").caregiverText().accessibilityAddTraits(.isHeader)
+                if draft.contacts.isEmpty { Text("No emergency contacts added.").caregiverText(.caption).foregroundStyle(.secondary) }
                 ForEach(draft.contacts) { contact in
                     HStack {
                         Button { draft.editingContact = contact } label: {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(contact.name).font(.system(size: 17, weight: .medium))
-                                Text(contact.relationship).font(.subheadline).foregroundStyle(.secondary)
-                                Text(contact.phone).font(.subheadline).foregroundStyle(.secondary)
+                                Text(contact.name).caregiverText()
+                                Text(contact.relationship).caregiverText(.secondary).foregroundStyle(.secondary)
+                                Text(contact.phone).caregiverText(.secondary).foregroundStyle(.secondary)
                             }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         }.accessibilityLabel("Edit " + contact.name)
                         Button { draft.removingContact = contact } label: { Image(systemName: "minus.circle").frame(width: 44, height: 44) }
@@ -781,9 +781,9 @@ struct SettingsProfileSection: View {
                 .accessibilityLabel(draft.senior ? "Save senior profile" : "Save account settings")
             if !draft.valid {
                 Text(draft.senior ? "Enter a name, valid phone number and relationship." : "Enter a name, valid phone number and valid email if provided.")
-                    .font(.footnote).foregroundStyle(.red)
+                    .caregiverText(.caption).foregroundStyle(.red)
             }
-            if draft.saved { Label("Saved", systemImage: "checkmark.circle.fill").font(.subheadline).foregroundStyle(OrbitStyle.teal) }
+            if draft.saved { Label("Saved", systemImage: "checkmark.circle.fill").caregiverText(.secondary).foregroundStyle(OrbitStyle.teal) }
         }
         .confirmationDialog("Remove this emergency contact?", isPresented: Binding(get: { draft.removingContact != nil }, set: { if !$0 { draft.removingContact = nil } }), titleVisibility: .visible) {
             Button("Remove contact", role: .destructive) {
@@ -861,8 +861,8 @@ struct SettingsMemberDetail: View {
     }
     private func detail(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.system(size: 14)).foregroundStyle(.secondary)
-            Text(value.isEmpty ? "Not provided" : value).font(.system(size: 17))
+            Text(title).caregiverText(.secondary).foregroundStyle(.secondary)
+            Text(value.isEmpty ? "Not provided" : value).caregiverText()
         }
     }
 }

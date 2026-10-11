@@ -2,4 +2,8 @@ IPHONEOS_DEPLOYMENT_TARGET = 17.0
 SWIFT_VERSION = 5.0
 TARGETED_DEVICE_FAMILY = 1
 SAFEORBIT_SERVER_URL = http:/$()/127.0.0.1:3000
+AMAP_API_KEY =
+FRAMEWORK_SEARCH_PATHS = $(inherited) "$(SRCROOT)/.build/AMap"
+OTHER_LDFLAGS[sdk=iphoneos*] = $(inherited) -ObjC -lc++ -lz -lsqlite3 -framework AMapFoundationKit -framework AMapNaviKit -framework AMapLocationKit -framework AMapSearchKit -framework GLKit -framework OpenGLES -framework CoreTelephony -framework SystemConfiguration -framework Security -framework JavaScriptCore -framework ExternalAccessory -framework WebKit
+OTHER_LDFLAGS[sdk=iphonesimulator*] = $(inherited)
 #include? "Local.xcconfig"

@@ -78,11 +78,12 @@ enum CaregiverRiskState: String {
 
 struct CaregiverTabBar: View {
     @Binding var selection: CaregiverTab
+    var onSelection: ((CaregiverTab) -> Void)? = nil
     var body: some View {
         CaregiverBottomOverlay {
         HStack(spacing: 0) {
             ForEach(CaregiverTab.allCases, id: \.self) { tab in
-                Button { selection = tab } label: {
+                Button { onSelection?(tab); selection = tab } label: {
                     Image(systemName: tab.symbol)
                         .font(.system(size: 28, weight: .semibold))
                         .frame(maxWidth: .infinity).frame(height: CaregiverBottomLayout.buttonHeight)
@@ -102,18 +103,28 @@ struct CaregiverTabBar: View {
 
 struct CaregiverHomePage: View {
     @ObservedObject var store: OnboardingStore
+    let chooseRole: (() -> Void)?
     @StateObject private var zoneStore = SafeZoneSessionStore()
     @StateObject private var settingsStore = CaregiverSettingsStore()
+    @StateObject private var agentSessions = AgentSessionStore()
     @State private var selectedSettings: CaregiverSettingsGroup?
     @State private var tab: CaregiverTab = .location
-    @StateObject private var navigation = WalkingNavigationModel()
+    @StateObject private var navigation: WalkingNavigationModel
     @State private var showingSettings: Bool
     @State private var keyboardVisible = false
     @State private var recordsDetailPresented = false
     @State private var zoneEditorPresented = false
-    init(store: OnboardingStore, settingsInitiallyOpen: Bool = false) {
+    init(store: OnboardingStore, settingsInitiallyOpen: Bool = false, chooseRole: (() -> Void)? = nil) {
         self.store = store
+        self.chooseRole = chooseRole
         _showingSettings = State(initialValue: settingsInitiallyOpen)
+        #if targetEnvironment(simulator)
+        _navigation = StateObject(wrappedValue: store.previewSession
+            ? WalkingNavigationModel(provider: PreviewWalkingRouteProvider(), isDemoRoute: true)
+            : WalkingNavigationModel())
+        #else
+        _navigation = StateObject(wrappedValue: WalkingNavigationModel())
+        #endif
     }
     private var riskState: CaregiverRiskState {
 #if DEBUG
@@ -130,7 +141,10 @@ struct CaregiverHomePage: View {
                 LocationPage(profile: store.elder, snapshot: store.location,
                              message: store.locationError, loading: store.locationLoading,
                              refresh: { Task { await store.refreshLocation() } },
-                             agent: { tab = .agent }, navigate: { Task { await navigation.start(to: store.location) } },
+                             agent: { agentSessions.showList(); tab = .agent }, navigate: { Task {
+                                 if navigation.isDemoRoute { await store.refreshLocation() }
+                                 await navigation.start(to: store.location)
+                             } },
                              settings: { setSettings(true) }, riskState: riskState,
                              zoneStore: zoneStore, usesPreviewTrail: store.previewSession,
                              navigation: navigation, refreshDestination: { await store.refreshLocation(); return store.location },
@@ -139,7 +153,7 @@ struct CaregiverHomePage: View {
                     .allowsHitTesting(tab == .location)
                     .accessibilityElement(children: tab == .location ? .contain : .ignore)
                     .accessibilityHidden(tab != .location)
-                AgentChatPage(keyboardVisible: keyboardVisible, settings: settingsStore, isActive: tab == .agent && !showingSettings && selectedSettings == nil)
+                AgentSessionPage(sessions: agentSessions, settings: settingsStore, keyboardVisible: keyboardVisible, isActive: tab == .agent && !showingSettings && selectedSettings == nil)
                     .opacity(tab == .agent ? 1 : 0)
                     .allowsHitTesting(tab == .agent)
                     .accessibilityElement(children: tab == .agent ? .contain : .ignore)
@@ -149,8 +163,9 @@ struct CaregiverHomePage: View {
                     .allowsHitTesting(tab == .records)
                     .accessibilityElement(children: tab == .records ? .contain : .ignore)
                     .accessibilityHidden(tab != .records)
-                if !keyboardVisible && !navigation.isPresented && !recordsDetailPresented && !zoneEditorPresented {
-                    CaregiverTabBar(selection: $tab)
+                if !keyboardVisible && !navigation.isPresented && !recordsDetailPresented && !zoneEditorPresented
+                    && (tab != .agent || agentSessions.activeID == nil) {
+                    CaregiverTabBar(selection: $tab, onSelection: { if $0 == .agent { agentSessions.showList() } })
                 }
             }
             .allowsHitTesting(!showingSettings)
@@ -168,6 +183,7 @@ struct CaregiverHomePage: View {
                             primary: settingsStore.data.primaryID == "self",
                             showsPreviewPortrait: store.previewSession,
                             showsLogout: !store.homeAccessEnabled,
+                            chooseRole: chooseRole,
                             select: { selectedSettings = $0 },
                             logout: { Task { await store.signOut(); setSettings(false) } }
                         )
@@ -180,6 +196,7 @@ struct CaregiverHomePage: View {
             .allowsHitTesting(showingSettings)
             .zIndex(2)
         }
+        .caregiverText()
         .toolbar(.hidden, for: .navigationBar)
         .task {
             if store.previewSession { store.elder = settingsStore.data.senior }
@@ -234,79 +251,13 @@ struct LocationPage: View {
     var body: some View {
         GeometryReader { geometry in
         ZStack(alignment: .top) {
-            Map(position: $camera) {
-                if !navigation.isPresented {
-                ForEach(zoneStore.visibleZones(in: snapshot).filter { $0.center.isValid && $0.radiusMeters.isFinite && $0.radiusMeters > 0 }, id: \.renderKey) { zone in
-                        MapCircle(center: zone.center.appleCoordinate, radius: zone.radiusMeters)
-                            .foregroundStyle(OrbitStyle.teal.opacity(0.10))
-                            .stroke(OrbitStyle.teal.opacity(0.35), lineWidth: 1)
-                        Annotation(zone.name, coordinate: zone.center.appleCoordinate, anchor: .bottom) {
-                            Button { zoneEditor = SafeZoneEditorSelection(zone: zone) } label: {
-                                VStack(spacing: 2) {
-                                    Image(systemName: zone.name.lowercased() == "home" ? "house.fill" : "storefront.fill")
-                                        .font(.system(size: 21)).foregroundStyle(.white)
-                                        .frame(width: 39, height: 39).background(OrbitStyle.teal, in: Circle())
-                                    Circle().fill(OrbitStyle.teal).frame(width: 11, height: 11)
-                                }
-                            }
-                            .accessibilityLabel("Edit \(zone.name) safe zone")
-                        }
-                }
-                if let snapshot {
-                    if usesPreviewTrail && snapshot.trail.count > 1 {
-                        MapPolyline(coordinates: snapshot.trail.filter(\.isValid).map(\.appleCoordinate))
-                            .stroke(OrbitMapStyle.blue, style: StrokeStyle(lineWidth: 2.3, lineCap: .round, dash: [4, 5]))
-                    } else if !usesPreviewTrail {
-                        ForEach(Array(snapshot.trail.filter(\.isValid).enumerated()), id: \.offset) { _, sample in
-                            MapCircle(center: sample.appleCoordinate, radius: 2.5)
-                                .foregroundStyle(OrbitMapStyle.blue)
-                        }
-                    }
-                    if let point {
-                        Annotation("Senior", coordinate: point) {
-                            ZStack {
-                                CurrentLocationDot(heading: snapshot.validHeading.map { $0 - visibleHeading },
-                                                   label: "Senior location")
-                                let headline = riskState == .normal ? snapshot.status : riskState.headline
-                                if let headline, !headline.isEmpty, snapshot.isCurrent {
-                                    Text(headline)
-                                        .font(.system(size: 15, weight: .medium))
-                                        .foregroundStyle(riskState == .high ? .white : .black)
-                                        .padding(.horizontal, 17).padding(.vertical, 9)
-                                        .background(riskState == .normal ? .white : riskState.color, in: Capsule())
-                                        .shadow(color: .black.opacity(0.22), radius: 5, y: 3)
-                                        .fixedSize()
-                                        .offset(y: -65)
-                                        .accessibilityLabel(headline)
-                                }
-                            }
-                        }
-                    }
-                }
-                }
-                if navigation.isPresented {
-                    if let route = navigation.route {
-                        MapPolyline(coordinates: route.coordinates)
-                            .stroke(OrbitMapStyle.blue, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
-                    }
-                    if let destination = navigation.destination, destination.coordinate.isValid {
-                        Marker(usesPreviewTrail ? "\(profile.name) · Demo" : profile.name, coordinate: destination.coordinate.appleCoordinate).tint(OrbitMapStyle.blue)
-                    }
-                    if let fix = navigation.fix {
-                        Annotation("Your location", coordinate: fix.point.appleCoordinate) {
-                            CurrentLocationDot(heading: navigation.markerHeading.map { $0 - visibleHeading },
-                                               label: "Your location")
-                        }.annotationTitles(.hidden)
-                    }
-                }
-            }
-            .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
-            .mapControlVisibility(.hidden)
-            .onMapCameraChange(frequency: .onEnd) { context in
+            AMapConsentSurface {
+                AMapCanvas(camera: $camera, markers: mapMarkers, circles: mapCircles,
+                           lines: mapLines, onCameraChange: { context in
                 visibleRegion = context.region
-                visibleHeading = context.camera.heading
+                visibleHeading = context.heading
                 if navigation.isPresented {
-                    if camera.positionedByUser { followsUser = false; showsOverview = false }
+                    if context.wasUserAction { followsUser = false; showsOverview = false }
                     return
                 }
                 guard defaultRegion != nil else { return }
@@ -323,6 +274,7 @@ struct LocationPage: View {
                         || abs(context.region.span.longitudeDelta / baselineVisibleRegion.span.longitudeDelta - 1) > 0.015
                     showingReset = moved || resized
                 }
+            })
             }
             .ignoresSafeArea()
             if !navigation.isPresented {
@@ -347,7 +299,7 @@ struct LocationPage: View {
                         showingReset = false
                     } label: {
                         Label("Back to default view", systemImage: "arrow.uturn.backward")
-                            .font(.system(size: 13, weight: .medium))
+                            .caregiverText(.caption)
                             .padding(.horizontal, 14).padding(.vertical, 9)
                             .background(.white, in: Capsule())
                             .shadow(color: .black.opacity(0.14), radius: 4, y: 2)
@@ -369,9 +321,9 @@ struct LocationPage: View {
                 }.padding(.bottom, 23)
                 if snapshot == nil || snapshot?.isCurrent == false || message != nil {
                     Text(message ?? (snapshot == nil ? "Location is not available yet." : "Senior location is out of date."))
-                        .font(.footnote).foregroundStyle(.primary)
+                        .caregiverText(.caption).foregroundStyle(.primary)
                         .padding(12).frame(maxWidth: .infinity)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 14))
+                        .background(.white, in: RoundedRectangle(cornerRadius: 16))
                         .padding(.bottom, 8)
                 }
                 SeniorLocationCard(profile: profile, snapshot: snapshot, navigate: navigate, riskState: riskState)
@@ -453,6 +405,96 @@ struct LocationPage: View {
             )
         }
     }
+    private var mapCircles: [AMapCircle] {
+        guard !navigation.isPresented else { return [] }
+        var result = zoneStore.visibleZones(in: snapshot).filter {
+            $0.center.isValid && $0.radiusMeters.isFinite && $0.radiusMeters > 0
+        }.map { zone in
+            AMapCircle(id: "zone-" + zone.renderKey, center: zone.center.appleCoordinate,
+                       radius: zone.radiusMeters, fill: OrbitStyle.teal.opacity(0.10),
+                       stroke: OrbitStyle.teal.opacity(0.35))
+        }
+        if !usesPreviewTrail {
+            result += (snapshot?.trail.filter(\.isValid) ?? []).enumerated().map { index, sample in
+                AMapCircle(id: "trail-\(index)", center: sample.appleCoordinate, radius: 2.5,
+                           fill: OrbitMapStyle.blue)
+            }
+        }
+        return result
+    }
+    private var mapLines: [AMapLine] {
+        if navigation.isPresented {
+            return navigation.route.map { [
+                AMapLine(id: "navigation-border", coordinates: $0.coordinates,
+                         color: Color(red: 0.0, green: 0.32, blue: 0.72), width: 12),
+                AMapLine(id: "navigation", coordinates: $0.coordinates,
+                         color: Color(red: 0.0, green: 0.65, blue: 1.0), width: 8)
+            ] } ?? []
+        }
+        guard usesPreviewTrail, let snapshot, snapshot.trail.count > 1 else { return [] }
+        return [AMapLine(id: "preview-trail", coordinates: snapshot.trail.filter(\.isValid).map(\.appleCoordinate),
+                         color: OrbitMapStyle.blue, width: 2.3, dash: [4, 5])]
+    }
+    private var mapMarkers: [AMapMarker] {
+        if navigation.isPresented {
+            var result: [AMapMarker] = []
+            if let route = navigation.route {
+                for index in stride(from: 1, to: route.coordinates.count, by: 2) {
+                    let a = route.coordinates[index - 1], b = route.coordinates[index]
+                    let bearing = atan2((b.longitude - a.longitude) * cos(a.latitude * .pi / 180),
+                                        b.latitude - a.latitude) * 180 / .pi
+                    let center = CLLocationCoordinate2D(latitude: (a.latitude + b.latitude) / 2,
+                                                        longitude: (a.longitude + b.longitude) / 2)
+                    result.append(AMapMarker(id: "route-direction-\(index)", coordinate: center,
+                        content: AnyView(Image(systemName: "chevron.up")
+                            .font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                            .rotationEffect(.degrees(bearing - visibleHeading)).accessibilityHidden(true))))
+                }
+            }
+            if let destination = navigation.destination, destination.coordinate.isValid {
+                result.append(AMapMarker(id: "destination", coordinate: destination.coordinate.appleCoordinate,
+                    anchor: .bottom, content: AnyView(VStack(spacing: 4) {
+                        Text(profile.name)
+                            .caregiverText(.caption).padding(6).background(.white, in: Capsule())
+                        Image(systemName: "mappin.circle.fill").font(.system(size: 36)).foregroundStyle(OrbitMapStyle.blue)
+                    })))
+            }
+            if let fix = navigation.fix {
+                result.append(AMapMarker(id: "self", coordinate: fix.point.appleCoordinate,
+                    content: AnyView(CurrentLocationDot(heading: navigation.markerHeading.map { $0 - visibleHeading },
+                                                       label: "Your location"))))
+            }
+            return result
+        }
+        var result = zoneStore.visibleZones(in: snapshot).filter {
+            $0.center.isValid && $0.radiusMeters.isFinite && $0.radiusMeters > 0
+        }.map { zone in
+            AMapMarker(id: "zone-" + zone.renderKey, coordinate: zone.center.appleCoordinate,
+                anchor: .bottom, content: AnyView(Button { zoneEditor = SafeZoneEditorSelection(zone: zone) } label: {
+                    VStack(spacing: 2) {
+                        Image(systemName: zone.name.lowercased() == "home" ? "house.fill" : "storefront.fill")
+                            .font(.system(size: 21)).foregroundStyle(.white)
+                            .frame(width: 39, height: 39).background(OrbitStyle.teal, in: Circle())
+                        Circle().fill(OrbitStyle.teal).frame(width: 11, height: 11)
+                    }
+                }.accessibilityLabel("Edit \(zone.name) safe zone")))
+        }
+        if let snapshot, let point {
+            let headline = riskState == .normal ? snapshot.status : riskState.headline
+            result.append(AMapMarker(id: "senior", coordinate: point, content: AnyView(ZStack {
+                CurrentLocationDot(heading: snapshot.validHeading.map { $0 - visibleHeading }, label: "Senior location")
+                if let headline, !headline.isEmpty, snapshot.isCurrent {
+                    Text(headline).caregiverText()
+                        .foregroundStyle(riskState == .high ? .white : .black)
+                        .padding(.horizontal, 17).padding(.vertical, 9)
+                        .background(riskState == .normal ? .white : riskState.color, in: Capsule())
+                        .shadow(color: .black.opacity(0.22), radius: 5, y: 3)
+                        .fixedSize().offset(y: -65).accessibilityLabel(headline)
+                }
+            })))
+        }
+        return result
+    }
     private func followCurrentPosition() {
         guard let fix = navigation.fix, fix.point.isValid else { return }
         camera = .camera(MapCamera(centerCoordinate: fix.point.appleCoordinate, distance: 550,
@@ -504,10 +546,13 @@ private struct CaregiverSettingsPanel: View {
     let primary: Bool
     let showsPreviewPortrait: Bool
     let showsLogout: Bool
+    let chooseRole: (() -> Void)?
     let select: (CaregiverSettingsGroup) -> Void
     let logout: () -> Void
 
     var body: some View {
+        GeometryReader { geometry in
+        ScrollView {
         VStack(spacing: 0) {
             HStack(spacing: 14) {
                 Group {
@@ -522,15 +567,15 @@ private struct CaregiverSettingsPanel: View {
                 }
                 .frame(width: 57, height: 57).clipShape(Circle())
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(name).font(.system(size: 18, weight: .semibold)).lineLimit(1)
+                    Text(name).caregiverText().fixedSize(horizontal: false, vertical: true)
                     Text(primary ? "Primary caregiver" : "Caregiver")
-                        .font(.system(size: 11, weight: .medium)).foregroundStyle(.white)
+                        .caregiverText(.caption).foregroundStyle(.white)
                         .padding(.horizontal, 11).padding(.vertical, 4)
                         .background(OrbitStyle.teal, in: Capsule())
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 13).frame(height: 84)
+            .padding(.horizontal, 13).padding(.vertical, 12).frame(minHeight: 84)
             .background(.white, in: Capsule())
             .padding(.horizontal, 27)
             .padding(.top, 57)
@@ -551,12 +596,12 @@ private struct CaregiverSettingsPanel: View {
                                         .frame(width: 30)
                                 }
                                 Text(item.rawValue)
-                                    .font(.system(size: 16, weight: .medium))
+                                    .caregiverText()
                                     .lineLimit(2)
                                 Spacer(minLength: 0)
                             }
                             .foregroundStyle(.black)
-                            .frame(height: 52)
+                            .padding(.vertical, 10).frame(minHeight: 52)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -565,10 +610,20 @@ private struct CaregiverSettingsPanel: View {
                 .padding(.horizontal, 34).padding(.top, 20)
                 Spacer(minLength: 0)
 
+            if let chooseRole {
+                Button(action: chooseRole) {
+                    Label("Choose role", systemImage: "person.2")
+                        .caregiverText().foregroundStyle(.black)
+                        .frame(maxWidth: .infinity).frame(minHeight: 51)
+                        .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
+                }
+                .accessibilityIdentifier("caregiver-choose-role")
+                .padding(.horizontal, 28).padding(.bottom, 42)
+            }
             if showsLogout {
                 Button(action: logout) {
                     Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
-                        .font(.system(size: 16, weight: .medium))
+                        .caregiverText()
                         .foregroundStyle(.black)
                         .frame(maxWidth: .infinity).frame(height: 51)
                         .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
@@ -576,10 +631,13 @@ private struct CaregiverSettingsPanel: View {
                 .padding(.horizontal, 28).padding(.bottom, 42)
             }
         }
+        .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+        }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0,
-                                   bottomTrailingRadius: 37, topTrailingRadius: 37)
+                                   bottomTrailingRadius: 36, topTrailingRadius: 36)
                 .fill(Color(red: 0.975, green: 0.982, blue: 0.978))
                 .shadow(color: .black.opacity(0.14), radius: 10, x: 4)
         }
@@ -639,7 +697,7 @@ struct SafeZoneEditorPage: View {
                     HStack {
                         Button { closePage() } label: {
                             Label("Back", systemImage: "chevron.left")
-                                .font(.system(size: 21, weight: .medium)).foregroundStyle(.white)
+                                .orbitDisplayFont(20).foregroundStyle(.white)
                         }
                         .accessibilityLabel("Back")
                         Spacer()
@@ -663,7 +721,7 @@ struct SafeZoneEditorPage: View {
                     VStack(spacing: 0) {
                     HStack(spacing: 12) {
                         Text(address.isEmpty ? coordinateText : address)
-                            .font(.system(size: 16)).lineLimit(1)
+                            .caregiverText().lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Image(systemName: "mappin.circle.fill")
                             .font(.system(size: 29)).foregroundStyle(OrbitStyle.teal)
@@ -678,7 +736,7 @@ struct SafeZoneEditorPage: View {
                     .padding(.bottom, 10)
 
                     VStack(alignment: .leading, spacing: 17) {
-                        Text("Tag").font(.system(size: 17, weight: .semibold))
+                        Text("Tag").caregiverText()
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 7) {
                                 ForEach(tagChoices, id: \.self) { choice in
@@ -689,12 +747,12 @@ struct SafeZoneEditorPage: View {
                                         .background(tag == choice ? OrbitStyle.teal : Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
                                 }
                                 Button("＋ New Tag") { newTag = ""; showingNewTag = true }
-                                    .font(.system(size: 14)).foregroundStyle(.black)
+                                    .caregiverText(.secondary).foregroundStyle(.black)
                                     .padding(.horizontal, 11).frame(height: 31)
                                     .overlay(Capsule().stroke(.black, lineWidth: 1))
                             }
                         }
-                        Text("Safe Zone Radius").font(.system(size: 17, weight: .semibold))
+                        Text("Safe Zone Radius").caregiverText()
                             .padding(.top, 2)
                         HStack(alignment: .center, spacing: 4) {
                             HStack(spacing: 0) {
@@ -705,7 +763,7 @@ struct SafeZoneEditorPage: View {
                                                 .frame(width: radius == value ? 16 : 10, height: radius == value ? 16 : 10)
                                                 .frame(height: 16)
                                             Text("\(value.formatted())m")
-                                                .font(.system(size: 10)).foregroundStyle(.secondary)
+                                                .caregiverText(.caption).foregroundStyle(.secondary)
                                         }
                                         .frame(maxWidth: .infinity)
                                     }
@@ -720,7 +778,7 @@ struct SafeZoneEditorPage: View {
                                 }
                             }
                             Text("\(radius)m")
-                                .font(.system(size: 13, weight: .medium))
+                                .caregiverText(.caption)
                                 .frame(width: 57, height: 27)
                                 .background(Color(red: 0.82, green: 0.90, blue: 0.90), in: Capsule())
                         }
@@ -739,10 +797,10 @@ struct SafeZoneEditorPage: View {
                             .frame(maxWidth: .infinity, maxHeight: 49)
                             .background(mapAvailable ? OrbitStyle.teal : OrbitStyle.teal.opacity(0.45), in: Capsule())
                         }
-                        .font(.system(size: 16, weight: .medium))
+                        .caregiverText()
                         if zone != nil {
                             Button("Delete Safe Zone", role: .destructive) { confirmingDelete = true }
-                                .font(.system(size: 12)).frame(maxWidth: .infinity)
+                                .caregiverText(.secondary).frame(maxWidth: .infinity)
                         }
                     }
                     .padding(19)
@@ -773,20 +831,8 @@ struct SafeZoneEditorPage: View {
 
     private func resolveAddress() async {
         let point = selectedCenter
-        let geocoder = CLGeocoder()
-        let mapPoint = point.appleCoordinate
-        guard let placemark = try? await geocoder.reverseGeocodeLocation(
-            CLLocation(latitude: mapPoint.latitude, longitude: mapPoint.longitude),
-            preferredLocale: Locale(identifier: "en_US")).first,
-              selectedCenter == point else { return }
-        let road = [placemark.subThoroughfare, placemark.thoroughfare]
-            .compactMap { $0 }.joined(separator: " ")
-        let components = [placemark.name, road, placemark.subLocality, placemark.locality]
-            .compactMap { $0 }.filter { !$0.isEmpty }
-            .map { $0.applyingTransform(.toLatin, reverse: false) ?? $0 }
-        var unique: [String] = []
-        for component in components where !unique.contains(component) { unique.append(component) }
-        address = unique.isEmpty ? coordinateText : (unique.joined(separator: ", ") + " · " + coordinateText)
+        guard let resolved = await AMapGeocoder.address(at: point), selectedCenter == point else { return }
+        address = resolved.isEmpty ? coordinateText : resolved + " · " + coordinateText
     }
 }
 
@@ -812,25 +858,24 @@ private struct SeniorLocationCard: View {
     let navigate: () -> Void
     var riskState: CaregiverRiskState = .normal
     @Environment(\.openURL) private var openURL
-    private var canNavigate: Bool { snapshot?.isCurrent == true }
     private var canCall: Bool { PhoneNumber.isValid(profile.phone) }
     var body: some View {
         VStack(alignment: .leading, spacing: 11) {
             HStack(spacing: 14) {
                 ProfileAvatar(photo: profile.photo, size: 60)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(profile.name).font(.system(size: 18, weight: .semibold)).lineLimit(1)
+                    Text(profile.name).caregiverText().lineLimit(1)
                     HStack(spacing: 8) {
                         if snapshot?.isCurrent == true {
                             Label(riskState.label, systemImage: riskState == .normal ? "checkmark.shield" : "exclamationmark.circle")
-                                .font(.system(size: 14, weight: .medium))
+                                .caregiverText(.secondary)
                                 .foregroundStyle(riskState == .high ? .white : .black)
                                 .padding(.horizontal, 9).padding(.vertical, 4)
                                 .background(riskState.color, in: Capsule())
-                        } else { Text("Location unavailable").font(.caption).foregroundStyle(.secondary) }
+                        } else { Text("Location unavailable").caregiverText(.caption).foregroundStyle(.secondary) }
                         if let battery = snapshot?.batteryPercent, (0...100).contains(battery) {
                             Label("\(battery)%", systemImage: "battery.100percent")
-                                .font(.system(size: 12)).foregroundStyle(.secondary)
+                                .caregiverText(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading)
@@ -851,21 +896,58 @@ private struct SeniorLocationCard: View {
             HStack(spacing: 10) {
                 Image(systemName: "mappin.and.ellipse").font(.system(size: 20)).foregroundStyle(.secondary)
                 Text(snapshot?.address.flatMap { $0.isEmpty ? nil : $0 } ?? "Address unavailable")
-                    .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(2)
+                    .caregiverText(.caption).foregroundStyle(.secondary).lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Button(action: navigate) {
                     Label("Navigate", systemImage: "arrow.up.right")
-                        .labelStyle(.titleAndIcon).font(.system(size: 14, weight: .medium))
+                        .labelStyle(.titleAndIcon).caregiverText(.secondary)
                         .foregroundStyle(.white).padding(.horizontal, 14).frame(height: 42)
                         .background(OrbitStyle.teal, in: Capsule())
-                }.disabled(!canNavigate)
+                }.accessibilityIdentifier("navigate-to-senior")
             }
         }
         .padding(11)
         .background {
-            RoundedRectangle(cornerRadius: 23).fill(.white)
+            RoundedRectangle(cornerRadius: 24).fill(.white)
                 .shadow(color: .black.opacity(0.168), radius: 8, y: 4)
         }
+    }
+}
+
+struct NavigationGuidanceCard: View {
+    let title: String
+    let subtitle: String
+    let symbol: String
+    let muted: Bool
+    let elder: Bool
+    let toggleVoice: () -> Void
+    var voiceIdentifier = "navigation-voice-toggle"
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    var body: some View {
+        (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 12))) {
+            Image(systemName: symbol).font(.system(size: 42, weight: .bold))
+                .frame(width: 42).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 6) {
+                Group {
+                    if elder { Text(title).elderText(.heading) }
+                    else { Text(title).caregiverText() }
+                }.fixedSize(horizontal: false, vertical: true)
+                Group {
+                    if elder { Text(subtitle).elderText() }
+                    else { Text(subtitle).caregiverText(.secondary) }
+                }.foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: toggleVoice) {
+                Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                    .font(.system(size: 20)).frame(width: 44, height: 44)
+                    .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Circle())
+            }.buttonStyle(.plain)
+                .accessibilityLabel(muted ? "Unmute guidance" : "Mute guidance")
+                .accessibilityIdentifier(voiceIdentifier)
+        }
+        .foregroundStyle(.black).padding(16).frame(maxWidth: .infinity, minHeight: elder ? 108 : 88)
+        .background(.white, in: RoundedRectangle(cornerRadius: 24))
     }
 }
 
@@ -878,35 +960,19 @@ struct WalkingNavigationOverlay: View {
     let end: () -> Void
     @State private var confirmingExit = false
     var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                ScrollView { overlayContent }
+            } else { overlayContent }
+        }
+    }
+    private var overlayContent: some View {
         VStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 14) {
-                Image(systemName: model.directionSymbol)
-                    .font(.system(size: 32, weight: .semibold)).foregroundStyle(OrbitMapStyle.blue)
-                VStack(alignment: .leading, spacing: 4) {
-                    if model.route != nil && model.issue == nil && !model.loading && !model.arrived {
-                        Text(WalkingNavigationModel.distanceText(model.turnMeters)).font(.title2.bold())
-                    }
-                    Text(model.instruction).font(.headline).fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-                if model.loading { ProgressView() }
-            }
-            if let refreshMessage { Text(refreshMessage).font(.caption).foregroundStyle(.secondary) }
-            if model.issue != nil && !model.suspended {
-                Button("Try again", action: retry).font(.headline).disabled(model.loading)
-            }
-            }
-            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white, in: RoundedRectangle(cornerRadius: 22))
-            .shadow(color: .black.opacity(0.13), radius: 8, y: 3)
-            .accessibilityIdentifier("navigation-instruction")
+            instructionCard
             Spacer(minLength: 8)
             HStack {
                 Spacer()
                 VStack(spacing: 10) {
-                    navigationButton(model.muted ? "speaker.slash.fill" : "speaker.wave.2.fill",
-                                     label: model.muted ? "Unmute navigation" : "Mute navigation", action: model.toggleMuted)
                     navigationButton("location.fill", label: "Back to my location", action: follow)
                     navigationButton("arrow.up.left.and.arrow.down.right", label: "Route overview", action: overview)
                 }
@@ -915,6 +981,35 @@ struct WalkingNavigationOverlay: View {
         }
         .padding(.horizontal, 20).padding(.top, 8)
         .tint(OrbitMapStyle.blue)
+    }
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private var hasDirections: Bool { model.route != nil && model.issue == nil && !model.loading && !model.arrived && !model.suspended }
+    private var instructionTitle: String {
+        guard hasDirections else { return model.instruction }
+        let distance = WalkingNavigationModel.distanceText(model.turnMeters)
+        switch model.directionSymbol {
+        case "arrow.turn.up.right": return "Turn right in \(distance)"
+        case "arrow.turn.up.left": return "Turn left in \(distance)"
+        default: return "Continue for \(distance)"
+        }
+    }
+    private var instructionCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            NavigationGuidanceCard(title: instructionTitle,
+                subtitle: hasDirections ? "To senior · \(Int(ceil(model.remainingSeconds / 60))) min" : "Walking navigation",
+                symbol: model.directionSymbol, muted: model.muted, elder: false,
+                toggleVoice: model.toggleMuted)
+            if model.isDemoRoute { Text("Demo route").caregiverText(.caption).foregroundStyle(.secondary) }
+            if model.loading { ProgressView().tint(OrbitStyle.teal) }
+            if let refreshMessage { Text(refreshMessage).caregiverText(.caption).foregroundStyle(.secondary) }
+            if model.issue != nil && !model.suspended {
+                Button("Try again", action: retry).caregiverText().disabled(model.loading).frame(minHeight: 44)
+            }
+        }
+        .padding(model.isDemoRoute || model.issue != nil || model.loading || refreshMessage != nil ? 12 : 0)
+        .background(.white, in: RoundedRectangle(cornerRadius: 24))
+        .caregiverCard(radius: 24)
+        .accessibilityIdentifier("navigation-instruction")
     }
     private func navigationButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -955,7 +1050,7 @@ struct NavigationSummaryCard: View {
         .padding(16).frame(maxWidth: .infinity, minHeight: 88)
         .background(.white, in: Capsule())
         .compositingGroup()
-        .shadow(color: .black.opacity(0.13), radius: 8, y: 3)
+        .caregiverCard(radius: 24)
         .accessibilityIdentifier("navigation-summary")
     }
     private var distance: some View {
@@ -970,12 +1065,12 @@ struct NavigationSummaryCard: View {
     private func metric(_ value: String, label: String) -> some View {
         VStack(spacing: 6) {
             Text(value).font(.system(.title2, design: .default, weight: .bold)).foregroundStyle(OrbitMapStyle.blue).fixedSize()
-            Text(label).font(.subheadline).foregroundStyle(.secondary).fixedSize()
+            Text(label).caregiverText(.secondary).foregroundStyle(.secondary).fixedSize()
         }.frame(maxWidth: .infinity)
     }
     private var exitButton: some View {
         Button("Exit navigation", action: end)
-            .font(.headline).fixedSize(horizontal: true, vertical: false)
+            .caregiverText().fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, minHeight: 56)
             .foregroundStyle(.white).background(OrbitMapStyle.blue, in: Capsule())
             .buttonStyle(.plain)
@@ -983,7 +1078,7 @@ struct NavigationSummaryCard: View {
     }
     private var cancelButton: some View {
         Button("Cancel") { confirmingExit = false }
-            .font(.headline).fixedSize(horizontal: true, vertical: false)
+            .caregiverText().fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, minHeight: 56)
             .foregroundStyle(OrbitMapStyle.blue).background(OrbitMapStyle.blue.opacity(0.10), in: Capsule())
             .buttonStyle(.plain)

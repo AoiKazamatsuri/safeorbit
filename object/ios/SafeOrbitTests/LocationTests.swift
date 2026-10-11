@@ -1,5 +1,8 @@
 import XCTest
 import MapKit
+#if !targetEnvironment(simulator)
+import AMapNaviKit
+#endif
 import SwiftUI
 @testable import SafeOrbit
 
@@ -29,120 +32,97 @@ final class LocationTests: XCTestCase {
         XCTAssertEqual(SafeZoneSelectionMap.circle(center: london, radius: 500).coordinate.latitude, london.latitude, accuracy: 0.000001)
     }
 
-    @MainActor func testSafeZoneDragStoresWGS84AndPanPreservesSelection() throws {
+    func testSafeZoneDragStoresWGS84AndPanPreservesSelection() throws {
         let original = LocationPreviewData.campus
         let target = GeoPoint(latitude: original.latitude + 0.001, longitude: original.longitude + 0.001)
-        var selections: [GeoPoint] = []
-        let adapter = SafeZoneMapView(initialCenter: original, radiusMeters: 200,
-                                      onSelection: { selections.append($0) }, onState: { _, _ in })
-        let coordinator = adapter.makeCoordinator()
-        let map = MKMapView(frame: CGRect(x: 0, y: 0, width: 393, height: 700))
-        coordinator.configure(map)
-        defer { coordinator.loadTimeout?.cancel(); map.delegate = nil }
-        map.setRegion(MKCoordinateRegion(center: target.appleCoordinate,
-                                        latitudinalMeters: 1600, longitudinalMeters: 1600), animated: false)
-        XCTAssertEqual(coordinator.selectedCenter, original)
-        XCTAssertTrue(selections.isEmpty)
-
-        let camera = map.region
-        let pin = try XCTUnwrap(coordinator.mapView(map, viewFor: coordinator.pin))
-        XCTAssertTrue(pin.gestureRecognizers?.contains(where: { $0.name == "safe-zone-direct-drag" }) == true)
-        coordinator.pin.coordinate = target.appleCoordinate
-        coordinator.commitSelection(in: map)
-        let saved = try XCTUnwrap(selections.last)
+        var draft = SafeZoneSelectionState(center: original)
+        // Panning the map is deliberately absent from draft state: it cannot select a new point.
+        XCTAssertEqual(draft.selectedCenter, original)
+        XCTAssertNil(draft.draggedCenter)
+        XCTAssertTrue(draft.move(displayed: target.appleCoordinate))
+        XCTAssertEqual(draft.selectedCenter, original, "Dragging must not save before release")
+        let saved = try XCTUnwrap(draft.finish(commit: true))
         XCTAssertEqual(saved.latitude, target.latitude, accuracy: 0.000001)
         XCTAssertEqual(saved.longitude, target.longitude, accuracy: 0.000001)
-        XCTAssertEqual(map.region.center.latitude, camera.center.latitude, accuracy: 0.000001)
-        XCTAssertEqual(map.region.span.latitudeDelta, camera.span.latitudeDelta, accuracy: 0.000001)
-        let overlay = try XCTUnwrap(map.overlays.first)
-        let renderer = try XCTUnwrap(coordinator.mapView(map, rendererFor: overlay) as? SafeZoneRangeRenderer)
-        let circle = SafeZoneSelectionMap.circle(center: saved, radius: 200)
-        XCTAssertEqual(renderer.circleMapRect.origin.x, circle.boundingMapRect.origin.x, accuracy: 0.001)
-        XCTAssertEqual(renderer.circleMapRect.origin.y, circle.boundingMapRect.origin.y, accuracy: 0.001)
-        XCTAssertEqual(circle.coordinate.latitude, coordinator.pin.coordinate.latitude, accuracy: 0.000001)
-        let edge = circle.points()[0].coordinate
-        XCTAssertEqual(CLLocation(latitude: edge.latitude, longitude: edge.longitude)
-            .distance(from: CLLocation(latitude: circle.coordinate.latitude, longitude: circle.coordinate.longitude)), 200, accuracy: 2)
-
+        XCTAssertEqual(draft.selectedCenter, saved)
+        XCTAssertNil(draft.draggedCenter)
+        XCTAssertNil(draft.finish(commit: true), "A duplicate release must not emit a second selection")
+        XCTAssertFalse(draft.move(displayed: CLLocationCoordinate2D(latitude: .nan, longitude: 0)))
+        XCTAssertEqual(draft.selectedCenter, saved)
     }
 
-    @MainActor func testSafeZoneRangeKeepsCompletePathDuringRepeatedDragsAndRadiusChanges() throws {
+    func testSafeZoneRangeKeepsCompleteCircleDuringRepeatedDragsAndRadiusChanges() throws {
         let original = LocationPreviewData.campus
-        var selections: [GeoPoint] = []
-        let adapter = SafeZoneMapView(initialCenter: original, radiusMeters: 200,
-                                     onSelection: { selections.append($0) }, onState: { _, _ in })
-        let coordinator = adapter.makeCoordinator()
-        let map = MKMapView(frame: CGRect(x: 0, y: 0, width: 393, height: 700))
-        coordinator.configure(map)
-        defer { coordinator.loadTimeout?.cancel(); map.delegate = nil }
-        let overlay = try XCTUnwrap(map.overlays.first as? SafeZoneRangeOverlay)
-        let renderer = try XCTUnwrap(coordinator.mapView(map, rendererFor: overlay) as? SafeZoneRangeRenderer)
-        let camera = map.region
+        var draft = SafeZoneSelectionState(center: original)
+        #if !targetEnvironment(simulator)
+        let circle = try XCTUnwrap(MACircle(center: original.appleCoordinate, radius: 200))
+        #endif
         for index in 0..<40 {
             let target = GeoPoint(latitude: original.latitude + Double(index % 8 - 4) * 0.001,
                                   longitude: original.longitude + Double(index / 8 - 2) * 0.001)
-            coordinator.movePin(to: target.appleCoordinate, in: map)
-            XCTAssertEqual(map.overlays.count, 1)
-            XCTAssertTrue(map.overlays.first === overlay)
-            XCTAssertTrue(coordinator.mapView(map, rendererFor: overlay) === renderer)
-            renderer.createPath()
-            let path = try XCTUnwrap(renderer.path)
-            let bounds = renderer.rect(for: renderer.circleMapRect)
-            XCTAssertEqual(path.boundingBoxOfPath.minY, bounds.minY, accuracy: 0.001)
-            XCTAssertEqual(path.boundingBoxOfPath.maxY, bounds.maxY, accuracy: 0.001)
-            for point in [CGPoint(x: bounds.midX, y: bounds.minY + bounds.height * 0.02),
-                          CGPoint(x: bounds.midX, y: bounds.maxY - bounds.height * 0.02),
-                          CGPoint(x: bounds.minX + bounds.width * 0.02, y: bounds.midY),
-                          CGPoint(x: bounds.maxX - bounds.width * 0.02, y: bounds.midY)] {
-                XCTAssertTrue(path.contains(point))
-            }
-            XCTAssertTrue(overlay.boundingMapRect.contains(renderer.circleMapRect))
+            XCTAssertTrue(draft.move(displayed: target.appleCoordinate))
+        #if !targetEnvironment(simulator)
+            XCTAssertTrue(circle.setCircleWithCenterCoordinate(draft.circleCenter.appleCoordinate, radius: 200))
+        #endif
+        #if !targetEnvironment(simulator)
+            XCTAssertEqual(circle.coordinate.latitude, target.appleCoordinate.latitude, accuracy: 0.000001)
+        #endif
+        #if !targetEnvironment(simulator)
+            XCTAssertEqual(circle.coordinate.longitude, target.appleCoordinate.longitude, accuracy: 0.000001)
+        #endif
+        #if !targetEnvironment(simulator)
+            XCTAssertEqual(circle.radius, 200)
+        #endif
+        #if !targetEnvironment(simulator)
+            XCTAssertGreaterThan(circle.boundingMapRect.size.width, 0)
+        #endif
+        #if !targetEnvironment(simulator)
+            XCTAssertGreaterThan(circle.boundingMapRect.size.height, 0)
+        #endif
+            XCTAssertEqual(draft.selectedCenter, original)
         }
-        XCTAssertTrue(selections.isEmpty, "Moving the pin must not commit a draft before release")
-        XCTAssertEqual(coordinator.selectedCenter, original)
-        XCTAssertEqual(map.region.center.latitude, camera.center.latitude, accuracy: 0.000001)
-        XCTAssertEqual(map.region.span.latitudeDelta, camera.span.latitudeDelta, accuracy: 0.000001)
-
-        coordinator.finishDirectDrag(in: map, commit: false)
-        XCTAssertTrue(selections.isEmpty)
-        let originalRect = SafeZoneSelectionMap.circle(center: original, radius: 200).boundingMapRect
-        XCTAssertEqual(renderer.circleMapRect.origin.y, originalRect.origin.y, accuracy: 0.001)
-        XCTAssertEqual(coordinator.pin.coordinate.latitude, original.appleCoordinate.latitude, accuracy: 0.000001)
-
+        XCTAssertNil(draft.finish(commit: false))
+        XCTAssertEqual(draft.circleCenter, original)
+        XCTAssertNil(draft.draggedCenter)
+        #if !targetEnvironment(simulator)
+        XCTAssertTrue(circle.setCircleWithCenterCoordinate(draft.circleCenter.appleCoordinate, radius: 200))
+        #endif
+        #if !targetEnvironment(simulator)
+        XCTAssertEqual(circle.coordinate.latitude, original.appleCoordinate.latitude, accuracy: 0.000001)
+        #endif
         let target = GeoPoint(latitude: original.latitude + 0.001, longitude: original.longitude + 0.001)
-        coordinator.movePin(to: target.appleCoordinate, in: map)
-        coordinator.finishDirectDrag(in: map, commit: true)
-        XCTAssertEqual(selections.count, 1)
-        XCTAssertEqual(selections[0].latitude, target.latitude, accuracy: 0.000001)
+        XCTAssertTrue(draft.move(displayed: target.appleCoordinate))
+        let saved = try XCTUnwrap(draft.finish(commit: true))
         for radius in [100, 200, 500, 1000, 2000] {
-            coordinator.parent = SafeZoneMapView(initialCenter: original, radiusMeters: radius,
-                                                onSelection: { _ in }, onState: { _, _ in })
-            coordinator.updateCircle(in: map, force: true)
-            renderer.createPath()
-            let expected = SafeZoneSelectionMap.circle(center: coordinator.selectedCenter, radius: radius).boundingMapRect
-            XCTAssertEqual(renderer.circleMapRect.size.width, expected.size.width, accuracy: 0.001)
-            XCTAssertTrue(map.overlays.first === overlay)
-            XCTAssertTrue(overlay.boundingMapRect.contains(renderer.circleMapRect))
+        #if !targetEnvironment(simulator)
+            XCTAssertTrue(circle.setCircleWithCenterCoordinate(draft.circleCenter.appleCoordinate, radius: Double(radius)))
+        #endif
+        #if !targetEnvironment(simulator)
+            XCTAssertEqual(circle.radius, Double(radius))
+        #endif
+            XCTAssertEqual(draft.selectedCenter, saved)
+        #if !targetEnvironment(simulator)
+            XCTAssertEqual(circle.coordinate.latitude, saved.appleCoordinate.latitude, accuracy: 0.000001)
+        #endif
+        #if !targetEnvironment(simulator)
+            XCTAssertGreaterThan(circle.boundingMapRect.size.width, 0)
+        #endif
         }
     }
 
-    @MainActor func testSafeZoneMapFailureDisablesSaveAndRenderingRecovers() async {
-        var states: [(Bool, String?)] = []
-        let adapter = SafeZoneMapView(initialCenter: LocationPreviewData.campus, radiusMeters: 200,
-                                      onSelection: { _ in }, onState: { states.append(($0, $1)) })
-        let coordinator = adapter.makeCoordinator()
-        let map = MKMapView()
-        coordinator.mapViewDidFailLoadingMap(map, withError: URLError(.notConnectedToInternet))
-        try? await Task.sleep(for: .milliseconds(20))
-        XCTAssertEqual(states.last?.0, false)
-        XCTAssertNotNil(states.last?.1)
-        coordinator.mapViewDidFinishRenderingMap(map, fullyRendered: false)
-        try? await Task.sleep(for: .milliseconds(20))
-        XCTAssertEqual(states.last?.0, false)
-        coordinator.mapViewDidFinishRenderingMap(map, fullyRendered: true)
-        try? await Task.sleep(for: .milliseconds(20))
-        XCTAssertEqual(states.last?.0, true)
-        XCTAssertNil(states.last?.1)
+    func testSafeZoneMapFailureDisablesSaveAndLoadingRecovers() {
+        var draft = SafeZoneSelectionState(center: LocationPreviewData.campus)
+        XCTAssertFalse(draft.available)
+        XCTAssertTrue(draft.report(available: false, issue: "Map unavailable. Check your internet connection."))
+        XCTAssertFalse(draft.available)
+        XCTAssertNotNil(draft.issue)
+        XCTAssertFalse(draft.report(available: false, issue: draft.issue), "Duplicate errors should not emit another callback")
+        XCTAssertTrue(draft.report(available: true, issue: nil))
+        XCTAssertTrue(draft.available)
+        XCTAssertNil(draft.issue)
+        XCTAssertFalse(draft.report(available: true, issue: nil))
+        XCTAssertTrue(draft.report(available: false, issue: "Map unavailable. Check your internet connection."))
+        XCTAssertFalse(draft.available, "A later map failure must disable saving again")
     }
 
     func testRiskPreviewArgumentsAreExplicit() {
@@ -487,12 +467,20 @@ extension LocationTests {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let clock = NavigationClock()
         for (name, size, type, unavailable) in [
+            ("refined-navigation-design", CGSize(width: 402, height: 874), DynamicTypeSize.large, false),
             ("refined-navigation", CGSize(width: 393, height: 852), DynamicTypeSize.large, false),
+            ("refined-navigation-narrow", CGSize(width: 375, height: 812), DynamicTypeSize.large, false),
+            ("refined-navigation-small", CGSize(width: 320, height: 568), DynamicTypeSize.accessibility1, false),
             ("refined-navigation-small-large-text", CGSize(width: 375, height: 812), DynamicTypeSize.accessibility1, false),
             ("refined-navigation-unavailable", CGSize(width: 393, height: 852), DynamicTypeSize.large, true)
         ] {
-            let provider = RouteStub(), voice = NavigationVoiceSpy()
-            let model = WalkingNavigationModel(provider: provider, voice: voice, now: { clock.date })
+            #if targetEnvironment(simulator)
+            let provider: any WalkingRouteProvider = unavailable ? RouteStub() : PreviewWalkingRouteProvider()
+            #else
+            let provider: any WalkingRouteProvider = RouteStub()
+            #endif
+            let voice = NavigationVoiceSpy()
+            let model = WalkingNavigationModel(provider: provider, voice: voice, isDemoRoute: !unavailable)
             let senior = LocationPreviewData.snapshot(recordedAt: clock.date)
             await model.start(to: unavailable ? nil : senior)
             if !unavailable {
@@ -616,3 +604,32 @@ extension LocationTests {
         XCTAssertNil(provider.headingReceiver)
     }
 }
+
+#if targetEnvironment(simulator)
+extension LocationTests {
+    @MainActor func testPreviewNavigationUsesRoadRouteAndRefreshesOnlySampleFixes() async throws {
+        let provider = PreviewWalkingRouteProvider(), voice = NavigationVoiceSpy()
+        let model = WalkingNavigationModel(provider: provider, voice: voice, isDemoRoute: true)
+        await model.start(to: LocationPreviewData.snapshot())
+        await Task.yield()
+        XCTAssertTrue(model.isDemoRoute)
+        XCTAssertNil(model.issue)
+        let route = try XCTUnwrap(model.route)
+        XCTAssertEqual(route.coordinates.count, LocationPreviewData.trail.count)
+        XCTAssertEqual(route.coordinates.first?.latitude, LocationPreviewData.startingPoint.appleCoordinate.latitude)
+        XCTAssertEqual(route.coordinates.last?.longitude, LocationPreviewData.campus.appleCoordinate.longitude)
+        XCTAssertGreaterThan(route.distanceMeters, 500)
+        XCTAssertEqual(route.segments.count, 2)
+        let firstFix = try XCTUnwrap(model.fix)
+        try await Task.sleep(for: .milliseconds(1100))
+        XCTAssertGreaterThan(try XCTUnwrap(model.fix).timestamp, firstFix.timestamp)
+        XCTAssertEqual(model.fix?.point, LocationPreviewData.startingPoint)
+        model.toggleMuted(); XCTAssertTrue(model.muted)
+        model.end(); XCTAssertFalse(model.isPresented); XCTAssertNil(model.route); XCTAssertNil(model.fix)
+        do {
+            _ = try await provider.route(from: LocationPreviewData.startingPoint, to: GeoPoint(latitude: 0, longitude: 0))
+            XCTFail("Preview must reject destinations outside its fixed illustrative route")
+        } catch { XCTAssertEqual(error as? NavigationIssue, .routeUnavailable) }
+    }
+}
+#endif

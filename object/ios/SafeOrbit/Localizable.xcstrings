@@ -4,16 +4,6 @@
     "#%@" : {
 
     },
-    "%@\n%lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@\n%2$lld"
-          }
-        }
-      }
-    },
     "%@ – %@" : {
       "localizations" : {
         "en" : {
@@ -60,6 +50,9 @@
     "%lld" : {
 
     },
+    "%lld events" : {
+
+    },
     "%lld m radius" : {
 
     },
@@ -95,6 +88,9 @@
 
     },
     "Add emergency contact" : {
+
+    },
+    "Add family member" : {
 
     },
     "Add safe zone" : {
@@ -143,6 +139,9 @@
 
     },
     "Choose a photo" : {
+
+    },
+    "Choose role" : {
 
     },
     "Clear" : {
@@ -219,6 +218,9 @@
 
     },
     "How do I change a safe zone?" : {
+
+    },
+    "Last\nmonth" : {
 
     },
     "Location unavailable" : {
@@ -371,6 +373,9 @@
     "Tag name" : {
 
     },
+    "This\nmonth" : {
+
+    },
     "This safe zone will be removed." : {
 
     },
@@ -390,6 +395,9 @@
 
     },
     "vs last month" : {
+
+    },
+    "vs. last month" : {
 
     },
     "Week" : {
