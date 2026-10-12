@@ -385,16 +385,20 @@ extension View {
 struct SettingsPage<Content: View>: View {
     let title: String
     let back: () -> Void
+    var elder = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ViewBuilder let content: Content
-    init(_ title: String, back: @escaping () -> Void, @ViewBuilder content: () -> Content) {
-        self.title = title; self.back = back; self.content = content()
+    init(_ title: String, elder: Bool = false, back: @escaping () -> Void, @ViewBuilder content: () -> Content) {
+        self.title = title; self.elder = elder; self.back = back; self.content = content()
     }
     var body: some View {
         VStack(spacing: 0) {
-            CaregiverTopBar {
+            CaregiverTopBar(height: elder ? (dynamicTypeSize.isAccessibilitySize ? 104 : 56) : 47) {
                 ZStack {
-                    Text(title).orbitDisplayFont(20)
-                        .lineLimit(1).minimumScaleFactor(0.7).padding(.horizontal, 58).accessibilityAddTraits(.isHeader)
+                    Group {
+                        if elder { Text(title).elderText(.heading).fixedSize(horizontal: false, vertical: true) }
+                        else { Text(title).orbitDisplayFont(20).lineLimit(1).minimumScaleFactor(0.7) }
+                    }.padding(.horizontal, 58).accessibilityAddTraits(.isHeader)
                     HStack {
                         Button(action: back) { Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold)).frame(width: 48, height: 44) }
                             .accessibilityLabel("Back")

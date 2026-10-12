@@ -96,10 +96,25 @@
     "Add safe zone" : {
 
     },
+    "Add the iOS SDK key to this device’s local build configuration." : {
+
+    },
+    "Agent" : {
+
+    },
     "Agent: %@" : {
 
     },
+    "Agree and continue" : {
+
+    },
     "Always on" : {
+
+    },
+    "AMap Privacy Policy" : {
+
+    },
+    "AMap provides the map, location and walking routes. It processes location and device/network information to provide these services. Your location is used only while this app is open." : {
 
     },
     "Ask a question" : {
@@ -109,6 +124,9 @@
 
     },
     "Back" : {
+
+    },
+    "Back to conversations" : {
 
     },
     "Back to default view" : {
@@ -124,6 +142,9 @@
 
     },
     "Cancel" : {
+
+    },
+    "Cancel navigation" : {
 
     },
     "Caregiver" : {
@@ -166,10 +187,19 @@
     "Create Safe Zone" : {
 
     },
+    "Delete" : {
+
+    },
+    "Delete conversation?" : {
+
+    },
     "Delete Safe Zone" : {
 
     },
     "Delete this safe zone?" : {
+
+    },
+    "Demo route" : {
 
     },
     "Dismiss message" : {
@@ -182,6 +212,9 @@
 
     },
     "Emergency contacts" : {
+
+    },
+    "Enable map services" : {
 
     },
     "Enter a name for this safe zone." : {
@@ -217,6 +250,9 @@
     "High-risk alerts" : {
 
     },
+    "Home location" : {
+
+    },
     "How do I change a safe zone?" : {
 
     },
@@ -232,10 +268,22 @@
     "Low-risk alerts" : {
 
     },
+    "Map configuration required" : {
+
+    },
     "Monitoring limited" : {
 
     },
+    "Move the map to your home, then confirm." : {
+
+    },
+    "Mute guidance" : {
+
+    },
     "Navigate" : {
+
+    },
+    "New conversation" : {
 
     },
     "New Tag" : {
@@ -292,6 +340,9 @@
     "Question" : {
 
     },
+    "Recent" : {
+
+    },
     "Recording" : {
 
     },
@@ -313,6 +364,9 @@
     "Restoring your connection…" : {
 
     },
+    "Retry" : {
+
+    },
     "Route Deviation" : {
 
     },
@@ -323,6 +377,9 @@
 
     },
     "Safe Zone Radius" : {
+
+    },
+    "Sample position" : {
 
     },
     "Save account settings" : {
@@ -376,13 +433,22 @@
     "This\nmonth" : {
 
     },
+    "This conversation and all its messages will be deleted from this device." : {
+
+    },
     "This safe zone will be removed." : {
 
     },
     "Try again" : {
 
     },
+    "Unmute guidance" : {
+
+    },
     "Use at least 8 characters." : {
+
+    },
+    "Use current location" : {
 
     },
     "Use trip history" : {

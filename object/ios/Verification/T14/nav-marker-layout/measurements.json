@@ -1,0 +1,26 @@
+[
+  {
+    "file": "refined-navigation-design.png",
+    "left_visible_margin_pt": 36.0,
+    "right_visible_margin_pt": 36.0,
+    "within_one_pt": true,
+    "top_card_height_pt": 82.0,
+    "voice_center_offset_from_card_center_pt": 0.16666666666666666
+  },
+  {
+    "file": "refined-navigation.png",
+    "left_visible_margin_pt": 36.0,
+    "right_visible_margin_pt": 36.0,
+    "within_one_pt": true,
+    "top_card_height_pt": 82.0,
+    "voice_center_offset_from_card_center_pt": 0.16666666666666666
+  },
+  {
+    "file": "refined-navigation-narrow.png",
+    "left_visible_margin_pt": 36.0,
+    "right_visible_margin_pt": 36.0,
+    "within_one_pt": true,
+    "top_card_height_pt": 100.0,
+    "voice_center_offset_from_card_center_pt": 0.16666666666666666
+  }
+]

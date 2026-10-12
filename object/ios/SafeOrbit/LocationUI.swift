@@ -168,33 +168,17 @@ struct CaregiverHomePage: View {
                     CaregiverTabBar(selection: $tab, onSelection: { if $0 == .agent { agentSessions.showList() } })
                 }
             }
-            .allowsHitTesting(!showingSettings)
-            .accessibilityElement(children: showingSettings ? .ignore : .contain)
-            .accessibilityHidden(showingSettings)
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    if showingSettings {
-                        Color.black.opacity(0.36).ignoresSafeArea()
-                            .onTapGesture { setSettings(false) }
-
-                        CaregiverSettingsPanel(
-                            name: settingsStore.data.caregiver.name,
-                            photo: settingsStore.data.caregiver.photo,
-                            primary: settingsStore.data.primaryID == "self",
-                            showsPreviewPortrait: store.previewSession,
-                            showsLogout: !store.homeAccessEnabled,
-                            chooseRole: chooseRole,
-                            select: { selectedSettings = $0 },
-                            logout: { Task { await store.signOut(); setSettings(false) } }
-                        )
-                        .frame(width: geometry.size.width * 0.765, height: geometry.size.height)
-
-                    }
-                }
-            }
-            .ignoresSafeArea()
-            .allowsHitTesting(showingSettings)
-            .zIndex(2)
+        }
+        .settingsSidebar(isPresented: $showingSettings, widthFraction: 0.765) {
+            CaregiverSettingsPanel(name: settingsStore.data.caregiver.name,
+                photo: settingsStore.data.caregiver.photo,
+                primary: settingsStore.data.primaryID == "self",
+                showsPreviewPortrait: store.previewSession,
+                select: { selectedSettings = $0 }, logout: {
+                    navigation.end(); agentSessions.showList(); setSettings(false)
+                    if let chooseRole { chooseRole() }
+                    else { Task { await store.signOut() } }
+                })
         }
         .caregiverText()
         .toolbar(.hidden, for: .navigationBar)
@@ -348,7 +332,7 @@ struct LocationPage: View {
             else { focusOnSenior() }
         }
         .onChange(of: navigation.isPresented) { _, presented in
-            if presented { previousCamera = camera; followsUser = false; showsOverview = true; showRouteOverview() }
+            if presented { previousCamera = camera; followsUser = true; showsOverview = false; followCurrentPosition() }
             else if let previousCamera { camera = previousCamera; self.previousCamera = nil }
         }
         .onChange(of: navigation.fix?.timestamp) { _, _ in
@@ -358,10 +342,16 @@ struct LocationPage: View {
             }
         }
         .onChange(of: navigation.routeVersion) { _, _ in
-            if navigation.isPresented && showsOverview { showRouteOverview() }
+            if navigation.isPresented {
+                if followsUser { followCurrentPosition() }
+                else if showsOverview { showRouteOverview() }
+            }
         }
         .onChange(of: navigation.destination?.coordinate) { _, _ in
-            if navigation.isPresented && showsOverview { showRouteOverview() }
+            if navigation.isPresented {
+                if followsUser { followCurrentPosition() }
+                else if showsOverview { showRouteOverview() }
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { navigation.pause() }
@@ -451,14 +441,9 @@ struct LocationPage: View {
                             .rotationEffect(.degrees(bearing - visibleHeading)).accessibilityHidden(true))))
                 }
             }
-            if let destination = navigation.destination, destination.coordinate.isValid {
-                result.append(AMapMarker(id: "destination", coordinate: destination.coordinate.appleCoordinate,
-                    anchor: .bottom, content: AnyView(VStack(spacing: 4) {
-                        Text(profile.name)
-                            .caregiverText(.caption).padding(6).background(.white, in: Capsule())
-                        Image(systemName: "mappin.circle.fill").font(.system(size: 36)).foregroundStyle(OrbitMapStyle.blue)
-                    })))
-            }
+            result += CaregiverNavigationMarkers.make(route: navigation.route,
+                senior: navigation.destination.flatMap { $0.coordinate.isValid ? $0.coordinate.appleCoordinate : nil },
+                name: profile.name)
             if let fix = navigation.fix {
                 result.append(AMapMarker(id: "self", coordinate: fix.point.appleCoordinate,
                     content: AnyView(CurrentLocationDot(heading: navigation.markerHeading.map { $0 - visibleHeading },
@@ -496,9 +481,8 @@ struct LocationPage: View {
         return result
     }
     private func followCurrentPosition() {
-        guard let fix = navigation.fix, fix.point.isValid else { return }
-        camera = .camera(MapCamera(centerCoordinate: fix.point.appleCoordinate, distance: 550,
-                                   heading: fix.course >= 0 && fix.course.isFinite ? fix.course : 0, pitch: 0))
+        guard let followCamera = navigation.followCamera else { return }
+        camera = .camera(followCamera)
     }
     private func showRouteOverview() {
         var coordinates = navigation.route?.coordinates ?? []
@@ -545,103 +529,18 @@ private struct CaregiverSettingsPanel: View {
     let photo: String?
     let primary: Bool
     let showsPreviewPortrait: Bool
-    let showsLogout: Bool
-    let chooseRole: (() -> Void)?
     let select: (CaregiverSettingsGroup) -> Void
     let logout: () -> Void
-
     var body: some View {
-        GeometryReader { geometry in
-        ScrollView {
-        VStack(spacing: 0) {
-            HStack(spacing: 14) {
-                Group {
-                    if let photo {
-                        ProfileAvatar(photo: photo, size: 57)
-                    } else if showsPreviewPortrait {
-                        Image("PreviewCaregiver").resizable().scaledToFill()
-                    } else {
-                        Image(systemName: "person.crop.circle.fill")
-                            .resizable().scaledToFit().foregroundStyle(OrbitStyle.teal)
-                    }
-                }
-                .frame(width: 57, height: 57).clipShape(Circle())
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(name).caregiverText().fixedSize(horizontal: false, vertical: true)
-                    Text(primary ? "Primary caregiver" : "Caregiver")
-                        .caregiverText(.caption).foregroundStyle(.white)
-                        .padding(.horizontal, 11).padding(.vertical, 4)
-                        .background(OrbitStyle.teal, in: Capsule())
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 13).padding(.vertical, 12).frame(minHeight: 84)
-            .background(.white, in: Capsule())
-            .padding(.horizontal, 27)
-            .padding(.top, 57)
-
-                VStack(spacing: 0) {
-                    ForEach(CaregiverSettingsGroup.allCases) { item in
-                        Button { select(item) } label: {
-                            HStack(spacing: 17) {
-                                if item == .people {
-                                    Image("FamilyMembers")
-                                        .resizable().interpolation(.high).scaledToFit()
-                                        .frame(width: 30, height: 24)
-                                        .frame(width: 30)
-                                        .accessibilityHidden(true)
-                                } else {
-                                    Image(systemName: item.symbol)
-                                        .font(.system(size: 24, weight: .regular))
-                                        .frame(width: 30)
-                                }
-                                Text(item.rawValue)
-                                    .caregiverText()
-                                    .lineLimit(2)
-                                Spacer(minLength: 0)
-                            }
-                            .foregroundStyle(.black)
-                            .padding(.vertical, 10).frame(minHeight: 52)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 34).padding(.top, 20)
-                Spacer(minLength: 0)
-
-            if let chooseRole {
-                Button(action: chooseRole) {
-                    Label("Choose role", systemImage: "person.2")
-                        .caregiverText().foregroundStyle(.black)
-                        .frame(maxWidth: .infinity).frame(minHeight: 51)
-                        .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
-                }
-                .accessibilityIdentifier("caregiver-choose-role")
-                .padding(.horizontal, 28).padding(.bottom, 42)
-            }
-            if showsLogout {
-                Button(action: logout) {
-                    Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
-                        .caregiverText()
-                        .foregroundStyle(.black)
-                        .frame(maxWidth: .infinity).frame(height: 51)
-                        .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
-                }
-                .padding(.horizontal, 28).padding(.bottom, 42)
+        SettingsSidebarPanel(name: name, badge: primary ? "Primary caregiver" : "Caregiver", logout: logout) {
+            if let photo { ProfileAvatar(photo: photo, size: 57) }
+            else if showsPreviewPortrait { Image("PreviewCaregiver").resizable().scaledToFill() }
+            else { Image(systemName: "person.crop.circle.fill").resizable().scaledToFit().foregroundStyle(OrbitStyle.teal) }
+        } entries: {
+            ForEach(CaregiverSettingsGroup.allCases) { item in
+                SettingsSidebarRow(title: item.rawValue, symbol: item.symbol, familyIcon: item == .people) { select(item) }
             }
         }
-        .frame(maxWidth: .infinity, minHeight: geometry.size.height)
-        }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background {
-            UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0,
-                                   bottomTrailingRadius: 36, topTrailingRadius: 36)
-                .fill(Color(red: 0.975, green: 0.982, blue: 0.978))
-                .shadow(color: .black.opacity(0.14), radius: 10, x: 4)
-        }
-        .accessibilityAddTraits(.isModal)
     }
 }
 
@@ -914,6 +813,79 @@ private struct SeniorLocationCard: View {
     }
 }
 
+/// Shared annotation content for the native AMap map and its MapKit display fallback.
+enum CaregiverNavigationMarkers {
+    static func make(route: WalkingRoute?, senior: CLLocationCoordinate2D?, name: String) -> [AMapMarker] {
+        let end = route?.coordinates.last(where: { CLLocationCoordinate2DIsValid($0) })
+        let person = senior.flatMap { CLLocationCoordinate2DIsValid($0) ? $0 : nil }
+        if let end, let person,
+           abs(end.latitude - person.latitude) < 0.00000001,
+           abs(end.longitude - person.longitude) < 0.00000001 {
+            // The ring's center is the annotation anchor. The bubble extends above it,
+            // so its height does not move the geographic endpoint.
+            return [AMapMarker(id: "route-end-and-senior", coordinate: end, content: AnyView(
+                RouteEndpointSymbol().overlay(alignment: .bottom) {
+                    VStack(spacing: 0) {
+                        SeniorDestinationBubble()
+                        Rectangle().fill(.black).frame(width: 2, height: 10)
+                    }.fixedSize().offset(y: -18)
+                }.accessibilityLabel("Route end, \(name)")))]
+        }
+        var markers: [AMapMarker] = []
+        if let end {
+            markers.append(AMapMarker(id: "route-end", coordinate: end,
+                content: AnyView(RouteEndpointSymbol().accessibilityLabel("Route end"))))
+        }
+        if let person {
+            markers.append(AMapMarker(id: "destination", coordinate: person, anchor: .bottom,
+                content: AnyView(SeniorDestinationBubble().accessibilityLabel("Senior location, \(name)"))))
+        }
+        return markers
+    }
+}
+
+private struct RouteEndpointSymbol: View {
+    var body: some View {
+        ZStack {
+            Circle().fill(.white)
+            Circle().strokeBorder(.black, lineWidth: 2)
+            Circle().fill(.black).frame(width: 6, height: 6)
+        }.frame(width: 18, height: 18)
+    }
+}
+
+private struct SeniorDestinationBubble: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            Image(systemName: "location.north.fill").font(.system(size: 24))
+                .foregroundStyle(.black).frame(width: 40, height: 40)
+            Color.clear.frame(height: 8)
+        }.frame(width: 40, height: 48)
+        .background {
+            DestinationBubbleOutline().fill(.white)
+                .shadow(color: .black.opacity(0.13), radius: 5, y: 2)
+        }
+    }
+}
+
+private struct DestinationBubbleOutline: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { path in
+            path.addEllipse(in: CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.width))
+            // Overlap the tail with the circle to produce one continuous shadow silhouette.
+            path.move(to: CGPoint(x: rect.midX - 6, y: rect.minY + 38))
+            path.addLine(to: CGPoint(x: rect.midX + 6, y: rect.minY + 38))
+            path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+            path.closeSubpath()
+        }
+    }
+}
+
+private struct NavigationGuidanceHeight: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 struct NavigationGuidanceCard: View {
     let title: String
     let subtitle: String
@@ -921,6 +893,7 @@ struct NavigationGuidanceCard: View {
     let muted: Bool
     let elder: Bool
     let toggleVoice: () -> Void
+    @State private var naturalHeight: CGFloat = 0
     var voiceIdentifier = "navigation-voice-toggle"
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var body: some View {
@@ -941,12 +914,21 @@ struct NavigationGuidanceCard: View {
             Button(action: toggleVoice) {
                 Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                     .font(.system(size: 20)).frame(width: 44, height: 44)
-                    .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Circle())
+                    .foregroundStyle(OrbitStyle.teal)
+                    .background(OrbitStyle.teal.opacity(0.15), in: Circle())
             }.buttonStyle(.plain)
                 .accessibilityLabel(muted ? "Unmute guidance" : "Mute guidance")
                 .accessibilityIdentifier(voiceIdentifier)
         }
-        .foregroundStyle(.black).padding(16).frame(maxWidth: .infinity, minHeight: elder ? 108 : 88)
+        .foregroundStyle(.black).padding(elder ? 16 : 12).frame(maxWidth: .infinity, minHeight: elder ? 108 : 0)
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(key: NavigationGuidanceHeight.self, value: geometry.size.height)
+            }
+        }
+        .onPreferenceChange(NavigationGuidanceHeight.self) { naturalHeight = $0 }
+        // Keep the added height, sharing its space equally above and below caregiver content.
+        .padding(.vertical, elder ? 0 : naturalHeight * 0.10)
         .background(.white, in: RoundedRectangle(cornerRadius: 24))
     }
 }
@@ -980,7 +962,7 @@ struct WalkingNavigationOverlay: View {
             NavigationSummaryCard(model: model, confirmingExit: $confirmingExit, end: end)
         }
         .padding(.horizontal, 20).padding(.top, 8)
-        .tint(OrbitMapStyle.blue)
+        .tint(OrbitStyle.teal)
     }
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private var hasDirections: Bool { model.route != nil && model.issue == nil && !model.loading && !model.arrived && !model.suspended }
@@ -996,17 +978,16 @@ struct WalkingNavigationOverlay: View {
     private var instructionCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             NavigationGuidanceCard(title: instructionTitle,
-                subtitle: hasDirections ? "To senior · \(Int(ceil(model.remainingSeconds / 60))) min" : "Walking navigation",
+                subtitle: (hasDirections ? "To senior · \(Int(ceil(model.remainingSeconds / 60))) min" : "Walking navigation") + (model.isDemoRoute ? " · Demo route" : ""),
                 symbol: model.directionSymbol, muted: model.muted, elder: false,
                 toggleVoice: model.toggleMuted)
-            if model.isDemoRoute { Text("Demo route").caregiverText(.caption).foregroundStyle(.secondary) }
             if model.loading { ProgressView().tint(OrbitStyle.teal) }
             if let refreshMessage { Text(refreshMessage).caregiverText(.caption).foregroundStyle(.secondary) }
             if model.issue != nil && !model.suspended {
                 Button("Try again", action: retry).caregiverText().disabled(model.loading).frame(minHeight: 44)
             }
         }
-        .padding(model.isDemoRoute || model.issue != nil || model.loading || refreshMessage != nil ? 12 : 0)
+        .padding(model.issue != nil || model.loading || refreshMessage != nil ? 12 : 0)
         .background(.white, in: RoundedRectangle(cornerRadius: 24))
         .caregiverCard(radius: 24)
         .accessibilityIdentifier("navigation-instruction")
@@ -1014,8 +995,8 @@ struct WalkingNavigationOverlay: View {
     private func navigationButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(OrbitMapStyle.blue).frame(width: 48, height: 48)
-                .background(.white, in: Circle()).shadow(color: .black.opacity(0.13), radius: 5, y: 2)
+                .foregroundStyle(.black).frame(width: 48, height: 48)
+                .background { Circle().fill(.white).shadow(color: .black.opacity(0.13), radius: 5, y: 2) }
         }.accessibilityLabel(label)
     }
 }
@@ -1036,21 +1017,22 @@ struct NavigationSummaryCard: View {
                 HStack(spacing: 8) {
                     Button { confirmingExit = true } label: {
                         Image(systemName: "xmark").font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(OrbitMapStyle.blue).frame(width: 44, height: 44)
+                            .foregroundStyle(OrbitStyle.teal).frame(width: 44, height: 44)
                     }
                     .accessibilityLabel("Exit navigation")
                     .accessibilityIdentifier("request-exit-navigation")
                     ViewThatFits(in: .horizontal) {
-                        HStack(alignment: .firstTextBaseline, spacing: 8) { distance; duration; arrival }
+                        HStack(alignment: .firstTextBaseline, spacing: 0) {
+                            distance; Spacer(minLength: 8); duration; Spacer(minLength: 8); arrival
+                        }
                         VStack(spacing: 12) { distance; duration; arrival }
                     }.frame(maxWidth: .infinity)
                 }
+                .padding(.leading, 5).padding(.trailing, 18.5)
             }
         }
         .padding(16).frame(maxWidth: .infinity, minHeight: 88)
-        .background(.white, in: Capsule())
-        .compositingGroup()
-        .caregiverCard(radius: 24)
+        .background { Capsule().fill(.white).shadow(color: .black.opacity(0.14), radius: 7, y: 3) }
         .accessibilityIdentifier("navigation-summary")
     }
     private var distance: some View {
@@ -1064,15 +1046,15 @@ struct NavigationSummaryCard: View {
     }
     private func metric(_ value: String, label: String) -> some View {
         VStack(spacing: 6) {
-            Text(value).font(.system(.title2, design: .default, weight: .bold)).foregroundStyle(OrbitMapStyle.blue).fixedSize()
+            Text(value).font(.system(.title2, design: .default, weight: .bold)).foregroundStyle(OrbitStyle.teal).fixedSize()
             Text(label).caregiverText(.secondary).foregroundStyle(.secondary).fixedSize()
-        }.frame(maxWidth: .infinity)
+        }
     }
     private var exitButton: some View {
         Button("Exit navigation", action: end)
             .caregiverText().fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, minHeight: 56)
-            .foregroundStyle(.white).background(OrbitMapStyle.blue, in: Capsule())
+            .foregroundStyle(.white).background(OrbitStyle.teal, in: Capsule())
             .buttonStyle(.plain)
             .accessibilityIdentifier("end-navigation")
     }
@@ -1080,7 +1062,7 @@ struct NavigationSummaryCard: View {
         Button("Cancel") { confirmingExit = false }
             .caregiverText().fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, minHeight: 56)
-            .foregroundStyle(OrbitMapStyle.blue).background(OrbitMapStyle.blue.opacity(0.10), in: Capsule())
+            .foregroundStyle(OrbitStyle.teal).background(OrbitStyle.teal.opacity(0.10), in: Capsule())
             .buttonStyle(.plain)
             .accessibilityIdentifier("cancel-exit-navigation")
     }

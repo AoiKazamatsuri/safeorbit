@@ -149,7 +149,7 @@ struct AgentSessionPage: View {
         VStack(spacing: 0) {
             CaregiverTopBar(height: dynamicTypeSize.isAccessibilitySize ? 74 : 47) {
                 ZStack {
-                    Text("Agent").orbitDisplayFont(20).foregroundStyle(.white)
+                    Text("Assistant").orbitDisplayFont(20).foregroundStyle(.white)
                     HStack {
                         Spacer()
                         Button { sessions.newConversation() } label: {

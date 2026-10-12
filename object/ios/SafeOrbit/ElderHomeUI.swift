@@ -12,6 +12,7 @@ struct ElderHomePage: View {
     @State private var homeCamera: MapCameraPosition = .automatic
     @State private var selectedHome: GeoPoint?
     @State private var camera: MapCameraPosition = .region(ElderDemoMapData.region)
+    @State private var showingVolume = false
     @State private var overlayHeight: CGFloat = 70
     let chooseRole: () -> Void
     var onLayout: (([String: CGRect]) -> Void)? = nil
@@ -50,7 +51,8 @@ struct ElderHomePage: View {
         .coordinateSpace(name: "ElderSurface")
         .onPreferenceChange(ElderControlFrames.self) { onLayout?($0) }
         .onPreferenceChange(ElderOverlayHeight.self) { overlayHeight = $0 }
-        .settingsSlide(isPresented: $session.showingSettings) { settingsPage }
+        .settingsSidebar(isPresented: $session.showingSettings, widthFraction: 0.88) { settingsPage }
+        .settingsSlide(isPresented: $showingVolume) { volumePage }
         .alert(text("End navigation?", "结束导航？"), isPresented: Binding(
             get: { session.confirmingEnd }, set: { if !$0 { session.cancelEnd() } }
         )) {
@@ -256,45 +258,30 @@ struct ElderHomePage: View {
         }.environment(\.locale, Locale(identifier: "en"))
     }
     private var settingsPage: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button { session.showingSettings = false } label: {
-                    Image(systemName: "chevron.left").frame(width: 44, height: 44)
-                }.accessibilityLabel(text("Back", "返回"))
-                Spacer()
-                Text(verbatim: text("Settings", "设置")).elderText(.heading)
-                Spacer()
-                Color.clear.frame(width: 44, height: 44)
-            }.padding(.horizontal, 20).foregroundStyle(.white).background(OrbitStyle.teal)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    HStack(spacing: 16) {
-                        portrait(size: 72)
-                        Text(verbatim: settings.data.senior.name).elderText(.heading)
-                    }.frame(maxWidth: .infinity, alignment: .leading).padding(20)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 24))
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text(verbatim: text("Voice volume", "语音音量")).elderText()
-                        Slider(value: Binding(get: { session.volume }, set: { session.setVolume($0) }), in: 0...1) { editing in
-                            if !editing { session.announce(locale: locale) }
-                        }.tint(OrbitStyle.teal)
-                            .accessibilityLabel(text("Voice volume", "语音音量"))
-                        Text(verbatim: "\(Int(session.volume * 100))%")
-                            .elderText().foregroundStyle(.secondary)
-                    }.padding(20).background(.white, in: RoundedRectangle(cornerRadius: 24))
-                    if session.usesLiveNavigation {
-                        ElderActionButton(title: "Set Home", white: true) { live.showingHomeSetup = true }
-                            .accessibilityIdentifier("elder-set-home")
-                    }
-                    ElderActionButton(title: text("Choose role", "选择身份"), action: chooseRole)
-                        .accessibilityIdentifier("elder-choose-role")
-                }.padding(24)
-            }
-            .background(Color(uiColor: .systemGroupedBackground), in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
-            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
-        }
-        .elderText().background(OrbitStyle.teal.ignoresSafeArea())
+        SettingsSidebarPanel(name: settings.data.senior.name, elder: true, logout: {
+            session.finishSession(); showingVolume = false
+            live.stop(); chooseRole()
+        }) {
+            portrait(size: 72)
+        } entries: {
+            SettingsSidebarRow(title: "Voice volume", symbol: "speaker.wave.2", elder: true) { showingVolume = true }
+                .accessibilityIdentifier("elder-volume-settings")
+            SettingsSidebarRow(title: "Set Home", symbol: "house", elder: true) { live.showingHomeSetup = true }
+                .accessibilityIdentifier("elder-set-home")
+        }.accessibilityIdentifier("elder-settings-sidebar")
     }
+    private var volumePage: some View {
+        SettingsPage("Voice volume", elder: true, back: { showingVolume = false }) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Voice volume").elderText()
+                Slider(value: Binding(get: { session.volume }, set: { session.setVolume($0) }), in: 0...1) { editing in
+                    if !editing { session.announce(locale: locale) }
+                }.tint(OrbitStyle.teal).accessibilityLabel("Voice volume")
+                Text("\(Int(session.volume * 100))%").elderText().foregroundStyle(.secondary)
+            }.padding(20).background(.white, in: RoundedRectangle(cornerRadius: 24))
+        }
+    }
+
 }
 
 private struct ElderActionButton: View {

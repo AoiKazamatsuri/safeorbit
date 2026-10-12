@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import MapKit
+import SwiftUI
 import AVFoundation
 
 enum NavigationIssue: Error, LocalizedError, Equatable {
@@ -146,13 +147,18 @@ enum NavigationDestinationKind { case senior, home }
     var markerHeading: Double? {
         if let heading, heading.isUsable(at: now()) { return heading.degrees }
         if let fix, fix.course.isFinite, (0..<360).contains(fix.course) { return fix.course }
+        return routeHeading
+    }
+    /// Directed route tangent is independent of the device compass and travel course.
+    var routeHeading: Double? {
         guard let fix, let coordinates = route?.coordinates, coordinates.count > 1 else { return nil }
         let point = fix.point.appleCoordinate
         var nearest = Double.infinity, bearing: Double?
         for index in 1..<coordinates.count {
             let a = coordinates[index - 1], b = coordinates[index]
             guard let projection = RouteProjection.project(point, onto: [a, b]),
-                  projection.length > 1, projection.offRoute < nearest else { continue }
+                  projection.length > 1, projection.offRoute <= nearest + 0.1 else { continue }
+            if projection.along >= projection.length - 0.5 && index < coordinates.count - 1 { continue }
             nearest = projection.offRoute
             let latitude1 = a.latitude * .pi / 180, latitude2 = b.latitude * .pi / 180
             let longitude = (b.longitude - a.longitude) * .pi / 180
@@ -161,6 +167,10 @@ enum NavigationDestinationKind { case senior, home }
             bearing = (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
         }
         return bearing
+    }
+    var followCamera: MapCamera? {
+        guard let fix, fix.isUsable(at: now()), !suspended, issue == nil, let heading = routeHeading else { return nil }
+        return MapCamera(centerCoordinate: fix.point.appleCoordinate, distance: 550, heading: heading, pitch: 0)
     }
     var instruction: String {
         if arrived { return arrivalInstruction }

@@ -1,0 +1,1069 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination "platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313" -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO -collect-test-diagnostics never CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test
+
+Build settings from command line:
+    CODE_SIGN_IDENTITY = -
+    CODE_SIGNING_ALLOWED = YES
+
+note: Using codesigning identity override: -
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (2 targets)
+    Target 'SafeOrbitTests' in project 'SafeOrbit'
+        ➜ Explicit dependency on target 'SafeOrbit' in project 'SafeOrbit'
+    Target 'SafeOrbit' in project 'SafeOrbit' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKStatCaches.noindex/iphonesimulator27.0-24A430-8dc58220667be655e1bcc261a7455254.sdkstatcache
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -o /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKStatCaches.noindex/iphonesimulator27.0-24A430-8dc58220667be655e1bcc261a7455254.sdkstatcache
+
+SwiftDriver SafeOrbit normal x86_64 com.apple.xcode.tools.swift.compiler (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SafeOrbit -Onone @/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -target x86_64-apple-ios17.0-simulator -g -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Index.noindex/DataStore -swift-version 5 -I /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -emit-localized-strings -emit-localized-strings-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64 -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKStatCaches.noindex/iphonesimulator27.0-24A430-8dc58220667be655e1bcc261a7455254.sdkstatcache -output-file-map /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit-OutputFileMap.json -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKExplicitPrecompiledModules -emit-dependencies -emit-module -emit-module-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.swiftmodule -serialize-diagnostics -dependency-scan-serialize-diagnostics-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit-dependency-scan.dia -validate-clang-modules-once -clang-build-session-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -emit-const-values -const-gather-protocols-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit_const_extract_protocols.json -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-generated-files.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-own-target-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-all-target-headers.hmap -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-project-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources-normal/x86_64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources/x86_64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit-Swift.h -working-directory /Users/idesign/Documents/GitHub/safeorbit/object/ios -experimental-emit-module-separately -disable-cmo
+
+SwiftDriver SafeOrbit normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SafeOrbit -Onone @/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -target arm64-apple-ios17.0-simulator -g -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Index.noindex/DataStore -swift-version 5 -I /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -emit-localized-strings -emit-localized-strings-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64 -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKStatCaches.noindex/iphonesimulator27.0-24A430-8dc58220667be655e1bcc261a7455254.sdkstatcache -output-file-map /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit-OutputFileMap.json -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKExplicitPrecompiledModules -emit-dependencies -emit-module -emit-module-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.swiftmodule -serialize-diagnostics -dependency-scan-serialize-diagnostics-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit-dependency-scan.dia -validate-clang-modules-once -clang-build-session-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -emit-const-values -const-gather-protocols-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit_const_extract_protocols.json -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-generated-files.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-own-target-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-all-target-headers.hmap -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-project-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources-normal/arm64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources/arm64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit-Swift.h -working-directory /Users/idesign/Documents/GitHub/safeorbit/object/ios -experimental-emit-module-separately -disable-cmo
+
+SwiftEmitModule normal x86_64 Emitting\ module\ for\ SafeOrbit (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftCompile normal x86_64 (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ SafeOrbit (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftCompile normal arm64 (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    
+
+SwiftCompile normal arm64 Compiling\ LocationUI.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/LocationUI.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftCompile normal arm64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/LocationUI.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile LocationUI.swift
+
+SwiftCompile normal x86_64 Compiling\ LocationUI.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/LocationUI.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftCompile normal x86_64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/LocationUI.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile LocationUI.swift
+
+SwiftDriverJobDiscovery normal arm64 Emitting module for SafeOrbit (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftDriver\ Compilation\ Requirements SafeOrbit normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SafeOrbit -Onone @/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -target arm64-apple-ios17.0-simulator -g -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Index.noindex/DataStore -swift-version 5 -I /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -emit-localized-strings -emit-localized-strings-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64 -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKStatCaches.noindex/iphonesimulator27.0-24A430-8dc58220667be655e1bcc261a7455254.sdkstatcache -output-file-map /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit-OutputFileMap.json -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKExplicitPrecompiledModules -emit-dependencies -emit-module -emit-module-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.swiftmodule -serialize-diagnostics -dependency-scan-serialize-diagnostics-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit-dependency-scan.dia -validate-clang-modules-once -clang-build-session-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -emit-const-values -const-gather-protocols-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit_const_extract_protocols.json -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-generated-files.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-own-target-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-all-target-headers.hmap -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-project-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources-normal/arm64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources/arm64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit-Swift.h -working-directory /Users/idesign/Documents/GitHub/safeorbit/object/ios -experimental-emit-module-separately -disable-cmo
+
+Copy /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.swiftmodule/Project/arm64-apple-ios-simulator.swiftsourceinfo /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.swiftsourceinfo (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -strip-unsigned-binaries -strip-deterministic -strip-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/strip -resolve-src-symlinks -rename /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.swiftsourceinfo /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.swiftmodule/Project/arm64-apple-ios-simulator.swiftsourceinfo
+
+SwiftDriverJobDiscovery normal x86_64 Emitting module for SafeOrbit (in target 'SafeOrbit' from project 'SafeOrbit')
+
+Copy /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.swiftmodule/arm64-apple-ios-simulator.swiftmodule /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.swiftmodule (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -strip-unsigned-binaries -strip-deterministic -strip-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/strip -resolve-src-symlinks -rename /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.swiftmodule /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.swiftmodule/arm64-apple-ios-simulator.swiftmodule
+
+Copy /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.swiftmodule/arm64-apple-ios-simulator.abi.json /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.abi.json (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -strip-unsigned-binaries -strip-deterministic -strip-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/strip -resolve-src-symlinks -rename /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.abi.json /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.swiftmodule/arm64-apple-ios-simulator.abi.json
+
+SwiftDriver\ Compilation\ Requirements SafeOrbit normal x86_64 com.apple.xcode.tools.swift.compiler (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SafeOrbit -Onone @/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -target x86_64-apple-ios17.0-simulator -g -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Index.noindex/DataStore -swift-version 5 -I /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -emit-localized-strings -emit-localized-strings-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64 -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKStatCaches.noindex/iphonesimulator27.0-24A430-8dc58220667be655e1bcc261a7455254.sdkstatcache -output-file-map /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit-OutputFileMap.json -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKExplicitPrecompiledModules -emit-dependencies -emit-module -emit-module-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.swiftmodule -serialize-diagnostics -dependency-scan-serialize-diagnostics-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit-dependency-scan.dia -validate-clang-modules-once -clang-build-session-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -emit-const-values -const-gather-protocols-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit_const_extract_protocols.json -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-generated-files.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-own-target-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-all-target-headers.hmap -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-project-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources-normal/x86_64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources/x86_64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit-Swift.h -working-directory /Users/idesign/Documents/GitHub/safeorbit/object/ios -experimental-emit-module-separately -disable-cmo
+
+Copy /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.swiftmodule/Project/x86_64-apple-ios-simulator.swiftsourceinfo /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.swiftsourceinfo (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -strip-unsigned-binaries -strip-deterministic -strip-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/strip -resolve-src-symlinks -rename /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.swiftsourceinfo /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.swiftmodule/Project/x86_64-apple-ios-simulator.swiftsourceinfo
+
+Copy /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.swiftmodule/x86_64-apple-ios-simulator.swiftmodule /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.swiftmodule (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -strip-unsigned-binaries -strip-deterministic -strip-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/strip -resolve-src-symlinks -rename /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.swiftmodule /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.swiftmodule/x86_64-apple-ios-simulator.swiftmodule
+
+Copy /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.swiftmodule/x86_64-apple-ios-simulator.abi.json /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.abi.json (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -strip-unsigned-binaries -strip-deterministic -strip-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/strip -resolve-src-symlinks -rename /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.abi.json /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.swiftmodule/x86_64-apple-ios-simulator.abi.json
+
+SwiftDriver SafeOrbitTests normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SafeOrbitTests -Onone @/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests.SwiftFileList -DDEBUG -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -target arm64-apple-ios17.0-simulator -g -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Index.noindex/DataStore -swift-version 5 -I /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -F /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -F /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk/Developer/Library/Frameworks -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKStatCaches.noindex/iphonesimulator27.0-24A430-8dc58220667be655e1bcc261a7455254.sdkstatcache -output-file-map /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests-OutputFileMap.json -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKExplicitPrecompiledModules -emit-dependencies -emit-module -emit-module-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests.swiftmodule -serialize-diagnostics -dependency-scan-serialize-diagnostics-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests-dependency-scan.dia -validate-clang-modules-once -clang-build-session-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -emit-const-values -const-gather-protocols-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests_const_extract_protocols.json -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-generated-files.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-own-target-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-all-target-headers.hmap -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-project-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources-normal/arm64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources/arm64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests-Swift.h -working-directory /Users/idesign/Documents/GitHub/safeorbit/object/ios -experimental-emit-module-separately -disable-cmo
+
+SwiftCompile normal arm64 Compiling\ RecordsTests.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/RecordsTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftCompile normal arm64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/RecordsTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile RecordsTests.swift
+
+SwiftCompile normal arm64 Compiling\ ServerConfigurationTests.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/ServerConfigurationTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftCompile normal arm64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/ServerConfigurationTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile ServerConfigurationTests.swift
+
+SwiftCompile normal arm64 Compiling\ OnboardingTests.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/OnboardingTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftCompile normal arm64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/OnboardingTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile OnboardingTests.swift
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ SafeOrbitTests (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftCompile normal arm64 (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    
+
+SwiftCompile normal arm64 Compiling\ LocationTests.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/LocationTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftCompile normal arm64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/LocationTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile LocationTests.swift
+
+SwiftCompile normal arm64 Compiling\ SettingsTests.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/SettingsTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftCompile normal arm64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/SettingsTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile SettingsTests.swift
+
+SwiftDriverJobDiscovery normal arm64 Compiling ServerConfigurationTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftDriverJobDiscovery normal arm64 Emitting module for SafeOrbitTests (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftDriver\ Compilation\ Requirements SafeOrbitTests normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SafeOrbitTests -Onone @/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests.SwiftFileList -DDEBUG -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -target arm64-apple-ios17.0-simulator -g -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Index.noindex/DataStore -swift-version 5 -I /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -F /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -F /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk/Developer/Library/Frameworks -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKStatCaches.noindex/iphonesimulator27.0-24A430-8dc58220667be655e1bcc261a7455254.sdkstatcache -output-file-map /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests-OutputFileMap.json -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKExplicitPrecompiledModules -emit-dependencies -emit-module -emit-module-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests.swiftmodule -serialize-diagnostics -dependency-scan-serialize-diagnostics-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests-dependency-scan.dia -validate-clang-modules-once -clang-build-session-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -emit-const-values -const-gather-protocols-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests_const_extract_protocols.json -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-generated-files.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-own-target-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-all-target-headers.hmap -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-project-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources-normal/arm64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources/arm64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests-Swift.h -working-directory /Users/idesign/Documents/GitHub/safeorbit/object/ios -experimental-emit-module-separately -disable-cmo
+
+Copy /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbitTests.swiftmodule/arm64-apple-ios-simulator.abi.json /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests.abi.json (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -strip-unsigned-binaries -strip-deterministic -strip-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/strip -resolve-src-symlinks -rename /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests.abi.json /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbitTests.swiftmodule/arm64-apple-ios-simulator.abi.json
+
+SwiftDriver SafeOrbitTests normal x86_64 com.apple.xcode.tools.swift.compiler (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SafeOrbitTests -Onone @/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests.SwiftFileList -DDEBUG -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -target x86_64-apple-ios17.0-simulator -g -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Index.noindex/DataStore -swift-version 5 -I /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -F /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -F /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk/Developer/Library/Frameworks -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKStatCaches.noindex/iphonesimulator27.0-24A430-8dc58220667be655e1bcc261a7455254.sdkstatcache -output-file-map /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests-OutputFileMap.json -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKExplicitPrecompiledModules -emit-dependencies -emit-module -emit-module-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests.swiftmodule -serialize-diagnostics -dependency-scan-serialize-diagnostics-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests-dependency-scan.dia -validate-clang-modules-once -clang-build-session-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -emit-const-values -const-gather-protocols-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests_const_extract_protocols.json -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-generated-files.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-own-target-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-all-target-headers.hmap -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-project-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources-normal/x86_64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources/x86_64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests-Swift.h -working-directory /Users/idesign/Documents/GitHub/safeorbit/object/ios -experimental-emit-module-separately -disable-cmo
+
+SwiftEmitModule normal x86_64 Emitting\ module\ for\ SafeOrbitTests (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftCompile normal x86_64 (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling SettingsTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftDriverJobDiscovery normal arm64 Compiling OnboardingTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftDriverJobDiscovery normal x86_64 Emitting module for SafeOrbitTests (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftDriver\ Compilation\ Requirements SafeOrbitTests normal x86_64 com.apple.xcode.tools.swift.compiler (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SafeOrbitTests -Onone @/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests.SwiftFileList -DDEBUG -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -target x86_64-apple-ios17.0-simulator -g -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Index.noindex/DataStore -swift-version 5 -I /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -F /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -F /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk/Developer/Library/Frameworks -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKStatCaches.noindex/iphonesimulator27.0-24A430-8dc58220667be655e1bcc261a7455254.sdkstatcache -output-file-map /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests-OutputFileMap.json -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKExplicitPrecompiledModules -emit-dependencies -emit-module -emit-module-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests.swiftmodule -serialize-diagnostics -dependency-scan-serialize-diagnostics-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests-dependency-scan.dia -validate-clang-modules-once -clang-build-session-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -emit-const-values -const-gather-protocols-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests_const_extract_protocols.json -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-generated-files.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-own-target-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-all-target-headers.hmap -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-project-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources-normal/x86_64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources/x86_64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests-Swift.h -working-directory /Users/idesign/Documents/GitHub/safeorbit/object/ios -experimental-emit-module-separately -disable-cmo
+
+Copy /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbitTests.swiftmodule/x86_64-apple-ios-simulator.abi.json /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests.abi.json (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -strip-unsigned-binaries -strip-deterministic -strip-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/strip -resolve-src-symlinks -rename /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests.abi.json /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbitTests.swiftmodule/x86_64-apple-ios-simulator.abi.json
+
+SwiftDriverJobDiscovery normal arm64 Compiling LocationTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftDriverJobDiscovery normal arm64 Compiling RecordsTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftDriver\ Compilation SafeOrbitTests normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-Swift-Compilation -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SafeOrbitTests -Onone @/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests.SwiftFileList -DDEBUG -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -target arm64-apple-ios17.0-simulator -g -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Index.noindex/DataStore -swift-version 5 -I /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -F /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -F /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk/Developer/Library/Frameworks -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKStatCaches.noindex/iphonesimulator27.0-24A430-8dc58220667be655e1bcc261a7455254.sdkstatcache -output-file-map /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests-OutputFileMap.json -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKExplicitPrecompiledModules -emit-dependencies -emit-module -emit-module-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests.swiftmodule -serialize-diagnostics -dependency-scan-serialize-diagnostics-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests-dependency-scan.dia -validate-clang-modules-once -clang-build-session-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -emit-const-values -const-gather-protocols-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests_const_extract_protocols.json -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-generated-files.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-own-target-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-all-target-headers.hmap -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-project-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources-normal/arm64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources/arm64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests-Swift.h -working-directory /Users/idesign/Documents/GitHub/safeorbit/object/ios -experimental-emit-module-separately -disable-cmo
+
+SwiftDriverJobDiscovery normal arm64 Compiling LocationUI.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftCompile normal arm64 Compiling\ SafeOrbitApp.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/SafeOrbitApp.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftCompile normal arm64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/SafeOrbitApp.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile SafeOrbitApp.swift
+
+SwiftCompile normal arm64 Compiling\ ElderHomeUI.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/ElderHomeUI.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftCompile normal arm64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/ElderHomeUI.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile ElderHomeUI.swift
+
+SwiftCompile normal arm64 Compiling\ CaregiverSettings.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/CaregiverSettings.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftCompile normal arm64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/CaregiverSettings.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile CaregiverSettings.swift
+
+SwiftDriverJobDiscovery normal x86_64 Compiling LocationUI.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftCompile normal x86_64 Compiling\ CaregiverSettings.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/CaregiverSettings.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftCompile normal x86_64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/CaregiverSettings.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile CaregiverSettings.swift
+
+SwiftCompile normal x86_64 Compiling\ SafeOrbitApp.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/SafeOrbitApp.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftCompile normal x86_64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/SafeOrbitApp.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile SafeOrbitApp.swift
+
+SwiftCompile normal x86_64 Compiling\ ElderHomeUI.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/ElderHomeUI.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftCompile normal x86_64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbit/ElderHomeUI.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile ElderHomeUI.swift
+
+SwiftDriverJobDiscovery normal arm64 Compiling SafeOrbitApp.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftDriverJobDiscovery normal x86_64 Compiling SafeOrbitApp.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftDriverJobDiscovery normal arm64 Compiling ElderHomeUI.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftDriverJobDiscovery normal arm64 Compiling CaregiverSettings.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftDriver\ Compilation SafeOrbit normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-Swift-Compilation -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SafeOrbit -Onone @/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -target arm64-apple-ios17.0-simulator -g -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Index.noindex/DataStore -swift-version 5 -I /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -emit-localized-strings -emit-localized-strings-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64 -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKStatCaches.noindex/iphonesimulator27.0-24A430-8dc58220667be655e1bcc261a7455254.sdkstatcache -output-file-map /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit-OutputFileMap.json -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKExplicitPrecompiledModules -emit-dependencies -emit-module -emit-module-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.swiftmodule -serialize-diagnostics -dependency-scan-serialize-diagnostics-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit-dependency-scan.dia -validate-clang-modules-once -clang-build-session-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -emit-const-values -const-gather-protocols-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit_const_extract_protocols.json -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-generated-files.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-own-target-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-all-target-headers.hmap -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-project-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources-normal/arm64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources/arm64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit-Swift.h -working-directory /Users/idesign/Documents/GitHub/safeorbit/object/ios -experimental-emit-module-separately -disable-cmo
+
+Ld /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/Binary/SafeOrbit.debug.dylib normal arm64 (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios17.0-simulator -dynamiclib -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -Os -Xlinker -no_warn_duplicate_libraries -L/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -L/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -filelist /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.LinkFileList -install_name @rpath/SafeOrbit.debug.dylib -Xlinker -rpath -Xlinker /usr/lib/swift -Xlinker -rpath -Xlinker @executable_path/Frameworks -Xlinker -rpath -Xlinker @loader_path/Frameworks -Xlinker -dead_strip -Xlinker -object_path_lto -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit_lto.o -rdynamic -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -dependency_info -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit_dependency_info.dat -fobjc-link-runtime -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.swiftmodule -Xlinker -alias -Xlinker _main -Xlinker ___debug_main_executable_dylib_entry_point -Xlinker -no_adhoc_codesign -o /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/Binary/SafeOrbit.debug.dylib
+
+SwiftDriverJobDiscovery normal x86_64 Compiling ElderHomeUI.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftDriverJobDiscovery normal x86_64 Compiling CaregiverSettings.swift (in target 'SafeOrbit' from project 'SafeOrbit')
+
+SwiftDriver\ Compilation SafeOrbit normal x86_64 com.apple.xcode.tools.swift.compiler (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-Swift-Compilation -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SafeOrbit -Onone @/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -target x86_64-apple-ios17.0-simulator -g -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Index.noindex/DataStore -swift-version 5 -I /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -emit-localized-strings -emit-localized-strings-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64 -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKStatCaches.noindex/iphonesimulator27.0-24A430-8dc58220667be655e1bcc261a7455254.sdkstatcache -output-file-map /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit-OutputFileMap.json -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKExplicitPrecompiledModules -emit-dependencies -emit-module -emit-module-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.swiftmodule -serialize-diagnostics -dependency-scan-serialize-diagnostics-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit-dependency-scan.dia -validate-clang-modules-once -clang-build-session-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -emit-const-values -const-gather-protocols-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit_const_extract_protocols.json -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-generated-files.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-own-target-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-all-target-headers.hmap -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-project-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources-normal/x86_64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources/x86_64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit-Swift.h -working-directory /Users/idesign/Documents/GitHub/safeorbit/object/ios -experimental-emit-module-separately -disable-cmo
+
+Ld /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/Binary/SafeOrbit.debug.dylib normal x86_64 (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target x86_64-apple-ios17.0-simulator -dynamiclib -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -Os -Xlinker -no_warn_duplicate_libraries -L/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -L/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -filelist /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.LinkFileList -install_name @rpath/SafeOrbit.debug.dylib -Xlinker -rpath -Xlinker /usr/lib/swift -Xlinker -rpath -Xlinker @executable_path/Frameworks -Xlinker -rpath -Xlinker @loader_path/Frameworks -Xlinker -dead_strip -Xlinker -object_path_lto -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit_lto.o -rdynamic -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -dependency_info -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit_dependency_info.dat -fobjc-link-runtime -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.swiftmodule -Xlinker -alias -Xlinker _main -Xlinker ___debug_main_executable_dylib_entry_point -Xlinker -no_adhoc_codesign -o /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/Binary/SafeOrbit.debug.dylib
+
+ConstructStubExecutorLinkFileList /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-ExecutorLinkFileList-normal-x86_64.txt (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    construct-stub-executor-link-file-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/Binary/SafeOrbit.debug.dylib /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libPreviewsJITStubExecutor_no_swift_entry_point.a /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libPreviewsJITStubExecutor.a --output /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-ExecutorLinkFileList-normal-x86_64.txt
+note: Using stub executor library with Swift entry point. (in target 'SafeOrbit' from project 'SafeOrbit')
+
+ConstructStubExecutorLinkFileList /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-ExecutorLinkFileList-normal-arm64.txt (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    construct-stub-executor-link-file-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/Binary/SafeOrbit.debug.dylib /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libPreviewsJITStubExecutor_no_swift_entry_point.a /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libPreviewsJITStubExecutor.a --output /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-ExecutorLinkFileList-normal-arm64.txt
+note: Using stub executor library with Swift entry point. (in target 'SafeOrbit' from project 'SafeOrbit')
+
+CreateUniversalBinary /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/SafeOrbit.debug.dylib normal arm64\ x86_64 (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/lipo -create /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/Binary/SafeOrbit.debug.dylib /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/Binary/SafeOrbit.debug.dylib -output /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/SafeOrbit.debug.dylib
+
+Ld /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/Binary/SafeOrbit normal x86_64 (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target x86_64-apple-ios17.0-simulator -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -Os -Xlinker -no_warn_duplicate_libraries -L/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -Xlinker -rpath -Xlinker @executable_path -Xlinker -rpath -Xlinker @executable_path/Frameworks -Xlinker -rpath -Xlinker @loader_path/Frameworks -rdynamic -Xlinker -objc_abi_version -Xlinker 2 -e ___debug_blank_executor_main -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_dylib -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-DebugDylibPath-normal-x86_64.txt -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_instlnm -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-DebugDylibInstallName-normal-x86_64.txt -Xlinker -filelist -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-ExecutorLinkFileList-normal-x86_64.txt -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __entitlements -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit.app-Simulated.xcent -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __ents_der -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit.app-Simulated.xcent.der /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/Binary/SafeOrbit.debug.dylib -Xlinker -no_adhoc_codesign -o /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/Binary/SafeOrbit
+
+Ld /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/Binary/SafeOrbit normal arm64 (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios17.0-simulator -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -Os -Xlinker -no_warn_duplicate_libraries -L/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -Xlinker -rpath -Xlinker @executable_path -Xlinker -rpath -Xlinker @executable_path/Frameworks -Xlinker -rpath -Xlinker @loader_path/Frameworks -rdynamic -Xlinker -objc_abi_version -Xlinker 2 -e ___debug_blank_executor_main -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_dylib -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-DebugDylibPath-normal-arm64.txt -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_instlnm -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-DebugDylibInstallName-normal-arm64.txt -Xlinker -filelist -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit-ExecutorLinkFileList-normal-arm64.txt -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __entitlements -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit.app-Simulated.xcent -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __ents_der -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit.app-Simulated.xcent.der /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/Binary/SafeOrbit.debug.dylib -Xlinker -no_adhoc_codesign -o /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/Binary/SafeOrbit
+
+CreateUniversalBinary /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/SafeOrbit normal arm64\ x86_64 (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/lipo -create /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/Binary/SafeOrbit /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/Binary/SafeOrbit -output /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/SafeOrbit
+
+CopySwiftLibs /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-swiftStdLibTool --copy --verbose --sign - --scan-executable /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/SafeOrbit.debug.dylib --scan-folder /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/Frameworks --scan-folder /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/PlugIns --scan-folder /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/SystemExtensions --scan-folder /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/Extensions --platform iphonesimulator --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os
+
+ExtractAppIntentsMetadata (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name SafeOrbit --sdk-root /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk --xcode-version 27A266a --platform-family iOS --deployment-target 17.0 --bundle-identifier org.safeorbit.demo --output /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app --target-triple arm64-apple-ios17.0-simulator --target-triple x86_64-apple-ios17.0-simulator --binary-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/SafeOrbit --dependency-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit_dependency_info.dat --dependency-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit_dependency_info.dat --stringsdata-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --stringsdata-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.SwiftFileList --source-file-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.SwiftFileList --metadata-file-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit.DependencyMetadataFileList --static-metadata-file-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit.DependencyStaticMetadataFileList --swift-const-vals-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/arm64/SafeOrbit.SwiftConstValuesFileList --swift-const-vals-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/Objects-normal/x86_64/SafeOrbit.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --no-app-shortcuts-localization
+2026-10-12 16:26:15.479 appintentsmetadataprocessor[33225:203351] Starting appintentsmetadataprocessor export
+2026-10-12 16:26:15.485 appintentsmetadataprocessor[33225:203351] warning: Metadata extraction skipped, no AppIntents.framework dependency found
+
+Ld /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/Binary/SafeOrbitTests normal arm64 (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios17.0-simulator -bundle -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -Os -Xlinker -no_warn_duplicate_libraries -L/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -L/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -L/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -iframework /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -iframework /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk/Developer/Library/Frameworks -filelist /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests.LinkFileList -Xlinker -rpath -Xlinker /usr/lib/swift -Xlinker -rpath -Xlinker @loader_path/Frameworks -Xlinker -rpath -Xlinker @executable_path/Frameworks -Xlinker -dead_strip -bundle_loader /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/SafeOrbit -Xlinker -object_path_lto -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests_lto.o -rdynamic -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -dependency_info -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests_dependency_info.dat -fobjc-link-runtime -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests.swiftmodule -Xlinker -needed_framework -Xlinker XCTest -framework XCTest -Xlinker -needed-lXCTestSwiftSupport -lXCTestSwiftSupport /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/SafeOrbit.debug.dylib -Xlinker -no_adhoc_codesign -o /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/Binary/SafeOrbitTests
+
+SwiftCompile normal x86_64 Compiling\ LocationTests.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/LocationTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftCompile normal x86_64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/LocationTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile LocationTests.swift
+
+SwiftCompile normal x86_64 Compiling\ ServerConfigurationTests.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/ServerConfigurationTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftCompile normal x86_64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/ServerConfigurationTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile ServerConfigurationTests.swift
+
+SwiftCompile normal x86_64 Compiling\ RecordsTests.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/RecordsTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftCompile normal x86_64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/RecordsTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile RecordsTests.swift
+
+SwiftCompile normal x86_64 Compiling\ OnboardingTests.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/OnboardingTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftCompile normal x86_64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/OnboardingTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile OnboardingTests.swift
+
+SwiftCompile normal x86_64 Compiling\ SettingsTests.swift /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/SettingsTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftCompile normal x86_64 /Users/idesign/Documents/GitHub/safeorbit/object/ios/SafeOrbitTests/SettingsTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-SwiftPerFileCompile SettingsTests.swift
+
+SwiftDriverJobDiscovery normal x86_64 Compiling ServerConfigurationTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftDriverJobDiscovery normal x86_64 Compiling SettingsTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftDriverJobDiscovery normal x86_64 Compiling OnboardingTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftDriverJobDiscovery normal x86_64 Compiling LocationTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftDriverJobDiscovery normal x86_64 Compiling RecordsTests.swift (in target 'SafeOrbitTests' from project 'SafeOrbit')
+
+SwiftDriver\ Compilation SafeOrbitTests normal x86_64 com.apple.xcode.tools.swift.compiler (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-Swift-Compilation -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SafeOrbitTests -Onone @/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests.SwiftFileList -DDEBUG -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -target x86_64-apple-ios17.0-simulator -g -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Index.noindex/DataStore -swift-version 5 -I /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F /Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -F /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -F /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk/Developer/Library/Frameworks -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKStatCaches.noindex/iphonesimulator27.0-24A430-8dc58220667be655e1bcc261a7455254.sdkstatcache -output-file-map /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests-OutputFileMap.json -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKExplicitPrecompiledModules -emit-dependencies -emit-module -emit-module-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests.swiftmodule -serialize-diagnostics -dependency-scan-serialize-diagnostics-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests-dependency-scan.dia -validate-clang-modules-once -clang-build-session-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -emit-const-values -const-gather-protocols-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests_const_extract_protocols.json -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-generated-files.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-own-target-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-all-target-headers.hmap -Xcc -iquote -Xcc /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests-project-headers.hmap -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources-normal/x86_64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources/x86_64 -Xcc -I/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests-Swift.h -working-directory /Users/idesign/Documents/GitHub/safeorbit/object/ios -experimental-emit-module-separately -disable-cmo
+
+Ld /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/Binary/SafeOrbitTests normal x86_64 (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target x86_64-apple-ios17.0-simulator -bundle -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk -Os -Xlinker -no_warn_duplicate_libraries -L/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -L/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -L/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator -F/Users/idesign/Documents/GitHub/safeorbit/object/ios/.build/AMap -iframework /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -iframework /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk/Developer/Library/Frameworks -filelist /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests.LinkFileList -Xlinker -rpath -Xlinker /usr/lib/swift -Xlinker -rpath -Xlinker @loader_path/Frameworks -Xlinker -rpath -Xlinker @executable_path/Frameworks -Xlinker -dead_strip -bundle_loader /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/SafeOrbit -Xlinker -object_path_lto -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests_lto.o -rdynamic -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -dependency_info -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests_dependency_info.dat -fobjc-link-runtime -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests.swiftmodule -Xlinker -needed_framework -Xlinker XCTest -framework XCTest -Xlinker -needed-lXCTestSwiftSupport -lXCTestSwiftSupport /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/SafeOrbit.debug.dylib -Xlinker -no_adhoc_codesign -o /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/Binary/SafeOrbitTests
+
+CreateUniversalBinary /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/PlugIns/SafeOrbitTests.xctest/SafeOrbitTests normal arm64\ x86_64 (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/lipo -create /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/Binary/SafeOrbitTests /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/Binary/SafeOrbitTests -output /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/PlugIns/SafeOrbitTests.xctest/SafeOrbitTests
+
+ExtractAppIntentsMetadata (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name SafeOrbitTests --sdk-root /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk --xcode-version 27A266a --platform-family iOS --deployment-target 17.0 --bundle-identifier org.safeorbit.demo.tests --output /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/PlugIns/SafeOrbitTests.xctest --target-triple arm64-apple-ios17.0-simulator --target-triple x86_64-apple-ios17.0-simulator --binary-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/PlugIns/SafeOrbitTests.xctest/SafeOrbitTests --dependency-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests_dependency_info.dat --dependency-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests_dependency_info.dat --stringsdata-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --stringsdata-file /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests.SwiftFileList --source-file-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests.SwiftFileList --metadata-file-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests.DependencyMetadataFileList --static-metadata-file-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SafeOrbitTests.DependencyStaticMetadataFileList --swift-const-vals-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/arm64/SafeOrbitTests.SwiftConstValuesFileList --swift-const-vals-list /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/Objects-normal/x86_64/SafeOrbitTests.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --no-app-shortcuts-localization
+2026-10-12 16:26:16.361 appintentsmetadataprocessor[33242:203420] Starting appintentsmetadataprocessor export
+2026-10-12 16:26:16.363 appintentsmetadataprocessor[33242:203420] warning: Metadata extraction skipped, no AppIntents.framework dependency found
+
+CopySwiftLibs /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/PlugIns/SafeOrbitTests.xctest (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-swiftStdLibTool --copy --verbose --sign - --scan-executable /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/PlugIns/SafeOrbitTests.xctest/SafeOrbitTests --scan-folder /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/PlugIns/SafeOrbitTests.xctest/Frameworks --scan-folder /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/PlugIns/SafeOrbitTests.xctest/PlugIns --scan-folder /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/PlugIns/SafeOrbitTests.xctest/SystemExtensions --scan-folder /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/PlugIns/SafeOrbitTests.xctest/Extensions --platform iphonesimulator --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/PlugIns/SafeOrbitTests.xctest/Frameworks --strip-bitcode --scan-executable /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libXCTestSwiftSupport.dylib --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbitTests.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os
+
+CodeSign /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/PlugIns/SafeOrbitTests.xctest (in target 'SafeOrbitTests' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/PlugIns/SafeOrbitTests.xctest
+
+CodeSign /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/SafeOrbit.debug.dylib (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/SafeOrbit.debug.dylib
+
+CodeSign /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/__preview.dylib (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/__preview.dylib
+/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app/__preview.dylib: replacing existing signature
+
+CodeSign /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --entitlements /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SafeOrbit.build/Debug-iphonesimulator/SafeOrbit.build/SafeOrbit.app.xcent --timestamp\=none --generate-entitlement-der /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app
+
+Validate /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app (in target 'SafeOrbit' from project 'SafeOrbit')
+    cd /Users/idesign/Documents/GitHub/safeorbit/object/ios
+    builtin-validationUtility /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app -shallow-bundle -infoplist-subpath Info.plist
+
+PruneExplicitPrecompiledModules /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules
+
+PruneExplicitPrecompiledModules /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/SDKExplicitPrecompiledModules
+
+PruneExplicitPrecompiledModules /Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Build/Intermediates.noindex/ExplicitPrecompiledModules
+
+2026-10-12 16:26:28.844481+0800 SafeOrbit[33300:203901] [XPCErrors] non-launching port is incompatible with service identifier "com.apple.PointerUI.pointeruid.default-service"
+2026-10-12 16:26:28.873733+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:26:28.879456+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+objc[33300]: Class UIAccessibilityLoaderWebShared is implemented in both /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.ppgfvL/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x10938c398) and /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.ppgfvL/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x1161b0310). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+Test Suite 'All tests' started at 2026-10-12 16:26:31.177.
+Test Suite 'SafeOrbitTests.xctest' started at 2026-10-12 16:26:31.179.
+Test Suite 'AgentSessionTests' started at 2026-10-12 16:26:31.179.
+Test Case '-[SafeOrbitTests.AgentSessionTests testBlankDraftIsEphemeralAndFirstSendPersistsStableIDsAndFixedTitle]' started.
+Test Case '-[SafeOrbitTests.AgentSessionTests testBlankDraftIsEphemeralAndFirstSendPersistsStableIDsAndFixedTitle]' passed (0.019 seconds).
+Test Case '-[SafeOrbitTests.AgentSessionTests testConfirmedDeletionRemovesMessagesDraftAndActiveSelectionFromDisk]' started.
+Test Case '-[SafeOrbitTests.AgentSessionTests testConfirmedDeletionRemovesMessagesDraftAndActiveSelectionFromDisk]' passed (0.004 seconds).
+Test Case '-[SafeOrbitTests.AgentSessionTests testCorruptionCannotBeOverwrittenAndRetryRestoresOriginalHistory]' started.
+Test Case '-[SafeOrbitTests.AgentSessionTests testCorruptionCannotBeOverwrittenAndRetryRestoresOriginalHistory]' passed (0.010 seconds).
+Test Case '-[SafeOrbitTests.AgentSessionTests testDisablingTripHistoryKeepsPriorMessagesAndBlocksOnlyNewAnswers]' started.
+Test Case '-[SafeOrbitTests.AgentSessionTests testDisablingTripHistoryKeepsPriorMessagesAndBlocksOnlyNewAnswers]' passed (0.003 seconds).
+Test Case '-[SafeOrbitTests.AgentSessionTests testOnlySendingChangesRecencyAndOpeningKeepsDraft]' started.
+Test Case '-[SafeOrbitTests.AgentSessionTests testOnlySendingChangesRecencyAndOpeningKeepsDraft]' passed (0.002 seconds).
+Test Case '-[SafeOrbitTests.AgentSessionTests testSessionAndRecordsLayoutsAtAllRequiredSizes]' started.
+Test Case '-[SafeOrbitTests.AgentSessionTests testSessionAndRecordsLayoutsAtAllRequiredSizes]' passed (10.623 seconds).
+Test Case '-[SafeOrbitTests.AgentSessionTests testTitlesUseThemesFirstSentenceAndLanguageLimits]' started.
+Test Case '-[SafeOrbitTests.AgentSessionTests testTitlesUseThemesFirstSentenceAndLanguageLimits]' passed (0.000 seconds).
+Test Suite 'AgentSessionTests' passed at 2026-10-12 16:26:41.844.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 10.661 (10.665) seconds
+Test Suite 'ElderFrontendTests' started at 2026-10-12 16:26:41.847.
+Test Case '-[SafeOrbitTests.ElderFrontendTests testCallPreviewStopsGuidanceAndCanReturnToEitherHomeOrNavigation]' started.
+Test Case '-[SafeOrbitTests.ElderFrontendTests testCallPreviewStopsGuidanceAndCanReturnToEitherHomeOrNavigation]' passed (0.002 seconds).
+Test Case '-[SafeOrbitTests.ElderFrontendTests testDemoMapRegionContainsAllRequiredPlaces]' started.
+Test Case '-[SafeOrbitTests.ElderFrontendTests testDemoMapRegionContainsAllRequiredPlaces]' passed (0.000 seconds).
+Test Case '-[SafeOrbitTests.ElderFrontendTests testDemoNavigationVoiceMuteAndConfirmedExit]' started.
+Test Case '-[SafeOrbitTests.ElderFrontendTests testDemoNavigationVoiceMuteAndConfirmedExit]' passed (0.000 seconds).
+Test Case '-[SafeOrbitTests.ElderFrontendTests testElderScreenSnapshotsAtDesignAndAdaptiveSizes]' started.
+2026-10-12 16:26:42.133456+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "default.csv"
+2026-10-12 16:26:42.150644+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:26:42.173795+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:26:42.174583+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:26:42.969327+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:42.972086+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:26:43.600665+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:43.606738+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout design home: ["go-home": (24.0, 794.0, 152.32, 50.0), "call-family": (190.31999999999996, 794.0, 187.68000000000004, 50.0)]
+2026-10-12 16:26:44.829421+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:26:44.832902+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:26:44.833172+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:26:44.857267+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:26:45.335893+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:45.336626+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:26:45.345624+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:45.346220+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:26:45.832277+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:45.834133+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout design navigation: ["guidance-card": (30.0, 140.0, 342.0, 108.0), "call-family": (208.0, 794.0, 172.0, 50.0), "cancel-navigation": (22.0, 794.0, 172.0, 50.0)]
+2026-10-12 16:26:47.667873+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:26:47.671687+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:26:47.672005+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:26:47.701711+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:26:48.145900+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:48.146440+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:26:48.196398+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:48.197769+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:26:48.629682+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:48.631546+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout design call: ["call-card": (30.0, 728.0, 342.0, 116.0), "dismiss-call": (326.0, 64.0, 44.0, 44.0)]
+2026-10-12 16:26:50.658533+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:26:50.662104+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:26:50.662427+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:26:50.723890+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:26:51.145706+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:51.146252+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:26:51.179032+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:51.179643+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:26:51.648581+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:51.651050+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout design settings: ["go-home": (24.0, 794.0, 152.32, 50.0), "call-family": (190.31999999999996, 794.0, 187.68000000000004, 50.0)]
+2026-10-12 16:26:53.473484+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:26:53.966511+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:53.968719+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout design role: [:]
+2026-10-12 16:26:56.164366+0800 SafeOrbit[33300:203901] [Memory] Resetting GeoCodec zone allocator at address 0x11f3ff900 with 28 allocations still alive
+2026-10-12 16:26:56.271785+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "default.csv"
+2026-10-12 16:26:56.277287+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:26:56.288574+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:26:56.288969+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:26:56.315890+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:26:56.762668+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:56.763121+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:26:57.266341+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:57.268756+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout 393 home: ["go-home": (24.0, 772.0, 148.288, 50.0), "call-family": (186.288, 772.0, 182.712, 50.0)]
+2026-10-12 16:26:59.179036+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:26:59.182800+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:26:59.183125+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:26:59.205807+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:26:59.645118+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:59.645897+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:26:59.695593+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:26:59.697109+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:00.132655+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:00.133166+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout 393 navigation: ["call-family": (203.5, 772.0, 167.5, 50.0), "cancel-navigation": (22.0, 772.0, 167.5, 50.0), "guidance-card": (30.0, 140.0, 333.0, 108.0)]
+2026-10-12 16:27:02.058400+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:02.062004+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:02.062307+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:02.110473+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:27:02.547855+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:02.548790+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:02.562705+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:02.563270+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:03.028082+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:03.028577+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout 393 call: ["call-card": (30.0, 706.0, 333.0, 116.0), "dismiss-call": (317.0, 64.0, 44.0, 44.0)]
+2026-10-12 16:27:04.838870+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:04.842424+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:04.842749+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:04.891940+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:27:05.336322+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:05.336883+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:05.345162+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:05.345811+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:05.815305+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:05.817695+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout 393 settings: ["call-family": (186.288, 772.0, 182.712, 50.0), "go-home": (24.0, 772.0, 148.288, 50.0)]
+2026-10-12 16:27:07.685303+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:27:08.182158+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:08.182679+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout 393 role: [:]
+2026-10-12 16:27:10.426172+0800 SafeOrbit[33300:203901] [Memory] Resetting GeoCodec zone allocator at address 0x11f3ff900 with 56 allocations still alive
+2026-10-12 16:27:10.522043+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "default.csv"
+2026-10-12 16:27:10.527407+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:10.538259+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:10.538642+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:10.566415+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:27:11.027677+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:11.028216+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:11.615372+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:11.618026+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout 375 home: ["go-home": (24.0, 732.0, 140.224, 50.0), "call-family": (178.22399999999996, 732.0, 172.77600000000004, 50.0)]
+2026-10-12 16:27:13.308394+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:13.311887+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:13.312192+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:13.377666+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:27:13.794588+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:13.795303+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:13.828663+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:13.829418+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:14.297884+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:14.299886+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout 375 navigation: ["guidance-card": (30.0, 140.0, 315.0, 143.33333333333331), "call-family": (194.5, 710.0, 158.5, 72.0), "cancel-navigation": (22.0, 710.0, 158.5, 72.0)]
+2026-10-12 16:27:16.153303+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:16.156922+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:16.157273+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:16.207643+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:27:16.651583+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:16.652475+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:16.661415+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:16.662055+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:17.133018+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:17.135310+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout 375 call: ["call-card": (30.0, 658.0, 315.0, 124.0), "dismiss-call": (299.0, 64.0, 44.0, 44.0)]
+2026-10-12 16:27:18.922477+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:18.926047+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:18.926347+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:18.976077+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:27:19.394643+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:19.395722+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:19.428596+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:19.429804+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:19.880618+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:19.882220+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout 375 settings: ["go-home": (24.0, 732.0, 140.224, 50.0), "call-family": (178.22399999999996, 732.0, 172.77600000000004, 50.0)]
+2026-10-12 16:27:21.767236+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:27:22.246763+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:22.248207+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout 375 role: [:]
+2026-10-12 16:27:24.492304+0800 SafeOrbit[33300:203901] [Memory] Resetting GeoCodec zone allocator at address 0x11f3ff900 with 84 allocations still alive
+2026-10-12 16:27:24.582826+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "default.csv"
+2026-10-12 16:27:24.587972+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:24.598497+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:24.598952+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:24.650665+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:27:25.027449+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:25.027821+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:25.629539+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:25.630972+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout compact-large home: ["go-home": (24.0, 404.0, 272.0, 61.0), "call-family": (24.0, 477.0, 272.0, 61.0)]
+2026-10-12 16:27:27.375162+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:27.378766+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:27.379074+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:27.397657+0800 SafeOrbit[33300:203901] [Invalid Configuration] Bound preference ElderControlFrames tried to update multiple times per frame.
+2026-10-12 16:27:27.398259+0800 SafeOrbit[33300:203901] [Invalid Configuration] Bound preference NavigationGuidanceHeight tried to update multiple times per frame.
+2026-10-12 16:27:27.432282+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:27:27.827889+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:27.828584+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:27.894612+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:27.895367+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:28.362712+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:28.363771+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout compact-large navigation: ["guidance-viewport": (0.0, 140.0, 320.0, 244.0), "cancel-navigation": (22.0, 403.0, 131.0, 135.0), "guidance-card": (30.0, 148.0, 260.0, 309.3333333333333), "call-family": (167.0, 403.0, 131.0, 135.0)]
+2026-10-12 16:27:30.151094+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:30.155002+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:30.155293+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:30.168381+0800 SafeOrbit[33300:203901] [Invalid Configuration] Bound preference ElderControlFrames tried to update multiple times per frame.
+2026-10-12 16:27:30.184175+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:27:30.597311+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:30.597772+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:30.677246+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:30.677718+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:31.127932+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:31.129298+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout compact-large call: ["dismiss-call": (244.0, 64.0, 44.0, 44.0), "call-card": (30.0, 252.0, 260.0, 276.0)]
+2026-10-12 16:27:32.937881+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:32.941534+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:32.941835+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:32.990739+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:27:33.380481+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:33.380979+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:33.445046+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:33.446124+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:33.911697+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:33.912724+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout compact-large settings: ["call-family": (24.0, 477.0, 272.0, 61.0), "go-home": (24.0, 404.0, 272.0, 61.0)]
+2026-10-12 16:27:35.692511+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:27:36.195584+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:36.196686+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Elder layout compact-large role: [:]
+2026-10-12 16:27:38.410915+0800 SafeOrbit[33300:203901] [Memory] Resetting GeoCodec zone allocator at address 0x11f3ff900 with 84 allocations still alive
+Test Case '-[SafeOrbitTests.ElderFrontendTests testElderScreenSnapshotsAtDesignAndAdaptiveSizes]' passed (56.614 seconds).
+Test Case '-[SafeOrbitTests.ElderFrontendTests testElderVolumeSurvivesExitAndNewSessionWithoutClearingHome]' started.
+Test Case '-[SafeOrbitTests.ElderFrontendTests testElderVolumeSurvivesExitAndNewSessionWithoutClearingHome]' passed (0.005 seconds).
+Test Case '-[SafeOrbitTests.ElderFrontendTests testRoleChoiceAlwaysStartsEmptyAndReturnsWithoutRetainingRole]' started.
+Test Case '-[SafeOrbitTests.ElderFrontendTests testRoleChoiceAlwaysStartsEmptyAndReturnsWithoutRetainingRole]' passed (0.000 seconds).
+Test Case '-[SafeOrbitTests.ElderFrontendTests testVolumeValidationAndSystemLanguageGuidance]' started.
+Test Case '-[SafeOrbitTests.ElderFrontendTests testVolumeValidationAndSystemLanguageGuidance]' passed (0.000 seconds).
+Test Suite 'ElderFrontendTests' passed at 2026-10-12 16:27:38.471.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 56.623 (56.624) seconds
+Test Suite 'ElderLiveNavigationTests' started at 2026-10-12 16:27:38.472.
+Test Case '-[SafeOrbitTests.ElderLiveNavigationTests testGoHomeRequiresConfiguredHomeWithoutRequestingSampleRoute]' started.
+2026-10-12 16:27:38.494867+0800 SafeOrbit[33300:206136] [as_client] AVAudioSessionImpl_Simulator.mm:139   Unsupported property: SupportsInterruptionEndedAfterActivationError
+Test Case '-[SafeOrbitTests.ElderLiveNavigationTests testGoHomeRequiresConfiguredHomeWithoutRequestingSampleRoute]' passed (0.027 seconds).
+Test Case '-[SafeOrbitTests.ElderLiveNavigationTests testHomeStorageRequiresValidCoordinateAndDoesNotChangeProfileStorage]' started.
+Test Case '-[SafeOrbitTests.ElderLiveNavigationTests testHomeStorageRequiresValidCoordinateAndDoesNotChangeProfileStorage]' passed (0.002 seconds).
+Test Case '-[SafeOrbitTests.ElderLiveNavigationTests testStaticHomeDoesNotExpireAndLiveSessionNeverSpeaksSampleGuidance]' started.
+Test Case '-[SafeOrbitTests.ElderLiveNavigationTests testStaticHomeDoesNotExpireAndLiveSessionNeverSpeaksSampleGuidance]' passed (0.012 seconds).
+Test Suite 'ElderLiveNavigationTests' passed at 2026-10-12 16:27:38.513.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.041 (0.042) seconds
+Test Suite 'LocationTests' started at 2026-10-12 16:27:38.513.
+Test Case '-[SafeOrbitTests.LocationTests testBoundRoutingAndRefreshRetainsLastLocation]' started.
+Test Case '-[SafeOrbitTests.LocationTests testBoundRoutingAndRefreshRetainsLastLocation]' passed (0.087 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testCoordinatesAndFreshness]' started.
+Test Case '-[SafeOrbitTests.LocationTests testCoordinatesAndFreshness]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testEstimatedArrivalUsesValidProgressAndClearsOnExit]' started.
+Test Case '-[SafeOrbitTests.LocationTests testEstimatedArrivalUsesValidProgressAndClearsOnExit]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testFollowCameraUsesDirectedRouteInsteadOfCompassAndTurnsAtCorner]' started.
+Test Case '-[SafeOrbitTests.LocationTests testFollowCameraUsesDirectedRouteInsteadOfCompassAndTurnsAtCorner]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testHeadingCallbacksCannotRevivePausedOrEndedNavigation]' started.
+Test Case '-[SafeOrbitTests.LocationTests testHeadingCallbacksCannotRevivePausedOrEndedNavigation]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testInlineNavigationSnapshotsAndExit]' started.
+2026-10-12 16:27:38.670434+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "default.csv"
+2026-10-12 16:27:38.675264+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:38.684136+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:38.684548+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:39.210827+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:39.211406+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:39.750703+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:39.751745+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:40.279215+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:40.280844+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:41.390023+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:41.393786+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:41.394087+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:41.522028+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:41.541715+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:41.962363+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:41.962838+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:42.115257+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:42.116613+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:42.445877+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:42.447458+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:43.067874+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:43.068715+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:43.080427+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:43.081870+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:44.134002+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:44.137578+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:44.137871+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:44.158628+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:44.163507+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:44.612323+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:44.612847+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:44.748540+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:44.750057+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:45.112389+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:45.114022+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:45.698804+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:45.699171+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:45.700680+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:45.701997+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:46.828194+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:46.831815+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:46.832122+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:46.881997+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:46.898420+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:47.312285+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:47.312845+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:47.482083+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:47.483834+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:47.830961+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:47.832590+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:48.416129+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:48.416913+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:48.429775+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:48.431349+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:49.489252+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:49.492879+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:49.493186+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:49.537661+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:49.541762+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:49.997662+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:49.998167+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:50.095518+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:50.096022+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:50.514047+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:50.515129+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:51.062169+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:51.062607+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:51.097239+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:51.097763+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:52.219489+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:52.222989+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:52.223324+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:27:52.243392+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:52.244001+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:52.678801+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:52.679217+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:52.815006+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:52.816039+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:53.179822+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:53.181083+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:53.763645+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:53.765034+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Test Case '-[SafeOrbitTests.LocationTests testInlineNavigationSnapshotsAndExit]' passed (16.356 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testNavigationCancellationIgnoresLateRouteAndLocation]' started.
+2026-10-12 16:27:54.973656+0800 SafeOrbit[33300:203901] [Memory] Resetting GeoCodec zone allocator at address 0x11f3ff900 with 210 allocations still alive
+Test Case '-[SafeOrbitTests.LocationTests testNavigationCancellationIgnoresLateRouteAndLocation]' passed (0.029 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testNavigationDeviationThrottleAndMovingSenior]' started.
+Test Case '-[SafeOrbitTests.LocationTests testNavigationDeviationThrottleAndMovingSenior]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testNavigationErrorsRemainActionableAndRetry]' started.
+Test Case '-[SafeOrbitTests.LocationTests testNavigationErrorsRemainActionableAndRetry]' passed (0.004 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testNavigationHeadingPrefersCompassAndFallsBackToCourseThenRoute]' started.
+Test Case '-[SafeOrbitTests.LocationTests testNavigationHeadingPrefersCompassAndFallsBackToCourseThenRoute]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testNavigationProgressVoiceMuteAndArrival]' started.
+Test Case '-[SafeOrbitTests.LocationTests testNavigationProgressVoiceMuteAndArrival]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testNavigationStaleLocationPausesAndRecovers]' started.
+Test Case '-[SafeOrbitTests.LocationTests testNavigationStaleLocationPausesAndRecovers]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testPreviewNavigationUsesRoadRouteAndRefreshesOnlySampleFixes]' started.
+Test Case '-[SafeOrbitTests.LocationTests testPreviewNavigationUsesRoadRouteAndRefreshesOnlySampleFixes]' passed (1.113 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testRiskHomeSnapshots]' started.
+2026-10-12 16:27:56.152298+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "default.csv"
+2026-10-12 16:27:56.160956+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:56.168063+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:56.168612+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+Wrapped around the polygon without finishing... :-(
+List has 7 nodes:
+	14 19 17 15 0 1 12 
+2026-10-12 16:27:56.300340+0800 SafeOrbit[33300:205781] [VKDefault] Building failed to triangulate!
+2026-10-12 16:27:56.646484+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:56.646841+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:57.299226+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:57.301301+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:58.920856+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:27:58.924394+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:27:58.924714+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+Wrapped around the polygon without finishing... :-(
+List has 7 nodes:
+	14 19 17 15 0 1 12 
+2026-10-12 16:27:59.050178+0800 SafeOrbit[33300:205637] [VKDefault] Building failed to triangulate!
+2026-10-12 16:27:59.414239+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:59.414604+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:59.428624+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:59.428930+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:27:59.913383+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:27:59.915196+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Test Case '-[SafeOrbitTests.LocationTests testRiskHomeSnapshots]' passed (5.540 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testRiskPreviewArgumentsAreExplicit]' started.
+Test Case '-[SafeOrbitTests.LocationTests testRiskPreviewArgumentsAreExplicit]' passed (0.000 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testSafeZoneChangesLastOnlyForSession]' started.
+Test Case '-[SafeOrbitTests.LocationTests testSafeZoneChangesLastOnlyForSession]' passed (0.000 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testSafeZoneCircleUsesMapCoordinatesAndMeters]' started.
+Test Case '-[SafeOrbitTests.LocationTests testSafeZoneCircleUsesMapCoordinatesAndMeters]' passed (0.000 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testSafeZoneDragStoresWGS84AndPanPreservesSelection]' started.
+Test Case '-[SafeOrbitTests.LocationTests testSafeZoneDragStoresWGS84AndPanPreservesSelection]' passed (0.000 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testSafeZoneEditorSnapshots]' started.
+2026-10-12 16:28:01.671448+0800 SafeOrbit[33300:203901] [Memory] Resetting GeoCodec zone allocator at address 0x11f3ff900 with 280 allocations still alive
+2026-10-12 16:28:01.725750+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "default.csv"
+2026-10-12 16:28:01.730548+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:28:01.736170+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:28:01.736579+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:28:02.211925+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:02.212195+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:02.966067+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:02.968458+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:04.448030+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:28:04.451544+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:28:04.451850+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:28:04.863292+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:04.863580+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:05.532109+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:05.533970+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Test Case '-[SafeOrbitTests.LocationTests testSafeZoneEditorSnapshots]' passed (5.542 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testSafeZoneMapFailureDisablesSaveAndLoadingRecovers]' started.
+Test Case '-[SafeOrbitTests.LocationTests testSafeZoneMapFailureDisablesSaveAndLoadingRecovers]' passed (0.000 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testSafeZoneRangeKeepsCompleteCircleDuringRepeatedDragsAndRadiusChanges]' started.
+Test Case '-[SafeOrbitTests.LocationTests testSafeZoneRangeKeepsCompleteCircleDuringRepeatedDragsAndRadiusChanges]' passed (0.000 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testWalkingRouteScreenRendersPlannedSteps]' started.
+2026-10-12 16:28:07.208335+0800 SafeOrbit[33300:203901] [Memory] Resetting GeoCodec zone allocator at address 0x11f3ff900 with 280 allocations still alive
+2026-10-12 16:28:07.224849+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "default.csv"
+2026-10-12 16:28:07.229497+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:28:07.235197+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:28:07.235587+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:28:07.693637+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:07.694148+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:08.215311+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:08.217351+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Test Case '-[SafeOrbitTests.LocationTests testWalkingRouteScreenRendersPlannedSteps]' passed (2.728 seconds).
+Test Case '-[SafeOrbitTests.LocationTests testWalkingRouteSuccessAndFailure]' started.
+2026-10-12 16:28:09.940204+0800 SafeOrbit[33300:203901] [Memory] Resetting GeoCodec zone allocator at address 0x11f3ff900 with 301 allocations still alive
+Test Case '-[SafeOrbitTests.LocationTests testWalkingRouteSuccessAndFailure]' passed (0.017 seconds).
+Test Suite 'LocationTests' passed at 2026-10-12 16:28:09.943.
+	 Executed 23 tests, with 0 failures (0 unexpected) in 31.425 (31.430) seconds
+Test Suite 'OnboardingTests' started at 2026-10-12 16:28:09.943.
+Test Case '-[SafeOrbitTests.OnboardingTests testAcceptedGeneratedPasswordCanFillConfirmationInEitherOrder]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testAcceptedGeneratedPasswordCanFillConfirmationInEitherOrder]' passed (0.024 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testAPIPathsHeadersAndExpiryTimestamp]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testAPIPathsHeadersAndExpiryTimestamp]' passed (0.010 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testBindingRejectsUnrelatedAndAmbiguousLinks]' started.
+2026-10-12 16:28:10.121120+0800 SafeOrbit[33300:203901] The filter 'CIPortraitEffectSpillCorrection' is not implemented in the bundle at /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.ppgfvL/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/CoreImage/PortraitFilters.cifilter.
+Test Case '-[SafeOrbitTests.OnboardingTests testBindingRejectsUnrelatedAndAmbiguousLinks]' passed (0.228 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testCountryPhoneEntryAndValidation]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testCountryPhoneEntryAndValidation]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testDebugEmailPreviewEntersHomeWithoutBackendSession]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testDebugEmailPreviewEntersHomeWithoutBackendSession]' passed (0.009 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testDirectHomeLeavesSavedAccountUntouchedAndNeverRequestsSession]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testDirectHomeLeavesSavedAccountUntouchedAndNeverRequestsSession]' passed (0.004 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testEmailAndGoogleCallbackValidation]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testEmailAndGoogleCallbackValidation]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testEmailAuthFailureRecoveryAndReset]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testEmailAuthFailureRecoveryAndReset]' passed (0.003 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testExpiredSessionIsCleared]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testExpiredSessionIsCleared]' passed (0.005 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testGooglePreparationCancellationAndStateRecovery]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testGooglePreparationCancellationAndStateRecovery]' passed (0.010 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testPasswordSuggestionPreviewDoesNotCommitConfirmation]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testPasswordSuggestionPreviewDoesNotCommitConfirmation]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testProfileFailurePreservesDraftAndBindingTransitions]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testProfileFailurePreservesDraftAndBindingTransitions]' passed (0.008 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testProfileResponseCanOmitOptionalPhotoAndBound]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testProfileResponseCanOmitOptionalPhotoAndBound]' passed (0.000 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testProfileValidationAndInternationalPhone]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testProfileValidationAndInternationalPhone]' passed (0.000 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testRenderPagesForVisualReview]' started.
+2026-10-12 16:28:10.274935+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:10.613122+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:10.891624+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:11.141665+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:11.408183+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:11.641570+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:11.908240+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:12.158275+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:12.391580+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:12.641627+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:12.974944+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:13.324976+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:13.591585+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:13.858441+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:14.091533+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:14.323003+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "default.csv"
+2026-10-12 16:28:14.328381+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:28:14.333953+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:28:14.334385+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:28:14.398063+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+Wrapped around the polygon without finishing... :-(
+List has 7 nodes:
+	14 19 17 15 0 1 12 
+2026-10-12 16:28:14.482897+0800 SafeOrbit[33300:208996] [VKDefault] Building failed to triangulate!
+2026-10-12 16:28:14.861089+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:14.861535+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:15.316982+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:15.319877+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:17.086168+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:28:17.089737+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:28:17.090058+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:28:17.140215+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:17.543506+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:17.543968+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:18.065814+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:18.067527+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:19.830425+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:28:19.834019+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:28:19.834329+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:28:19.898108+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:20.165988+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:28:20.169516+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:28:20.169837+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:28:20.276651+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+Wrapped around the polygon without finishing... :-(
+List has 7 nodes:
+	14 19 17 15 0 1 12 
+2026-10-12 16:28:20.366444+0800 SafeOrbit[33300:205781] [VKDefault] Building failed to triangulate!
+2026-10-12 16:28:20.745310+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:20.745814+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:21.215961+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:21.218881+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:23.090568+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:28:23.094355+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:28:23.094619+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:28:23.198359+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+Wrapped around the polygon without finishing... :-(
+List has 7 nodes:
+	14 19 17 15 0 1 12 
+2026-10-12 16:28:23.282643+0800 SafeOrbit[33300:206218] [VKDefault] Building failed to triangulate!
+2026-10-12 16:28:23.626952+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:23.627452+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:24.147706+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:24.150570+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:25.910668+0800 SafeOrbit[33300:203901] [Memory] Resetting GeoCodec zone allocator at address 0x11f3ff900 with 427 allocations still alive
+2026-10-12 16:28:25.912758+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:26.108584+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "default.csv"
+2026-10-12 16:28:26.113135+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:28:26.118890+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:28:26.119299+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:28:26.181438+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+Wrapped around the polygon without finishing... :-(
+List has 7 nodes:
+	14 19 17 15 0 1 12 
+2026-10-12 16:28:26.266354+0800 SafeOrbit[33300:209452] [VKDefault] Building failed to triangulate!
+2026-10-12 16:28:26.644332+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:26.644869+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:27.133402+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:27.135635+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Test Case '-[SafeOrbitTests.OnboardingTests testRenderPagesForVisualReview]' passed (18.615 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testSignupPasswordDraftRestoresUnexpectedClearButAllowsUserDelete]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testSignupPasswordDraftRestoresUnexpectedClearButAllowsUserDelete]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testSignupPasswordRestoresSystemClearedDisplayWithoutChangingDraft]' started.
+Test Case '-[SafeOrbitTests.OnboardingTests testSignupPasswordRestoresSystemClearedDisplayWithoutChangingDraft]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.OnboardingTests testSingleLoginEntryRetriesAndBlocksDuplicates]' started.
+2026-10-12 16:28:28.881740+0800 SafeOrbit[33300:203901] [Memory] Resetting GeoCodec zone allocator at address 0x11f3ff900 with 462 allocations still alive
+Test Case '-[SafeOrbitTests.OnboardingTests testSingleLoginEntryRetriesAndBlocksDuplicates]' passed (0.040 seconds).
+Test Suite 'OnboardingTests' passed at 2026-10-12 16:28:28.906.
+	 Executed 18 tests, with 0 failures (0 unexpected) in 18.959 (18.963) seconds
+Test Suite 'RecordsTests' started at 2026-10-12 16:28:28.906.
+Test Case '-[SafeOrbitTests.RecordsTests testAgentTripHistoryPermissionBlocksAllSampleAnswers]' started.
+Test Case '-[SafeOrbitTests.RecordsTests testAgentTripHistoryPermissionBlocksAllSampleAnswers]' passed (0.000 seconds).
+Test Case '-[SafeOrbitTests.RecordsTests testCaregiverPageSnapshots]' started.
+Charts: Custom UnitPoint values are not supported in AxisValueLabel's anchor property. Please use leading, topLeading, center, etc.
+IOSurfaceClientSetSurfaceNotify failed e00002c7
+2026-10-12 16:28:31.075921+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:33.374718+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "default.csv"
+2026-10-12 16:28:33.380972+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:28:33.386904+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:28:33.387371+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:28:33.859821+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:33.860370+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:34.396981+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:34.399012+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:36.471987+0800 SafeOrbit[33300:203901] [Memory] Resetting GeoCodec zone allocator at address 0x11f3ff900 with 476 allocations still alive
+Test Case '-[SafeOrbitTests.RecordsTests testCaregiverPageSnapshots]' passed (9.339 seconds).
+Test Case '-[SafeOrbitTests.RecordsTests testSampleRecordsStayConsistentAcrossPages]' started.
+Test Case '-[SafeOrbitTests.RecordsTests testSampleRecordsStayConsistentAcrossPages]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.RecordsTests testSpeechPermissionDescriptionsExist]' started.
+Test Case '-[SafeOrbitTests.RecordsTests testSpeechPermissionDescriptionsExist]' passed (0.000 seconds).
+Test Case '-[SafeOrbitTests.RecordsTests testTrendDateLabelsFitTheRenderedChartAndDoNotOverlap]' started.
+Test Case '-[SafeOrbitTests.RecordsTests testTrendDateLabelsFitTheRenderedChartAndDoNotOverlap]' passed (0.991 seconds).
+Test Case '-[SafeOrbitTests.RecordsTests testTrendDatesCoverEveryDataPointInChronologicalOrder]' started.
+Test Case '-[SafeOrbitTests.RecordsTests testTrendDatesCoverEveryDataPointInChronologicalOrder]' passed (0.002 seconds).
+Test Suite 'RecordsTests' passed at 2026-10-12 16:28:39.242.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 10.334 (10.336) seconds
+Test Suite 'ServerConfigurationTests' started at 2026-10-12 16:28:39.242.
+Test Case '-[SafeOrbitTests.ServerConfigurationTests testInvalidServersAreRejected]' started.
+Test Case '-[SafeOrbitTests.ServerConfigurationTests testInvalidServersAreRejected]' passed (0.001 seconds).
+Test Case '-[SafeOrbitTests.ServerConfigurationTests testLocalAndSecureServers]' started.
+Test Case '-[SafeOrbitTests.ServerConfigurationTests testLocalAndSecureServers]' passed (0.001 seconds).
+Test Suite 'ServerConfigurationTests' passed at 2026-10-12 16:28:39.246.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.002 (0.004) seconds
+Test Suite 'SettingsTests' started at 2026-10-12 16:28:39.246.
+Test Case '-[SafeOrbitTests.SettingsTests testAddingLocalMemberKeepsProfileDraftsAndPersists]' started.
+Test Case '-[SafeOrbitTests.SettingsTests testAddingLocalMemberKeepsProfileDraftsAndPersists]' passed (0.014 seconds).
+Test Case '-[SafeOrbitTests.SettingsTests testBottomOverlayIsThirtyPointsFromScreenEdgeAcrossLayouts]' started.
+Bottom overlay 393.0x852.0, nested=false, bottom gap=30.0pt
+Bottom overlay 393.0x852.0, nested=true, bottom gap=30.0pt
+Bottom overlay 375.0x812.0, nested=false, bottom gap=30.0pt
+Bottom overlay 375.0x812.0, nested=true, bottom gap=30.0pt
+Bottom overlay 320.0x568.0, nested=false, bottom gap=30.0pt
+Bottom overlay 320.0x568.0, nested=true, bottom gap=30.0pt
+Test Case '-[SafeOrbitTests.SettingsTests testBottomOverlayIsThirtyPointsFromScreenEdgeAcrossLayouts]' passed (1.048 seconds).
+Test Case '-[SafeOrbitTests.SettingsTests testEmailAndEmergencyContactsCommitTogether]' started.
+Test Case '-[SafeOrbitTests.SettingsTests testEmailAndEmergencyContactsCommitTogether]' passed (0.005 seconds).
+Test Case '-[SafeOrbitTests.SettingsTests testFamilyPrimaryRemainsValidAfterRemovalAndReload]' started.
+Test Case '-[SafeOrbitTests.SettingsTests testFamilyPrimaryRemainsValidAfterRemovalAndReload]' passed (0.002 seconds).
+Test Case '-[SafeOrbitTests.SettingsTests testImmediatePageWrapperPreservesContentAnimations]' started.
+Test Case '-[SafeOrbitTests.SettingsTests testImmediatePageWrapperPreservesContentAnimations]' passed (0.221 seconds).
+Test Case '-[SafeOrbitTests.SettingsTests testInlineProfileGroupsSaveIndependentlyAndDiscardUnsavedDrafts]' started.
+Test Case '-[SafeOrbitTests.SettingsTests testInlineProfileGroupsSaveIndependentlyAndDiscardUnsavedDrafts]' passed (0.004 seconds).
+Test Case '-[SafeOrbitTests.SettingsTests testInlineProfileLoadingAndValidationAreIsolated]' started.
+Test Case '-[SafeOrbitTests.SettingsTests testInlineProfileLoadingAndValidationAreIsolated]' passed (0.002 seconds).
+Test Case '-[SafeOrbitTests.SettingsTests testLegacySettingsKeepProfilesMembersAndPreferences]' started.
+Test Case '-[SafeOrbitTests.SettingsTests testLegacySettingsKeepProfilesMembersAndPreferences]' passed (0.003 seconds).
+Test Case '-[SafeOrbitTests.SettingsTests testPreferencesPersistAndCorruptDataFallsBack]' started.
+Test Case '-[SafeOrbitTests.SettingsTests testPreferencesPersistAndCorruptDataFallsBack]' passed (0.003 seconds).
+Test Case '-[SafeOrbitTests.SettingsTests testProfilesValidateAndPersistWithoutSavingDraft]' started.
+Test Case '-[SafeOrbitTests.SettingsTests testProfilesValidateAndPersistWithoutSavingDraft]' passed (0.002 seconds).
+Test Case '-[SafeOrbitTests.SettingsTests testSettingsPagesSnapshots]' started.
+Test Case '-[SafeOrbitTests.SettingsTests testSettingsPagesSnapshots]' passed (10.789 seconds).
+Test Case '-[SafeOrbitTests.SettingsTests testSettingsPagesSwitchImmediatelyAndRemoveOldDraft]' started.
+Test Case '-[SafeOrbitTests.SettingsTests testSettingsPagesSwitchImmediatelyAndRemoveOldDraft]' passed (0.242 seconds).
+Test Case '-[SafeOrbitTests.SettingsTests testSharedCaregiverSidebarSnapshotsAtFourSizes]' started.
+2026-10-12 16:28:51.634004+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "default.csv"
+2026-10-12 16:28:51.639985+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:28:51.646127+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:28:51.646563+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:28:51.723078+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+Wrapped around the polygon without finishing... :-(
+List has 7 nodes:
+	14 19 17 15 0 1 12 
+2026-10-12 16:28:51.832674+0800 SafeOrbit[33300:206136] [VKDefault] Building failed to triangulate!
+2026-10-12 16:28:52.255527+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:28:52.259033+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:28:52.259344+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:28:52.318160+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:52.344403+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:52.345170+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Wrapped around the polygon without finishing... :-(
+List has 7 nodes:
+	14 19 17 15 0 1 12 
+2026-10-12 16:28:52.415645+0800 SafeOrbit[33300:205781] [VKDefault] Building failed to triangulate!
+2026-10-12 16:28:52.907838+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:28:52.911301+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:28:52.911602+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:28:52.971958+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:52.972832+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+2026-10-12 16:28:52.994871+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+Wrapped around the polygon without finishing... :-(
+List has 7 nodes:
+	14 19 17 15 0 1 12 
+2026-10-12 16:28:53.082534+0800 SafeOrbit[33300:209948] [VKDefault] Building failed to triangulate!
+2026-10-12 16:28:53.548725+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "flyover-meta.json"
+2026-10-12 16:28:53.552336+0800 SafeOrbit[33300:203901] [ResourceManifest] Failed to locate resource named "altitude.xml"
+2026-10-12 16:28:53.552666+0800 SafeOrbit[33300:203901] [API] CAMetalLayer ignoring invalid setDrawableSize width=0.000000 height=0.000000
+2026-10-12 16:28:53.669489+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:53.694166+0800 SafeOrbit[33300:203901] [API] cannot add handler to 0 from 0 - dropping
+2026-10-12 16:28:53.694919+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Wrapped around the polygon without finishing... :-(
+List has 7 nodes:
+	14 19 17 15 0 1 12 
+2026-10-12 16:28:53.782150+0800 SafeOrbit[33300:209451] [VKDefault] Building failed to triangulate!
+2026-10-12 16:28:53.962551+0800 SafeOrbit[33300:203901] [Accessibility] Executing an update request
+2026-10-12 16:28:53.963225+0800 SafeOrbit[33300:203901] [Accessibility] Update request succeeded
+Test Case '-[SafeOrbitTests.SettingsTests testSharedCaregiverSidebarSnapshotsAtFourSizes]' passed (2.558 seconds).
+Test Case '-[SafeOrbitTests.SettingsTests testVoiceSwitchReflectsAuthorizationAndRoutesChanges]' started.
+2026-10-12 16:28:54.157848+0800 SafeOrbit[33300:203901] [Memory] Resetting GeoCodec zone allocator at address 0x11f3ff900 with 616 allocations still alive
+Test Case '-[SafeOrbitTests.SettingsTests testVoiceSwitchReflectsAuthorizationAndRoutesChanges]' passed (0.018 seconds).
+Test Suite 'SettingsTests' passed at 2026-10-12 16:28:54.161.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 14.912 (14.915) seconds
+Test Suite 'SafeOrbitTests.xctest' passed at 2026-10-12 16:28:54.162.
+	 Executed 80 tests, with 0 failures (0 unexpected) in 142.956 (142.983) seconds
+Test Suite 'All tests' passed at 2026-10-12 16:28:54.162.
+	 Executed 80 tests, with 0 failures (0 unexpected) in 142.956 (142.985) seconds
+2026-10-12 16:28:54.482 xcodebuild[33090:202618] [MT] IDETestOperationsObserverDebug: 156.924 elapsed -- Testing started completed.
+2026-10-12 16:28:54.482 xcodebuild[33090:202618] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-10-12 16:28:54.482 xcodebuild[33090:202618] [MT] IDETestOperationsObserverDebug: 156.924 sec, +156.924 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/idesign/Documents/GitHub/safeorbit/object/ios/DerivedData/Logs/Test/Test-SafeOrbit-2026.10.12_16-26-07-+0800.xcresult
+
+** TEST SUCCEEDED **
+
+Testing started

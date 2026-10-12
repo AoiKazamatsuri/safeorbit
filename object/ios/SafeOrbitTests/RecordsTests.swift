@@ -248,6 +248,23 @@ final class ElderFrontendTests: XCTestCase {
         XCTAssertEqual(ElderDemoMapData.route.first, ElderDemoMapData.position)
         XCTAssertEqual(ElderDemoMapData.route.last, ElderDemoMapData.home)
     }
+    @MainActor func testElderVolumeSurvivesExitAndNewSessionWithoutClearingHome() throws {
+        let suite = "elder-volume-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let homePoint = GeoPoint(latitude: 32.06, longitude: 118.77)
+        HomeLocationStore(defaults: defaults).save(homePoint)
+        let voice = ElderVoiceSpy()
+        let session = ElderDemoSession(voice: voice, defaults: defaults)
+        session.setVolume(0.35)
+        session.startNavigation(locale: Locale(identifier: "en"))
+        session.showingSettings = true
+        session.finishSession()
+        XCTAssertFalse(session.navigating); XCTAssertFalse(session.showingSettings)
+        XCTAssertGreaterThan(voice.stops, 0)
+        XCTAssertEqual(ElderDemoSession(voice: ElderVoiceSpy(), defaults: defaults).volume, 0.35)
+        XCTAssertEqual(HomeLocationStore(defaults: defaults).point, homePoint)
+    }
     @MainActor func testElderScreenSnapshotsAtDesignAndAdaptiveSizes() async throws {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let previous = scene.windows.first(where: \.isKeyWindow)

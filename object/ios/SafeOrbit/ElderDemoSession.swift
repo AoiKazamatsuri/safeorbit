@@ -42,8 +42,14 @@ enum ElderCopy {
     @Published private(set) var volume: Double = 0.8
     let usesLiveNavigation: Bool
     private let voice: ElderVoiceOutput
-    init(voice: ElderVoiceOutput? = nil, usesLiveNavigation: Bool = false) {
+    private let volumeDefaults: UserDefaults?
+    static let volumeKey = "safeorbit.elder.voice-volume.v1"
+    init(voice: ElderVoiceOutput? = nil, usesLiveNavigation: Bool = false, defaults: UserDefaults? = nil) {
         self.voice = voice ?? SystemElderVoice(); self.usesLiveNavigation = usesLiveNavigation
+        volumeDefaults = defaults ?? (usesLiveNavigation ? .standard : nil)
+        if let value = volumeDefaults?.object(forKey: Self.volumeKey) as? Double, value.isFinite {
+            volume = min(1, max(0, value))
+        }
     }
     func startNavigation(locale: Locale) {
         navigating = true; calling = false; confirmingEnd = false
@@ -57,12 +63,14 @@ enum ElderCopy {
         navigating = false; confirmingEnd = false; calling = false
         suspendSpeech()
     }
+    func finishSession() { confirmEnd(); showingSettings = false }
     func setVoice(_ enabled: Bool, locale: Locale) {
         voiceOn = enabled
         if enabled { announce(locale: locale) } else { suspendSpeech() }
     }
     func setVolume(_ value: Double) {
         volume = value.isFinite ? min(1, max(0, value)) : 0
+        volumeDefaults?.set(volume, forKey: Self.volumeKey)
         if volume == 0 { suspendSpeech() }
     }
     func announce(locale: Locale) {

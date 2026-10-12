@@ -391,3 +391,36 @@ private struct ContentAnimationProbe: View {
             }
     }
 }
+
+extension SettingsTests {
+    @MainActor func testSharedCaregiverSidebarSnapshotsAtFourSizes() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("FrontendSnapshots/ui-polish")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for (name, size, type) in [
+            ("design", CGSize(width: 402, height: 874), DynamicTypeSize.large),
+            ("393", CGSize(width: 393, height: 852), .large),
+            ("375", CGSize(width: 375, height: 812), .large),
+            ("compact-large", CGSize(width: 320, height: 568), .accessibility1)
+        ] {
+            let window = UIWindow(windowScene: scene)
+            window.frame = CGRect(origin: .zero, size: size)
+            window.rootViewController = UIHostingController(rootView: NavigationStack {
+                CaregiverHomePage(store: OnboardingStore(homeAccessEnabled: true), settingsInitiallyOpen: true, chooseRole: {})
+            }.environment(\.dynamicTypeSize, type))
+            window.makeKeyAndVisible()
+            window.rootViewController?.view.frame = window.bounds
+            try await Task.sleep(for: .milliseconds(500))
+            window.rootViewController?.view.layoutIfNeeded()
+            let image = UIGraphicsImageRenderer(size: size).image { _ in
+                window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+            }
+            let data = try XCTUnwrap(image.pngData())
+            try data.write(to: folder.appendingPathComponent("caregiver-sidebar-\(name).png"))
+            let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
+            attachment.name = "caregiver-sidebar-\(name)"; attachment.lifetime = .keepAlways; add(attachment)
+            window.isHidden = true; previous?.makeKeyAndVisible()
+        }
+    }
+}

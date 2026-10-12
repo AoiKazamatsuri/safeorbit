@@ -329,7 +329,9 @@ final class LocationTests: XCTestCase {
     var receiver: ((Result<NavigationFix, NavigationIssue>) -> Void)?
     var headingReceiver: ((NavigationHeading) -> Void)?
     var destinations: [GeoPoint] = []
+    var customRoute: WalkingRoute?
     var result: WalkingRoute {
+        if let customRoute { return customRoute }
         let corner = CLLocationCoordinate2D(latitude: 0, longitude: 0.001)
         return WalkingRoute(coordinates: [source.appleCoordinate, corner, target.appleCoordinate], distanceMeters: 222,
                             expectedSeconds: 180, steps: ["Walk east", "Turn left and walk north"], segments: [
@@ -504,6 +506,19 @@ extension LocationTests {
             try data.write(to: folder.appendingPathComponent(name + ".png"))
             let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
             attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+            if name == "refined-navigation-small" {
+                func scrollView(in view: UIView) -> UIScrollView? {
+                    if let scroll = view as? UIScrollView, scroll.contentSize.height > scroll.bounds.height + 1 { return scroll }
+                    return view.subviews.lazy.compactMap { scrollView(in: $0) }.first
+                }
+                let scroll = try XCTUnwrap(scrollView(in: window.rootViewController!.view))
+                scroll.setContentOffset(CGPoint(x: 0, y: scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom), animated: false)
+                try await Task.sleep(for: .milliseconds(300))
+                let bottom = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in
+                    window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+                }
+                try XCTUnwrap(bottom.pngData()).write(to: folder.appendingPathComponent("refined-navigation-small-scrolled.png"))
+            }
             XCTAssertTrue(model.isPresented)
             model.end(); XCTAssertFalse(model.isPresented)
             window.isHidden = true; previous?.makeKeyAndVisible()
@@ -633,3 +648,98 @@ extension LocationTests {
     }
 }
 #endif
+
+extension LocationTests {
+    @MainActor func testFollowCameraUsesDirectedRouteInsteadOfCompassAndTurnsAtCorner() async throws {
+        let clock = NavigationClock(), provider = NavigationProviderStub()
+        let model = WalkingNavigationModel(provider: provider, voice: NavigationVoiceSpy(), now: { clock.date })
+        await model.start(to: navigationSnapshot(provider.target, at: clock.date))
+        model.receive(NavigationFix(point: provider.source, accuracy: 5, timestamp: clock.date, course: 270))
+        provider.headingReceiver?(NavigationHeading(degrees: 180, accuracy: 5, timestamp: clock.date))
+        var camera = try XCTUnwrap(model.followCamera)
+        XCTAssertEqual(camera.heading, 90, accuracy: 0.1)
+        XCTAssertEqual(camera.centerCoordinate.latitude, provider.source.appleCoordinate.latitude, accuracy: 0.000001)
+        XCTAssertEqual(camera.centerCoordinate.longitude, provider.source.appleCoordinate.longitude, accuracy: 0.000001)
+        XCTAssertEqual(model.markerHeading, 180)
+        clock.advance()
+        let corner = GeoPoint(latitude: 0, longitude: 0.001)
+        model.receive(NavigationFix(point: corner, accuracy: 5, timestamp: clock.date))
+        camera = try XCTUnwrap(model.followCamera)
+        XCTAssertEqual(camera.heading, 0, accuracy: 0.1)
+        XCTAssertEqual(camera.centerCoordinate.longitude, corner.appleCoordinate.longitude, accuracy: 0.000001)
+        clock.advance(16)
+        XCTAssertNil(model.followCamera, "Stale fixes cannot move the camera")
+        model.end(); XCTAssertNil(model.followCamera)
+
+        let westProvider = NavigationProviderStub()
+        let westCorner = GeoPoint(latitude: 0, longitude: -0.001)
+        westProvider.target = GeoPoint(latitude: -0.001, longitude: -0.001)
+        westProvider.customRoute = WalkingRoute(coordinates: [westProvider.source.appleCoordinate, westCorner.appleCoordinate, westProvider.target.appleCoordinate], distanceMeters: 222, expectedSeconds: 180, steps: ["Walk west", "Turn left and walk south"], segments: [
+            WalkingStep(instruction: "Walk west", coordinates: [westProvider.source.appleCoordinate, westCorner.appleCoordinate], distanceMeters: 111),
+            WalkingStep(instruction: "Turn left and walk south", coordinates: [westCorner.appleCoordinate, westProvider.target.appleCoordinate], distanceMeters: 111)])
+        let west = WalkingNavigationModel(provider: westProvider, voice: NavigationVoiceSpy(), now: { clock.date })
+        await west.start(to: navigationSnapshot(westProvider.target, at: clock.date))
+        west.receive(NavigationFix(point: westProvider.source, accuracy: 5, timestamp: clock.date))
+        XCTAssertEqual(try XCTUnwrap(west.followCamera).heading, 270, accuracy: 0.1)
+        clock.advance()
+        west.receive(NavigationFix(point: westCorner, accuracy: 5, timestamp: clock.date))
+        XCTAssertEqual(try XCTUnwrap(west.followCamera).heading, 180, accuracy: 0.1)
+        west.pause(); XCTAssertNil(west.followCamera)
+        west.end()
+    }
+}
+
+
+extension LocationTests {
+    func testNavigationMarkersPreserveSeparateCoordinatesAndLastValidEndpoint() throws {
+        let senior = LocationPreviewData.campus.appleCoordinate
+        let end = LocationPreviewData.startingPoint.appleCoordinate
+        let invalid = CLLocationCoordinate2D(latitude: .nan, longitude: 0)
+        let route = WalkingRoute(coordinates: [end, invalid], distanceMeters: 100, expectedSeconds: 60, steps: [])
+        let separated = CaregiverNavigationMarkers.make(route: route, senior: senior, name: "Li Lan")
+        XCTAssertEqual(separated.map(\.id), ["route-end", "destination"])
+        XCTAssertEqual(separated[0].coordinate.latitude, end.latitude)
+        XCTAssertEqual(separated[0].coordinate.longitude, end.longitude)
+        XCTAssertEqual(separated[1].coordinate.latitude, senior.latitude)
+        XCTAssertEqual(separated[1].coordinate.longitude, senior.longitude)
+        let combined = CaregiverNavigationMarkers.make(route: route, senior: end, name: "Li Lan")
+        XCTAssertEqual(combined.map(\.id), ["route-end-and-senior"])
+        XCTAssertEqual(combined[0].coordinate.latitude, end.latitude)
+        XCTAssertEqual(combined[0].coordinate.longitude, end.longitude)
+        XCTAssertEqual(CaregiverNavigationMarkers.make(route: nil, senior: senior, name: "Li Lan").map(\.id), ["destination"])
+        XCTAssertEqual(CaregiverNavigationMarkers.make(route: route, senior: nil, name: "Li Lan").map(\.id), ["route-end"])
+        XCTAssertTrue(CaregiverNavigationMarkers.make(route: nil, senior: invalid, name: "Li Lan").isEmpty)
+    }
+
+    @MainActor func testNavigationMarkerMapSnapshots() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("FrontendSnapshots")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let end = LocationPreviewData.campus.appleCoordinate
+        for (name, separated, missing, heading) in [
+            ("navigation-markers-combined", false, false, 0.0),
+            ("navigation-markers-separated", true, false, 0.0),
+            ("navigation-markers-rotated", false, false, 90.0),
+            ("navigation-markers-missing-route", false, true, 0.0)
+        ] {
+            let senior = CLLocationCoordinate2D(latitude: end.latitude + (separated ? 0.001 : 0), longitude: end.longitude)
+            let route = WalkingRoute(coordinates: [LocationPreviewData.startingPoint.appleCoordinate, end], distanceMeters: 750, expectedSeconds: 660, steps: [])
+            let markers = CaregiverNavigationMarkers.make(route: missing ? nil : route, senior: senior, name: "Li Lan")
+            let window = UIWindow(windowScene: scene)
+            window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+            window.rootViewController = UIHostingController(rootView:
+                AMapCanvas(camera: .constant(.camera(MapCamera(centerCoordinate: end, distance: 650, heading: heading, pitch: 0))),
+                    markers: markers, lines: missing ? [] : [AMapLine(id: "route", coordinates: route.coordinates, color: OrbitMapStyle.blue, width: 8)])
+                    .environment(\.colorScheme, .light))
+            window.makeKeyAndVisible()
+            window.rootViewController?.view.frame = window.bounds
+            try await Task.sleep(for: .milliseconds(1800))
+            let image = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in
+                window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+            }
+            try XCTUnwrap(image.pngData()).write(to: folder.appendingPathComponent(name + ".png"))
+            window.isHidden = true; previous?.makeKeyAndVisible()
+        }
+    }
+}
