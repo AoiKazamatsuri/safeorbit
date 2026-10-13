@@ -26,13 +26,47 @@ struct AMapLine {
     let width: CGFloat
     var dash: [CGFloat] = []
 }
+
+enum CaregiverTrailStyle {
+    static let width: CGFloat = 8
+    static let dash: [CGFloat] = [10, 8]
+
+    static func line(coordinates: [CLLocationCoordinate2D]) -> AMapLine? {
+        guard coordinates.count > 1 else { return nil }
+        return AMapLine(id: "senior-trail", coordinates: coordinates,
+                        color: OrbitMapStyle.blue, width: width, dash: dash)
+    }
+}
 struct AMapCameraContext {
     let region: MKCoordinateRegion
     let heading: Double
     let wasUserAction: Bool
 }
 
+/// At the 402×874 reference size, the visible map is about 400 metres per
+/// centimetre of the iPhone 18 Pro display (roughly 5.8 km vertically).
+enum OrbitMapScale {
+    static let metersPerPoint = 5_800.0 / 874.0
+
+    static func region(center: CLLocationCoordinate2D, viewportHeight: CGFloat,
+                       verticalOffset: Double = 0) -> MKCoordinateRegion {
+        let height = max(1, Double(viewportHeight))
+        let span = height * metersPerPoint
+        var region = MKCoordinateRegion(center: center, latitudinalMeters: span, longitudinalMeters: span)
+        region.center.latitude -= region.span.latitudeDelta * verticalOffset
+        return region
+    }
+}
+
 #if !targetEnvironment(simulator)
+final class NativeMapSurface: UIView {
+    var onLayout: (() -> Void)?
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        onLayout?()
+    }
+}
+
 struct NativeAMapCanvas: UIViewRepresentable {
     @Binding var camera: MapCameraPosition
     var markers: [AMapMarker] = []
@@ -43,7 +77,7 @@ struct NativeAMapCanvas: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
     func makeUIView(context: Context) -> UIView {
-        let surface = UIView()
+        let surface = NativeMapSurface()
         surface.backgroundColor = .systemGroupedBackground
         guard AMapRuntime.prepare() else { return surface }
         let map = MAMapView(frame: surface.bounds)
@@ -56,6 +90,7 @@ struct NativeAMapCanvas: UIViewRepresentable {
         surface.addSubview(map)
         context.coordinator.map = map
         map.delegate = context.coordinator
+        surface.onLayout = { [weak coordinator = context.coordinator] in coordinator?.update() }
         context.coordinator.update()
         return surface
     }
@@ -65,6 +100,7 @@ struct NativeAMapCanvas: UIViewRepresentable {
     }
     static func dismantleUIView(_ surface: UIView, coordinator: Coordinator) {
         coordinator.map?.delegate = nil
+        (surface as? NativeMapSurface)?.onLayout = nil
         coordinator.hosts.removeAll()
     }
 
@@ -81,8 +117,10 @@ struct NativeAMapCanvas: UIViewRepresentable {
         func update() {
             guard let map else { return }
             map.layoutMargins = UIEdgeInsets(top: 0, left: 12, bottom: parent.bottomOverlayInset, right: 12)
-            // Move attribution above the existing editing/navigation cards.
-            map.logoCenter = CGPoint(x: 45, y: max(20, map.bounds.height - parent.bottomOverlayInset - 12))
+            // Attribution sits in the clear strip below the bottom cards.
+            if map.bounds.width > 0, map.bounds.height > 0 {
+                map.logoCenter = CGPoint(x: 45, y: map.bounds.height - max(12, map.logoSize.height / 2 + 4))
+            }
             let wanted = Set(parent.markers.map(\.id))
             for id in Array(annotations.keys) where !wanted.contains(id) {
                 if let annotation = annotations.removeValue(forKey: id) { map.removeAnnotation(annotation) }
@@ -117,7 +155,8 @@ struct NativeAMapCanvas: UIViewRepresentable {
                 }
                 renderedOverlayKey = key
             }
-            if lastCamera != parent.camera {
+            // MAMapView ignores a camera applied before its first non-zero layout.
+            if map.bounds.width > 0, map.bounds.height > 0, lastCamera != parent.camera {
                 lastCamera = parent.camera
                 if let region = parent.camera.region {
                     map.setRegion(MACoordinateRegion(center: region.center, span: MACoordinateSpan(latitudeDelta: region.span.latitudeDelta, longitudeDelta: region.span.longitudeDelta)), animated: false)
@@ -170,19 +209,9 @@ struct NativeAMapCanvas: UIViewRepresentable {
                 renderer.lineWidth = style.width
                 renderer.lineCapType = MALineCapType(rawValue: 3)
                 renderer.lineJoinType = MALineJoinType(rawValue: 2)
-                if !style.dash.isEmpty { renderer.strokeImage = Self.dashTexture(style) }
+                if !style.dash.isEmpty { renderer.lineDashType = MALineDashType(rawValue: 1) }
+                if style.id == "senior-trail" { renderer.reducePoint = false }
                 return renderer
-            }
-        }
-        private static func dashTexture(_ line: AMapLine) -> UIImage {
-            let period = max(1, line.dash.reduce(0, +))
-            return UIGraphicsImageRenderer(size: CGSize(width: period, height: line.width)).image { context in
-                context.cgContext.setFillColor(UIColor(line.color).cgColor)
-                var x: CGFloat = 0
-                for (index, length) in line.dash.enumerated() {
-                    if index.isMultiple(of: 2) { context.cgContext.fill(CGRect(x: x, y: 0, width: length, height: line.width)) }
-                    x += length
-                }
             }
         }
         func mapView(_ mapView: MAMapView!, regionDidChangeAnimated animated: Bool, wasUserAction: Bool) {

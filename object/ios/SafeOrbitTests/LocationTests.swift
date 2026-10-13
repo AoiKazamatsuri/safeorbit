@@ -18,6 +18,33 @@ import SwiftUI
 }
 
 final class LocationTests: XCTestCase {
+    func testCaregiverTrailUsesTheSameVisibleStyleForBothMapBackends() throws {
+        let coordinates = LocationPreviewData.trail.map(\.appleCoordinate)
+        let line = try XCTUnwrap(CaregiverTrailStyle.line(coordinates: coordinates))
+        XCTAssertEqual(line.id, "senior-trail")
+        XCTAssertEqual(line.coordinates.count, coordinates.count)
+        XCTAssertEqual(line.width, 8)
+        XCTAssertEqual(line.dash, [10, 8])
+        XCTAssertNil(CaregiverTrailStyle.line(coordinates: Array(coordinates.prefix(1))))
+    }
+
+    func testWalkingRouteErrorsKeepActionableCause() {
+        XCTAssertEqual(NavigationIssue.amapSearchError(code: 1008), .routeConfiguration)
+        XCTAssertEqual(NavigationIssue.amapSearchError(code: 1102), .routeTimedOut)
+        XCTAssertEqual(NavigationIssue.amapSearchError(code: 1806), .routeNetworkUnavailable)
+        XCTAssertEqual(NavigationIssue.amapSearchError(code: 3001), .routeUnavailable)
+    }
+
+    func testReferenceMapScaleStaysCenteredOnSelectedPlace() {
+        let center = LocationPreviewData.campus.appleCoordinate
+        let region = OrbitMapScale.region(center: center, viewportHeight: 874)
+        XCTAssertEqual(region.center.latitude, center.latitude, accuracy: 0.000001)
+        XCTAssertEqual(region.center.longitude, center.longitude, accuracy: 0.000001)
+        XCTAssertEqual(CLLocation(latitude: center.latitude - region.span.latitudeDelta / 2, longitude: center.longitude)
+            .distance(from: CLLocation(latitude: center.latitude + region.span.latitudeDelta / 2, longitude: center.longitude)),
+                       5_800, accuracy: 100)
+    }
+
     @MainActor func testSafeZoneCircleUsesMapCoordinatesAndMeters() {
         let center = GeoPoint(latitude: 32.061, longitude: 118.778)
         let circle = SafeZoneSelectionMap.circle(center: center, radius: 200)
@@ -143,13 +170,14 @@ final class LocationTests: XCTestCase {
         var profile = ElderProfile()
         profile.name = "Li Lan"
         profile.phone = "+12025550100"
-        for risk in [CaregiverRiskState.warning, .high] {
+        for risk in [CaregiverRiskState.normal, .warning, .high] {
             let window = UIWindow(windowScene: scene)
-            window.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
+            window.frame = risk == .normal
+                ? CGRect(x: 0, y: 0, width: 402, height: 874)
+                : CGRect(x: 0, y: 0, width: 393, height: 852)
             window.rootViewController = UIHostingController(rootView: ZStack {
                 LocationPage(profile: profile, snapshot: LocationPreviewData.snapshot(), message: nil,
-                             loading: false, refresh: {}, agent: {}, navigate: {}, riskState: risk,
-                             usesPreviewTrail: true)
+                             loading: false, refresh: {}, agent: {}, navigate: {}, riskState: risk)
                 VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)) }
             }.environment(\.colorScheme, .light))
             window.makeKeyAndVisible()
@@ -174,13 +202,14 @@ final class LocationTests: XCTestCase {
             .appendingPathComponent("FrontendSnapshots")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         for (name, size, type) in [
+            ("safe-zone-add-design", CGSize(width: 402, height: 874), DynamicTypeSize.large),
             ("safe-zone-add", CGSize(width: 393, height: 852), DynamicTypeSize.large),
             ("safe-zone-edit-small-large-text", CGSize(width: 375, height: 812), DynamicTypeSize.accessibility1)
         ] {
             let window = UIWindow(windowScene: scene)
             window.frame = CGRect(origin: .zero, size: size)
             window.rootViewController = UIHostingController(rootView: SafeZoneEditorPage(
-                zone: name == "safe-zone-add" ? nil : LocationPreviewData.snapshot().safeZones[0],
+                zone: name.hasPrefix("safe-zone-add") ? nil : LocationPreviewData.snapshot().safeZones[0],
                 initialCenter: LocationPreviewData.campus,
                 nearbyZones: LocationPreviewData.snapshot().safeZones,
                 save: { _ in }, delete: { _ in }
@@ -283,7 +312,8 @@ final class LocationTests: XCTestCase {
     }
     @MainActor func testWalkingRouteScreenRendersPlannedSteps() async throws {
         let model = WalkingNavigationModel(provider: RouteStub())
-        await model.plan(to: snapshot())
+        await model.start(to: snapshot())
+        XCTAssertEqual(model.route?.steps.count, 2)
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let previous = scene.windows.first(where: \.isKeyWindow)
         let window = UIWindow(windowScene: scene)
@@ -493,7 +523,7 @@ extension LocationTests {
             window.frame = CGRect(origin: .zero, size: size)
             window.rootViewController = UIHostingController(rootView:
                 LocationPage(profile: profile, snapshot: senior, message: nil, loading: false,
-                             refresh: {}, agent: {}, navigate: {}, usesPreviewTrail: true, navigation: model)
+                             refresh: {}, agent: {}, navigate: {}, navigation: model)
                 .environment(\.dynamicTypeSize, type).environment(\.colorScheme, .light))
             window.makeKeyAndVisible()
             window.rootViewController?.view.frame = window.bounds

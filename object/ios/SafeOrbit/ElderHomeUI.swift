@@ -23,15 +23,16 @@ struct ElderHomePage: View {
             ZStack(alignment: .topLeading) {
                 map
                 VStack(spacing: 16) {
-                    topControls.padding(.horizontal, 32)
                     if session.navigating && !session.calling {
                         if dynamicTypeSize.isAccessibilitySize {
-                            ScrollView { guidanceCard.padding(.horizontal, 30).padding(.vertical, 8) }
+                            ScrollView { guidanceCard.padding(.horizontal, 20).padding(.vertical, 8) }
                                 .frame(height: max(100, geometry.size.height - geometry.safeAreaInsets.top - overlayHeight - 130))
                                 .clipped().elderMeasured("guidance-viewport")
-                        } else { guidanceCard.padding(.horizontal, 30) }
+                        } else { guidanceCard.padding(.horizontal, 20) }
+                    } else {
+                        topControls.padding(.horizontal, 32)
                     }
-                }.padding(.top, 2)
+                }.padding(.top, session.navigating && !session.calling ? 8 : 2)
                 CaregiverBottomOverlay {
                     Group {
                         if dynamicTypeSize.isAccessibilitySize && session.calling {
@@ -95,7 +96,7 @@ struct ElderHomePage: View {
                     ElderActionButton(title: "Call Family", symbol: "phone.fill", fillsRowHeight: true) {
                         session.showCall()
                     }.elderMeasured("call-family").accessibilityIdentifier("elder-call-family")
-                }.fixedSize(horizontal: false, vertical: true).padding(.horizontal, 22)
+                }.fixedSize(horizontal: false, vertical: true).padding(.horizontal, 6)
             } else {
                 if dynamicTypeSize.isAccessibilitySize || width < 350 {
                     VStack(spacing: 12) { goHomeButton; callButton }.padding(.horizontal, 24)
@@ -225,6 +226,7 @@ struct ElderHomePage: View {
     }
     private var homeSetup: some View {
         NavigationStack {
+            GeometryReader { geometry in
             ZStack {
                 AMapConsentSurface {
                     AMapCanvas(camera: $homeCamera, markers: [], bottomOverlayInset: 160) { context in
@@ -237,10 +239,11 @@ struct ElderHomePage: View {
                     VStack(spacing: 16) {
                         Text("Move the map to your home, then confirm.").elderText()
                         if let point = live.point {
-                            Button("Use current location") {
+                            ElderActionButton(title: "Use current location", tint: OrbitStyle.pale) {
                                 selectedHome = point
-                                homeCamera = .region(MKCoordinateRegion(center: point.appleCoordinate, latitudinalMeters: 500, longitudinalMeters: 500))
-                            }.elderText().buttonStyle(.bordered)
+                                homeCamera = .region(OrbitMapScale.region(center: point.appleCoordinate,
+                                                                           viewportHeight: geometry.size.height))
+                            }
                         }
                         ElderActionButton(title: "Confirm Home") {
                             if let point = selectedHome { live.home.save(point); live.showingHomeSetup = false }
@@ -252,9 +255,14 @@ struct ElderHomePage: View {
                 .onAppear {
                     selectedHome = live.home.point ?? live.point
                     if let point = selectedHome {
-                        homeCamera = .region(MKCoordinateRegion(center: point.appleCoordinate, latitudinalMeters: 500, longitudinalMeters: 500))
-                    } else { homeCamera = .region(ElderDemoMapData.region) }
+                        homeCamera = .region(OrbitMapScale.region(center: point.appleCoordinate,
+                                                                   viewportHeight: geometry.size.height))
+                    } else {
+                        homeCamera = .region(OrbitMapScale.region(center: LocationPreviewData.campus.appleCoordinate,
+                                                                   viewportHeight: geometry.size.height))
+                    }
                 }
+            }
         }.environment(\.locale, Locale(identifier: "en"))
     }
     private var settingsPage: some View {
@@ -288,6 +296,7 @@ private struct ElderActionButton: View {
     let title: String
     var symbol: String? = nil
     var white = false
+    var tint: Color? = nil
     var fillsRowHeight = false
     var action: () -> Void
     var body: some View {
@@ -296,10 +305,10 @@ private struct ElderActionButton: View {
                 if let symbol { Image(systemName: symbol).font(.system(size: 26)).frame(width: 26, height: 26) }
                 Text(verbatim: title).elderText().fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity).padding(.horizontal, 16).padding(.vertical, 12).frame(minHeight: 50)
+            .frame(maxWidth: .infinity).padding(.horizontal, 16).padding(.vertical, 12).frame(minHeight: 56)
             .frame(maxHeight: fillsRowHeight ? .infinity : nil)
-            .foregroundStyle(white ? .black : .white)
-            .background(white ? .white : OrbitStyle.teal, in: Capsule())
+            .foregroundStyle(white || tint != nil ? .black : .white)
+            .background(tint ?? (white ? .white : OrbitStyle.teal), in: Capsule())
             .shadow(color: .black.opacity(0.16), radius: 4, y: 3)
         }.buttonStyle(.plain)
     }

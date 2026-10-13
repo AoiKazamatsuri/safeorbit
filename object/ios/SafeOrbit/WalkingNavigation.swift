@@ -5,7 +5,8 @@ import SwiftUI
 import AVFoundation
 
 enum NavigationIssue: Error, LocalizedError, Equatable {
-    case missingDestination, missingHome, staleDestination, locationDenied, locationUnavailable, routeUnavailable, sdkNotReady
+    case missingDestination, missingHome, staleDestination, locationDenied, locationUnavailable
+    case routeUnavailable, routeConfiguration, routeTimedOut, routeNetworkUnavailable, routeServiceUnavailable, sdkNotReady
     var errorDescription: String? {
         switch self {
         case .missingHome: return "Set a home location before starting navigation."
@@ -15,6 +16,24 @@ enum NavigationIssue: Error, LocalizedError, Equatable {
         case .locationDenied: return "Allow location access in Settings to plan a route."
         case .locationUnavailable: return "Waiting for an accurate, current location."
         case .routeUnavailable: return "A walking route is unavailable. Try again."
+        case .routeConfiguration: return "Walking routes are not enabled for this map key. Check its iOS app binding, then try again."
+        case .routeTimedOut: return "The walking route request timed out. Try again."
+        case .routeNetworkUnavailable: return "Connect to the internet to get a walking route, then try again."
+        case .routeServiceUnavailable: return "Walking route service is temporarily unavailable. Try again."
+        }
+    }
+    static func amapSearchError(code: Int) -> Self {
+        switch code {
+        case 1001...1003, 1008...1009, 1012...1013, 1200...1201:
+            return .routeConfiguration
+        case 1102...1103, 1802:
+            return .routeTimedOut
+        case 1803...1806:
+            return .routeNetworkUnavailable
+        case 1004...1005, 1010, 1100...1101, 1202...1203, 1800...1801, 2002:
+            return .routeServiceUnavailable
+        default:
+            return .routeUnavailable
         }
     }
 }

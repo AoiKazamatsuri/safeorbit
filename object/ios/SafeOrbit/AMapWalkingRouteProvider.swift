@@ -197,7 +197,7 @@ import AMapSearchKit
                 self.continuation = continuation
                 timeout = Task { [weak self] in
                     do { try await Task.sleep(for: .seconds(20)) } catch { return }
-                    self?.finish(.failure(NavigationIssue.routeUnavailable))
+                    self?.finish(.failure(NavigationIssue.routeTimedOut))
                 }
                 if let walking = request as? AMapWalkingRouteSearchRequest { api.aMapWalkingRouteSearch(walking) }
                 else if let address = request as? AMapReGeocodeSearchRequest { api.aMapReGoecodeSearch(address) }
@@ -215,30 +215,40 @@ import AMapSearchKit
         pending?.resume(with: result)
     }
     nonisolated func aMapSearchRequest(_ request: Any!, didFailWithError error: Error!) {
+        let code = (error as NSError?)?.code ?? -1
         Task { @MainActor [weak self] in
             guard let self, let request = request as? NSObject, request === self.request else { return }
             // Never surface SDK userInfo, which may include credentials.
-            self.finish(.failure(NavigationIssue.routeUnavailable))
+            self.finish(.failure(NavigationIssue.amapSearchError(code: code)))
         }
     }
     nonisolated func onRouteSearchDone(_ request: AMapRouteSearchBaseRequest!, response: AMapRouteSearchResponse!) {
         Task { @MainActor [weak self] in
             guard let self, request === self.request, !self.finished else { return }
             guard let path = response?.route?.paths?.first else { self.finish(.failure(NavigationIssue.routeUnavailable)); return }
-            let segments = (path.steps ?? []).compactMap { step -> WalkingStep? in
+            var segments = (path.steps ?? []).compactMap { step -> WalkingStep? in
                 let coordinates = Self.coordinates(step.polyline)
-                guard coordinates.count > 1, step.distance > 0 else { return nil }
+                guard coordinates.count > 1 else { return nil }
                 let instruction = step.instruction?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                guard !instruction.isEmpty else { return nil }
-                return WalkingStep(instruction: instruction, coordinates: coordinates, distanceMeters: Double(step.distance))
+                let distance = step.distance > 0 ? Double(step.distance) : Self.length(of: coordinates)
+                return WalkingStep(instruction: instruction.isEmpty ? "Continue along the route" : instruction,
+                                   coordinates: coordinates, distanceMeters: distance)
             }
             var geometry = Self.coordinates(path.polyline)
             if geometry.count < 2 { geometry = (path.steps ?? []).flatMap { Self.coordinates($0.polyline) } }
-            guard geometry.count > 1, path.distance > 0, path.duration >= 0, !segments.isEmpty else {
+            if geometry.count < 2 { geometry = Self.coordinates(response?.route?.polyline) }
+            guard geometry.count > 1 else {
                 self.finish(.failure(NavigationIssue.routeUnavailable)); return
             }
-            self.finish(.success(.route(WalkingRoute(coordinates: geometry, distanceMeters: Double(path.distance),
-                         expectedSeconds: Double(path.duration), steps: segments.map(\.instruction), segments: segments))))
+            let distance = path.distance > 0 ? Double(path.distance) : Self.length(of: geometry)
+            guard distance > 0 else { self.finish(.failure(NavigationIssue.routeUnavailable)); return }
+            if segments.isEmpty {
+                segments = [WalkingStep(instruction: "Continue along the route", coordinates: geometry,
+                                        distanceMeters: distance)]
+            }
+            let duration = path.duration > 0 ? Double(path.duration) : distance / 1.25
+            self.finish(.success(.route(WalkingRoute(coordinates: geometry, distanceMeters: distance,
+                         expectedSeconds: duration, steps: segments.map(\.instruction), segments: segments))))
         }
     }
     nonisolated func onReGeocodeSearchDone(_ request: AMapReGeocodeSearchRequest!, response: AMapReGeocodeSearchResponse!) {
@@ -255,6 +265,13 @@ import AMapSearchKit
             guard values.count == 2, let longitude = Double(values[0]), let latitude = Double(values[1]),
                   GeoPoint(latitude: latitude, longitude: longitude).isValid else { return nil }
             return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        }
+    }
+    private static func length(of coordinates: [CLLocationCoordinate2D]) -> Double {
+        guard coordinates.count > 1 else { return 0 }
+        return zip(coordinates, coordinates.dropFirst()).reduce(0) { total, pair in
+            total + CLLocation(latitude: pair.0.latitude, longitude: pair.0.longitude)
+                .distance(from: CLLocation(latitude: pair.1.latitude, longitude: pair.1.longitude))
         }
     }
 }

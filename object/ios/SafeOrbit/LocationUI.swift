@@ -36,7 +36,7 @@ enum CaregiverTab: String, CaseIterable {
     case location = "Location", agent = "Agent", records = "Records"
     var symbol: String {
         switch self {
-        case .location: return "person.badge.location.fill"
+        case .location: return "person.fill"
         case .agent: return "sparkle"
         case .records: return "chart.bar.xaxis"
         }
@@ -84,8 +84,20 @@ struct CaregiverTabBar: View {
         HStack(spacing: 0) {
             ForEach(CaregiverTab.allCases, id: \.self) { tab in
                 Button { onSelection?(tab); selection = tab } label: {
-                    Image(systemName: tab.symbol)
-                        .font(.system(size: 28, weight: .semibold))
+                    Group {
+                        if tab == .location {
+                            ZStack(alignment: .bottomTrailing) {
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 25, weight: .semibold))
+                                Image(systemName: "location.north.fill")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .offset(x: 5, y: 2)
+                            }.frame(width: 32, height: 32)
+                        } else {
+                            Image(systemName: tab.symbol)
+                                .font(.system(size: 28, weight: .semibold))
+                        }
+                    }
                         .frame(maxWidth: .infinity).frame(height: CaregiverBottomLayout.buttonHeight)
                         .foregroundStyle(.black)
                         .background(selection == tab ? Color(red: 0.82, green: 0.90, blue: 0.90) : .clear, in: Capsule())
@@ -146,7 +158,7 @@ struct CaregiverHomePage: View {
                                  await navigation.start(to: store.location)
                              } },
                              settings: { setSettings(true) }, riskState: riskState,
-                             zoneStore: zoneStore, usesPreviewTrail: store.previewSession,
+                             zoneStore: zoneStore,
                              navigation: navigation, refreshDestination: { await store.refreshLocation(); return store.location },
                              onEditorPresentationChanged: { zoneEditorPresented = $0 })
                     .opacity(tab == .location ? 1 : 0)
@@ -213,7 +225,6 @@ struct LocationPage: View {
     var settings: () -> Void = {}
     var riskState: CaregiverRiskState = .normal
     @ObservedObject var zoneStore = SafeZoneSessionStore()
-    var usesPreviewTrail = false
     @ObservedObject var navigation = WalkingNavigationModel()
     var refreshDestination: (() async -> ElderLocationSnapshot?)? = nil
     var onEditorPresentationChanged: (Bool) -> Void = { _ in }
@@ -225,10 +236,9 @@ struct LocationPage: View {
     private var navigationRunning: Bool { navigation.isPresented && !navigation.suspended && !navigation.arrived && scenePhase == .active }
     @State private var camera: MapCameraPosition = .automatic
     @State private var defaultRegion: MKCoordinateRegion?
-    @State private var baselineVisibleRegion: MKCoordinateRegion?
-    @State private var awaitingBaseline = true
     @State private var showingReset = false
     @State private var visibleRegion: MKCoordinateRegion?
+    @State private var mapViewportHeight: CGFloat = 874
     @State private var zoneEditor: SafeZoneEditorSelection?
 
     private var point: CLLocationCoordinate2D? { snapshot?.coordinate.isValid == true ? snapshot?.coordinate.appleCoordinate : nil }
@@ -244,18 +254,14 @@ struct LocationPage: View {
                     if context.wasUserAction { followsUser = false; showsOverview = false }
                     return
                 }
-                guard defaultRegion != nil else { return }
-                if awaitingBaseline || baselineVisibleRegion == nil {
-                    baselineVisibleRegion = context.region
-                    awaitingBaseline = false
-                } else if let baselineVisibleRegion {
-                    let from = CLLocation(latitude: baselineVisibleRegion.center.latitude,
-                                          longitude: baselineVisibleRegion.center.longitude)
+                if context.wasUserAction, let defaultRegion {
+                    let from = CLLocation(latitude: defaultRegion.center.latitude,
+                                          longitude: defaultRegion.center.longitude)
                     let to = CLLocation(latitude: context.region.center.latitude,
                                         longitude: context.region.center.longitude)
                     let moved = from.distance(from: to) > 5
-                    let resized = abs(context.region.span.latitudeDelta / baselineVisibleRegion.span.latitudeDelta - 1) > 0.015
-                        || abs(context.region.span.longitudeDelta / baselineVisibleRegion.span.longitudeDelta - 1) > 0.015
+                    let resized = abs(context.region.span.latitudeDelta / defaultRegion.span.latitudeDelta - 1) > 0.015
+                        || abs(context.region.span.longitudeDelta / defaultRegion.span.longitudeDelta - 1) > 0.015
                     showingReset = moved || resized
                 }
             })
@@ -278,7 +284,6 @@ struct LocationPage: View {
                 if showingReset {
                     Button {
                         guard let defaultRegion else { return }
-                        awaitingBaseline = true
                         withAnimation(.easeInOut(duration: 0.25)) { camera = .region(defaultRegion) }
                         showingReset = false
                     } label: {
@@ -324,6 +329,11 @@ struct LocationPage: View {
                     follow: { followsUser = true; showsOverview = false; followCurrentPosition() },
                     overview: { followsUser = false; showsOverview = true; showRouteOverview() }, end: { navigation.end() })
             }
+        }
+        .onAppear { mapViewportHeight = geometry.size.height }
+        .onChange(of: geometry.size.height) { _, height in
+            mapViewportHeight = height
+            if !navigation.isPresented && !showingReset { focusOnSenior() }
         }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -387,9 +397,9 @@ struct LocationPage: View {
         .settingsSlide(item: $zoneEditor) { selection in
             SafeZoneEditorPage(
                 zone: selection.zone,
-                initialCenter: selection.zone?.center ?? visibleRegion.map {
+                initialCenter: selection.zone?.center ?? (showingReset ? visibleRegion.map {
                     MainlandCoordinates.toWGS84(GeoPoint(latitude: $0.center.latitude, longitude: $0.center.longitude))
-                } ?? snapshot?.coordinate ?? GeoPoint(latitude: 32.05664, longitude: 118.77361),
+                } : nil) ?? snapshot?.coordinate ?? GeoPoint(latitude: 32.05664, longitude: 118.77361),
                 nearbyZones: zoneStore.visibleZones(in: snapshot),
                 save: { zoneStore.save($0) }, delete: { zoneStore.delete($0) }, close: { zoneEditor = nil }
             )
@@ -397,20 +407,13 @@ struct LocationPage: View {
     }
     private var mapCircles: [AMapCircle] {
         guard !navigation.isPresented else { return [] }
-        var result = zoneStore.visibleZones(in: snapshot).filter {
+        return zoneStore.visibleZones(in: snapshot).filter {
             $0.center.isValid && $0.radiusMeters.isFinite && $0.radiusMeters > 0
         }.map { zone in
             AMapCircle(id: "zone-" + zone.renderKey, center: zone.center.appleCoordinate,
                        radius: zone.radiusMeters, fill: OrbitStyle.teal.opacity(0.10),
                        stroke: OrbitStyle.teal.opacity(0.35))
         }
-        if !usesPreviewTrail {
-            result += (snapshot?.trail.filter(\.isValid) ?? []).enumerated().map { index, sample in
-                AMapCircle(id: "trail-\(index)", center: sample.appleCoordinate, radius: 2.5,
-                           fill: OrbitMapStyle.blue)
-            }
-        }
-        return result
     }
     private var mapLines: [AMapLine] {
         if navigation.isPresented {
@@ -421,9 +424,8 @@ struct LocationPage: View {
                          color: Color(red: 0.0, green: 0.65, blue: 1.0), width: 8)
             ] } ?? []
         }
-        guard usesPreviewTrail, let snapshot, snapshot.trail.count > 1 else { return [] }
-        return [AMapLine(id: "preview-trail", coordinates: snapshot.trail.filter(\.isValid).map(\.appleCoordinate),
-                         color: OrbitMapStyle.blue, width: 2.3, dash: [4, 5])]
+        let trail = snapshot?.trail.filter(\.isValid).map(\.appleCoordinate) ?? []
+        return CaregiverTrailStyle.line(coordinates: trail).map { [$0] } ?? []
     }
     private var mapMarkers: [AMapMarker] {
         if navigation.isPresented {
@@ -498,27 +500,10 @@ struct LocationPage: View {
     }
     private func focusOnSenior() {
         guard let point else { return }
-        let trail = snapshot?.trail.filter(\.isValid).map(\.appleCoordinate) ?? []
-        let coordinates = trail + [point]
-        let latitudes = coordinates.map(\.latitude)
-        let longitudes = coordinates.map(\.longitude)
-        guard let minLatitude = latitudes.min(), let maxLatitude = latitudes.max(),
-              let minLongitude = longitudes.min(), let maxLongitude = longitudes.max() else { return }
-        let eastWest = max(abs(point.longitude - minLongitude), abs(maxLongitude - point.longitude))
-        let horizontalMeters = CLLocation(latitude: point.latitude, longitude: point.longitude)
-            .distance(from: CLLocation(latitude: point.latitude, longitude: point.longitude + eastWest))
-        let northMeters = CLLocation(latitude: point.latitude, longitude: point.longitude)
-            .distance(from: CLLocation(latitude: maxLatitude, longitude: point.longitude))
-        let southMeters = CLLocation(latitude: point.latitude, longitude: point.longitude)
-            .distance(from: CLLocation(latitude: minLatitude, longitude: point.longitude))
-        let visibleMeters = max(640, horizontalMeters * 2.2, northMeters / 0.32, southMeters / 0.62)
-        let center = CLLocationCoordinate2D(latitude: point.latitude - visibleMeters * 0.15 / 111_320,
-                                            longitude: point.longitude)
-        let region = MKCoordinateRegion(center: center, latitudinalMeters: visibleMeters,
-                                        longitudinalMeters: visibleMeters)
+        let region = OrbitMapScale.region(center: point, viewportHeight: mapViewportHeight,
+                                          verticalOffset: 0.15)
         defaultRegion = region
         if !showingReset {
-            awaitingBaseline = true
             camera = .region(region)
         }
     }
@@ -684,13 +669,13 @@ struct SafeZoneEditorPage: View {
                         HStack(spacing: 12) {
                             Button("Cancel") { closePage() }
                                 .foregroundStyle(.black)
-                                .frame(maxWidth: .infinity).frame(height: 49)
+                                .frame(width: 92, height: 49)
                                 .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
-                            Button(zone == nil ? "Create Safe Zone" : "Save Changes") {
+                            Button {
                                 let value = SafeZone(id: zone?.id ?? UUID().uuidString, name: tag,
                                                      center: selectedCenter, radiusMeters: Double(radius))
                                 save(value); closePage()
-                            }
+                            } label: { Text(zone == nil ? "Create Safe Zone" : "Save Changes").lineLimit(1) }
                             .disabled(!selectedCenter.isValid || !mapAvailable)
                             .foregroundStyle(.white.opacity(mapAvailable ? 1 : 0.75))
                             .frame(maxWidth: .infinity, maxHeight: 49)
@@ -1086,7 +1071,7 @@ struct WalkingNavigationPage: View {
     var body: some View {
         LocationPage(profile: ElderProfile(), snapshot: snapshot, message: nil, loading: false,
                      refresh: {}, agent: {}, navigate: {}, navigation: model)
-            .task { await model.start(to: snapshot) }
+            .task { if !model.isPresented { await model.start(to: snapshot) } }
     }
 }
 #endif

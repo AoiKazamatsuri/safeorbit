@@ -148,6 +148,15 @@ final class RecordsTests: XCTestCase {
                         window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
                     }
                     try XCTUnwrap(bottom.pngData()).write(to: folder.appendingPathComponent("\(name)-bottom.png"))
+                    if name == "records-data" || name == "records-trend" {
+                        let scale = image.scale
+                        let selector = CGRect(x: 40 * scale, y: 122 * scale,
+                                              width: (size.width - 80) * scale, height: 28 * scale)
+                        let before = try XCTUnwrap(image.cgImage?.cropping(to: selector))
+                        let after = try XCTUnwrap(bottom.cgImage?.cropping(to: selector))
+                        XCTAssertEqual(UIImage(cgImage: before).pngData(), UIImage(cgImage: after).pngData(),
+                                       "Trend/Data control must stay fixed while records scroll")
+                    }
                 }
             }
             window.isHidden = true

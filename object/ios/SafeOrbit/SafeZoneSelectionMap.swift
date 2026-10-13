@@ -97,7 +97,7 @@ struct SafeZoneMapView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
     func makeUIView(context: Context) -> UIView {
-        let surface = UIView()
+        let surface = NativeMapSurface()
         guard AMapRuntime.prepare() else { return surface }
         let map = MAMapView(frame: surface.bounds)
         map.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -110,6 +110,7 @@ struct SafeZoneMapView: UIViewRepresentable {
         map.showsCompass = false
         map.layoutMargins = UIEdgeInsets(top: 0, left: 12, bottom: bottomOverlayInset, right: 12)
         context.coordinator.configure(map)
+        surface.onLayout = { [weak coordinator = context.coordinator] in coordinator?.layoutMap() }
         return surface
     }
 
@@ -117,7 +118,7 @@ struct SafeZoneMapView: UIViewRepresentable {
         guard let map = surface.subviews.first as? MAMapView else { return }
         context.coordinator.parent = self
         map.layoutMargins = UIEdgeInsets(top: 0, left: 12, bottom: bottomOverlayInset, right: 12)
-        map.logoCenter = CGPoint(x: 45, y: max(20, map.bounds.height - bottomOverlayInset - 12))
+        context.coordinator.layoutMap()
         // Updating the controls must not reset the user's map camera.
         context.coordinator.updateCircle(in: map, force: true)
     }
@@ -125,6 +126,7 @@ struct SafeZoneMapView: UIViewRepresentable {
     static func dismantleUIView(_ surface: UIView, coordinator: Coordinator) {
         coordinator.loadTimeout?.cancel()
         coordinator.map?.delegate = nil
+        (surface as? NativeMapSurface)?.onLayout = nil
     }
 
     final class Coordinator: NSObject, MAMapViewDelegate {
@@ -137,6 +139,7 @@ struct SafeZoneMapView: UIViewRepresentable {
         private var circleCenter: GeoPoint?
         private var circleRadius: Int?
         fileprivate weak var map: MAMapView?
+        private var initialRegionApplied = false
         private var dragOrigin: CLLocationCoordinate2D?
         var loadTimeout: Task<Void, Never>?
 
@@ -156,17 +159,25 @@ struct SafeZoneMapView: UIViewRepresentable {
             pin.title = "Safe zone"
             map.addAnnotation(pin)
             updateCircle(in: map)
-            let distance = max(800, Double(parent.radiusMeters) * 3.5)
-            var region = MKCoordinateRegion(center: pin.coordinate,
-                                            latitudinalMeters: distance, longitudinalMeters: distance)
-            // Keep the pin above the address and editing cards without changing its coordinate.
-            region.center.latitude -= region.span.latitudeDelta * 0.15
-            map.setRegion(MACoordinateRegion(center: region.center, span: MACoordinateSpan(latitudeDelta: region.span.latitudeDelta, longitudeDelta: region.span.longitudeDelta)), animated: false)
+            layoutMap()
             loadTimeout = Task { @MainActor [weak self] in
                 do { try await Task.sleep(for: .seconds(15)) } catch { return }
                 guard let self, !self.selection.available else { return }
                 self.report(false, issue: "Map unavailable. Check your internet connection.")
             }
+        }
+
+        func layoutMap() {
+            guard let map, map.bounds.width > 0, map.bounds.height > 0 else { return }
+            map.logoCenter = CGPoint(x: 45, y: map.bounds.height - max(12, map.logoSize.height / 2 + 4))
+            guard !initialRegionApplied, selectedCenter.isValid else { return }
+            initialRegionApplied = true
+            // Keep the pin above the editor card at the same ground scale as Location.
+            let region = OrbitMapScale.region(center: pin.coordinate,
+                                              viewportHeight: map.bounds.height, verticalOffset: 0.15)
+            map.setRegion(MACoordinateRegion(center: region.center,
+                         span: MACoordinateSpan(latitudeDelta: region.span.latitudeDelta,
+                                                longitudeDelta: region.span.longitudeDelta)), animated: false)
         }
 
         func updateCircle(in map: MAMapView, force: Bool = false) {
@@ -260,6 +271,7 @@ struct SafeZoneMapView: UIViewRepresentable {
 
         func mapViewDidFinishLoadingMap(_ mapView: MAMapView!) {
             guard selectedCenter.isValid else { return }
+            layoutMap()
             loadTimeout?.cancel()
             report(true, issue: nil)
         }
@@ -306,8 +318,12 @@ struct SafeZoneMapView: View {
     let onState: (Bool, String?) -> Void
     var bottomOverlayInset: CGFloat = 12
     var body: some View {
-        AMapCanvas(camera: .constant(.automatic), bottomOverlayInset: bottomOverlayInset)
-            .onAppear { onState(false, "AMap requires a physical iPhone on this simulator runtime.") }
+        GeometryReader { geometry in
+            AMapCanvas(camera: .constant(.region(OrbitMapScale.region(center: initialCenter.appleCoordinate,
+                            viewportHeight: geometry.size.height, verticalOffset: 0.15))),
+                       bottomOverlayInset: bottomOverlayInset)
+                .onAppear { onState(false, "AMap requires a physical iPhone on this simulator runtime.") }
+        }
     }
 }
 #endif

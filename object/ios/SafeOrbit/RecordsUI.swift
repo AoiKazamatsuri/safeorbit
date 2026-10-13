@@ -37,15 +37,19 @@ struct RecordsPage: View {
                     .orbitDisplayFont(20)
                     .foregroundStyle(.white)
             }
-            ScrollView {
-                VStack(spacing: 23) {
-                    sectionPicker.padding(.horizontal, 12)
-                    if section == .data { dataContent.padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 0 : 12) }
-                    else { trendContent }
+            VStack(spacing: 0) {
+                sectionPicker
+                    .padding(.horizontal, 34)
+                    .padding(.top, 12)
+                    .padding(.bottom, 23)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        if section == .data { dataContent.padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 0 : 12) }
+                        else { trendContent }
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.bottom, 112)
                 }
-                .padding(.horizontal, 22)
-                .padding(.top, 12)
-                .padding(.bottom, 112)
             }
             .background(.white, in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
             .background(alignment: .top) { OrbitStyle.teal.frame(height: 40) }
