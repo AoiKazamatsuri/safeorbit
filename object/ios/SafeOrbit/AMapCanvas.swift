@@ -48,6 +48,23 @@ struct AMapCameraContext {
 enum OrbitMapScale {
     static let metersPerPoint = 5_800.0 / 874.0
 
+    /// Place the senior halfway between the map's top edge and the card that
+    /// covers its bottom. Match the map's portrait aspect instead of asking
+    /// either SDK to fit a square region into a tall viewport.
+    static func caregiverHomeRegion(center: CLLocationCoordinate2D,
+                                    mapFrame: CGRect, cardTop: CGFloat) -> MKCoordinateRegion {
+        let width = max(1, Double(mapFrame.width))
+        let height = max(1, Double(mapFrame.height))
+        let visibleBottom = min(max(Double(cardTop), Double(mapFrame.minY)), Double(mapFrame.maxY))
+        let targetY = (Double(mapFrame.minY) + visibleBottom) / 2
+        let offset = (Double(mapFrame.midY) - targetY) / height
+        var region = MKCoordinateRegion(center: center,
+                                        latitudinalMeters: height * metersPerPoint,
+                                        longitudinalMeters: width * metersPerPoint)
+        region.center.latitude -= region.span.latitudeDelta * offset
+        return region
+    }
+
     static func region(center: CLLocationCoordinate2D, viewportHeight: CGFloat,
                        verticalOffset: Double = 0) -> MKCoordinateRegion {
         let height = max(1, Double(viewportHeight))

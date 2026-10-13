@@ -214,6 +214,20 @@ struct CaregiverHomePage: View {
     }
 }
 
+private struct HomeMapFramePreference: PreferenceKey {
+    static var defaultValue: CGRect? = nil
+    static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
+        value = nextValue() ?? value
+    }
+}
+
+private struct HomeCardTopPreference: PreferenceKey {
+    static var defaultValue: CGFloat? = nil
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        value = nextValue() ?? value
+    }
+}
+
 struct LocationPage: View {
     let profile: ElderProfile
     let snapshot: ElderLocationSnapshot?
@@ -238,7 +252,8 @@ struct LocationPage: View {
     @State private var defaultRegion: MKCoordinateRegion?
     @State private var showingReset = false
     @State private var visibleRegion: MKCoordinateRegion?
-    @State private var mapViewportHeight: CGFloat = 874
+    @State private var homeMapFrame: CGRect?
+    @State private var homeCardTop: CGFloat?
     @State private var zoneEditor: SafeZoneEditorSelection?
 
     private var point: CLLocationCoordinate2D? { snapshot?.coordinate.isValid == true ? snapshot?.coordinate.appleCoordinate : nil }
@@ -265,6 +280,12 @@ struct LocationPage: View {
                     showingReset = moved || resized
                 }
             })
+                .background {
+                    GeometryReader { mapGeometry in
+                        Color.clear.preference(key: HomeMapFramePreference.self,
+                                               value: mapGeometry.frame(in: .global))
+                    }
+                }
             }
             .ignoresSafeArea()
             if !navigation.isPresented {
@@ -316,6 +337,12 @@ struct LocationPage: View {
                         .padding(.bottom, 8)
                 }
                 SeniorLocationCard(profile: profile, snapshot: snapshot, navigate: navigate, riskState: riskState)
+                    .background {
+                        GeometryReader { cardGeometry in
+                            Color.clear.preference(key: HomeCardTopPreference.self,
+                                                   value: cardGeometry.frame(in: .global).minY)
+                        }
+                    }
                     .padding(.bottom, CaregiverBottomLayout.cardBottomPadding(safeAreaBottom: geometry.safeAreaInsets.bottom))
             }.padding(.horizontal, 20).padding(.top, 4)
             } else {
@@ -330,10 +357,13 @@ struct LocationPage: View {
                     overview: { followsUser = false; showsOverview = true; showRouteOverview() }, end: { navigation.end() })
             }
         }
-        .onAppear { mapViewportHeight = geometry.size.height }
-        .onChange(of: geometry.size.height) { _, height in
-            mapViewportHeight = height
-            if !navigation.isPresented && !showingReset { focusOnSenior() }
+        .onPreferenceChange(HomeMapFramePreference.self) { frame in
+            homeMapFrame = frame
+            if !navigation.isPresented { focusOnSenior() }
+        }
+        .onPreferenceChange(HomeCardTopPreference.self) { top in
+            homeCardTop = top
+            if !navigation.isPresented { focusOnSenior() }
         }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -499,9 +529,9 @@ struct LocationPage: View {
                                    longitudeDelta: max(0.004, (longitudes.max()! - longitudes.min()!) * 1.8))))
     }
     private func focusOnSenior() {
-        guard let point else { return }
-        let region = OrbitMapScale.region(center: point, viewportHeight: mapViewportHeight,
-                                          verticalOffset: 0.15)
+        guard let point, let homeMapFrame, let homeCardTop else { return }
+        let region = OrbitMapScale.caregiverHomeRegion(center: point,
+                                                      mapFrame: homeMapFrame, cardTop: homeCardTop)
         defaultRegion = region
         if !showingReset {
             camera = .region(region)

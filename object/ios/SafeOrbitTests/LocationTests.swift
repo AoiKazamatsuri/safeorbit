@@ -45,6 +45,28 @@ final class LocationTests: XCTestCase {
                        5_800, accuracy: 100)
     }
 
+    func testCaregiverHomeScaleCentersSeniorAboveMeasuredCard() {
+        let senior = LocationPreviewData.campus.appleCoordinate
+        let mapFrame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        for cardTop in [CGFloat(530), CGFloat(640)] {
+            let region = OrbitMapScale.caregiverHomeRegion(center: senior,
+                                                           mapFrame: mapFrame, cardTop: cardTop)
+            let seniorY = mapFrame.midY - (senior.latitude - region.center.latitude)
+                / region.span.latitudeDelta * mapFrame.height
+            XCTAssertEqual(seniorY, (mapFrame.minY + cardTop) / 2, accuracy: 0.01)
+            let verticalMeters = CLLocation(latitude: region.center.latitude - region.span.latitudeDelta / 2,
+                                            longitude: region.center.longitude)
+                .distance(from: CLLocation(latitude: region.center.latitude + region.span.latitudeDelta / 2,
+                                           longitude: region.center.longitude))
+            let horizontalMeters = CLLocation(latitude: region.center.latitude,
+                                              longitude: region.center.longitude - region.span.longitudeDelta / 2)
+                .distance(from: CLLocation(latitude: region.center.latitude,
+                                           longitude: region.center.longitude + region.span.longitudeDelta / 2))
+            XCTAssertEqual(verticalMeters / mapFrame.height, OrbitMapScale.metersPerPoint, accuracy: 0.1)
+            XCTAssertEqual(horizontalMeters / mapFrame.width, OrbitMapScale.metersPerPoint, accuracy: 0.1)
+        }
+    }
+
     @MainActor func testSafeZoneCircleUsesMapCoordinatesAndMeters() {
         let center = GeoPoint(latitude: 32.061, longitude: 118.778)
         let circle = SafeZoneSelectionMap.circle(center: center, radius: 200)
