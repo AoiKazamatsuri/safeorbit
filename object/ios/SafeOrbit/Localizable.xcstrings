@@ -99,9 +99,6 @@
     "Add the iOS SDK key to this device’s local build configuration." : {
 
     },
-    "Agent" : {
-
-    },
     "Agent: %@" : {
 
     },
@@ -118,6 +115,9 @@
 
     },
     "Ask a question" : {
+
+    },
+    "Assistant" : {
 
     },
     "Automatic voice navigation" : {
@@ -147,9 +147,6 @@
     "Cancel navigation" : {
 
     },
-    "Caregiver" : {
-
-    },
     "Change photo" : {
 
     },
@@ -162,10 +159,10 @@
     "Choose a photo" : {
 
     },
-    "Choose role" : {
+    "Clear" : {
 
     },
-    "Clear" : {
+    "Close settings" : {
 
     },
     "Code expired" : {
@@ -197,9 +194,6 @@
 
     },
     "Delete this safe zone?" : {
-
-    },
-    "Demo route" : {
 
     },
     "Dismiss message" : {
@@ -331,9 +325,6 @@
     "Previous week" : {
 
     },
-    "Primary caregiver" : {
-
-    },
     "Privacy Policy" : {
 
     },
@@ -373,6 +364,12 @@
     "Route Deviation Trend" : {
 
     },
+    "Route end" : {
+
+    },
+    "Route end, %@" : {
+
+    },
     "Safe return & recovery" : {
 
     },
@@ -401,6 +398,9 @@
 
     },
     "Senior location" : {
+
+    },
+    "Senior location, %@" : {
 
     },
     "Share link" : {
@@ -458,6 +458,9 @@
 
     },
     "View More" : {
+
+    },
+    "Voice volume" : {
 
     },
     "vs last month" : {
