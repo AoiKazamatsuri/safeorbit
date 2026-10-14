@@ -3,14 +3,14 @@
 ```json
 {
   "id": "T7",
-  "revision": 122,
-  "assignee": "Codex",
+  "revision": 557,
+  "assignee": null,
   "parent": null,
   "deps": [
     "T6"
   ],
-  "round": 9,
-  "status": "交付"
+  "round": 10,
+  "status": "通过"
 }
 ```
 
@@ -34,6 +34,7 @@
 - [approval-007.md](approval-007.md)
 - [approval-008.md](approval-008.md)
 - [approval-009.md](approval-009.md)
+- [approval-010.md](approval-010.md)
 - [receipt-000043.md](receipt-000043.md)
 - [receipt-000047.md](receipt-000047.md)
 - [receipt-000049.md](receipt-000049.md)
@@ -48,6 +49,7 @@
 - [receipt-000088.md](receipt-000088.md)
 - [receipt-000110.md](receipt-000110.md)
 - [receipt-000122.md](receipt-000122.md)
+- [receipt-000556.md](receipt-000556.md)
 
 ## 过程记录
 
@@ -89,6 +91,10 @@
 - #110｜deliver｜Codex｜{"artifacts": [{"path": "object/ios/SafeOrbit/OnboardingUI.swift", "sha256": "a705fbac4aa1d75d93177386cea01d820d62e44fa1d142ae24bb4e3a576378ae"}, {"path": "object/ios/SafeOrbitTests/OnboardingTests.swift", "sha256": "594da914512e8dda024dce831038564d6cf9de927ba792b30a557cc5f8895c78"}, {"path": "object/ios/Verification/T7/confirmation-preview.png", "sha256": "88da29f8d17a00503f0a5e205e425f8c7afea7e360b857fc1b15f1faa442632e"}], "expect": 108, "id": "T7", "receipt": "# T7 注册确认密码预览误写返工交付\n\n## 实际完成\n\n注册页确认密码输入控件在未聚焦时拒绝 iOS 强密码建议产生的临时预览写入，空值时以原占位文字遮住 UIKit 的临时显示；用户进入确认栏后仍可正常输入。两个密码框继续使用 `.newPassword`。为系统强密码正式接受时可能先更新任一输入框的顺序，加入共用的本地候选状态：主密码一次性跃迁为生成值后，允许匹配的确认值落入表单。没有修改登录页、注册接口或凭据存储。\n\n## 验证事实（执行者自验，未独立验证）\n\niPhone 18 Pro、iOS 27 模拟器实走：进入 Create account，仅在 Password 输入一个测试字符，系统强密码提示出现时 Confirm password 仍显示占位文字且无圆点；截图 `object/ios/Verification/T7/confirmation-preview.png`。关闭提示后第一栏字符仍在、确认栏仍空。没有实际选择系统生成密码或提交账号；生成密码不同事件顺序由前端测试模拟，真实系统接受路径仍待产品层面验收。\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/safeorbit-password-map-test-final.log 2>&1`；退出码 0；原样输出摘录：`Executed 31 tests, with 0 failures (0 unexpected) in 38.973 (39.001) seconds`、`** TEST SUCCEEDED **`。新增测试核对临时预览不提交确认值，以及生成值先写入两栏时均能完成确认。\n\n原样命令：`xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath object/ios/DerivedData ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build > /private/tmp/safeorbit-password-map-release-final.log 2>&1`；退出码 0；原样输出摘录：`** BUILD SUCCEEDED **`。\n\n`git diff --check` 退出码 0、无输出。本件申报 **unverified**：执行者已在模拟器核对用户报告的误显示，系统生成密码正式接受未由独立实例或用户核对。用户最终验收单独处理；没有推送。\n", "summary": "修复强密码预览误写确认栏；31项测试及Release构建通过，模拟器已核对，待用户验收", "verification": "unverified"}
 - #119｜rework｜Codex｜{"basis": "用户要求冻结账号入口直接进入首页，共享前端工件变更后重新验证和登记；既有验收余项不变", "expect": 110, "id": "T7"}
 - #122｜deliver｜Codex｜{"artifacts": [{"path": "object/ios/SafeOrbit/OnboardingUI.swift", "sha256": "a705fbac4aa1d75d93177386cea01d820d62e44fa1d142ae24bb4e3a576378ae"}, {"path": "object/ios/SafeOrbitTests/OnboardingTests.swift", "sha256": "8481455e35ef688254a4753a45921e719e081813213513c4dba5cda0dff024e1"}, {"path": "object/ios/Verification/T7/confirmation-preview.png", "sha256": "88da29f8d17a00503f0a5e205e425f8c7afea7e360b857fc1b15f1faa442632e"}], "expect": 119, "id": "T7", "receipt": "# T7 账号入口冻结后共享工件重交\n\n用户要求暂时冻结账号入口。对应独立任务为 T10；本件仅因共享工件发生改动而重新登记指纹，不扩大原业务范围，也不代替用户验收。\n\n注册密码控件未改，系统强密码正式接受尚未实测，本件继续申报 unverified。登录注册代码保留，当前 App 入口已冻结；原验收余项不变。\n\n## 验证事实（执行者自验，未独立验证）\n\n模拟器 iPhone 18 Pro / iOS 27 冷启动：直接显示 Li Lan、Normal、45% 和南京大学附近地图，未经过身份选择、登录、注册。设置面板无 Log Out，Agent 显示原演示回答，Records 显示 August 2026 日历及出行行；返回 Location 正常。模拟器打开旧格式的 safeorbit://bind 链接后仍停留在家属设置界面，没有进入扫码或账号流程。截图 direct-home.png 和 settings-no-logout.png 在 object/ios/Verification/T10，已目视核对。\n\n新增测试在 Keychain 预存老人账号测试凭据，以会失败的网络替身执行 home 初始化、restore、refreshLocation、signOut：全过程不发业务请求、不清除凭据，仍为 caregiverHome。原账号路径测试继续通过；未实测真机账号或录音。\n\n完整测试原样命令：\n```sh\nxcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination 'platform=iOS Simulator,id=DFC762F4-52D3-4703-8AFF-7625E0843313' -derivedDataPath object/ios/DerivedData -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > /private/tmp/safeorbit-direct-home-test.log 2>&1\n```\n退出码 0，原样输出：\n```text\nExecuted 34 tests, with 0 failures (0 unexpected) in 38.651 (38.666) seconds\n** TEST SUCCEEDED **\n```\n测试结果：object/ios/DerivedData/Logs/Test/Test-SafeOrbit-2026.10.05_23-26-55-+0800.xcresult。\n\nRelease 原样命令：\n```sh\nxcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -configuration Release -sdk iphonesimulator -derivedDataPath /private/tmp/safeorbit-direct-home-release CODE_SIGNING_ALLOWED=NO build > /private/tmp/safeorbit-direct-home-release.log 2>&1\n```\n退出码 0，原样输出 `** BUILD SUCCEEDED **`。最初受限执行环境无法访问 CoreSimulator：测试退出码 70，Release 退出码 65；获得模拟器访问后上列命令通过。最初测试进程退出文字混入同名日志前段，最终测试以本段 xcresult 和日志末尾读数为准。\n\n安装及启动原样命令：`xcrun simctl install DFC762F4-52D3-4703-8AFF-7625E0843313 object/ios/DerivedData/Build/Products/Debug-iphonesimulator/SafeOrbit.app`；退出码 0。`xcrun simctl launch DFC762F4-52D3-4703-8AFF-7625E0843313 org.safeorbit.demo`；退出码 0；输出 `org.safeorbit.demo: 56714`。此前 terminate 提示无运行进程，属于冷启动前状态。\n\n`git diff --check` 退出码 0，无输出。队列检查随同批暂存与正常提交执行。不推送；用户最终验收单独记录，T7 的系统强密码正式接受实测余项未被这次账号冻结代替。\n", "summary": "暂时冻结账号入口，直接进入家属首页；34项测试与Release构建通过，未独立验证，原密码系统实测余项保持", "verification": "unverified"}
+- #554｜rework｜Codex｜{"basis": "用户验收T7并明确接受当前交付、放弃系统强密码正式接受实跑要求，需修订验收基线并重交验证。", "expect": 122, "id": "T7"}
+- #555｜amend｜Codex｜{"authority": {"basis": "用户明确接受当前交付，放弃T7系统强密码建议正式接受的未测实跑要求；继续验收。", "by": "用户"}, "expect": 554, "id": "T7", "proposal": {"criteria": "| 编号 | 可观察结果 | 验证方法 | 通过条件 |\n|---|---|---|---|\n| A1 | 系统建议取消后手动草稿仍在且能续输 | iPhone 18 Pro、iOS 27 模拟器首字、弹窗、关闭、续输实跑 | 不需重输首字或重新聚焦；不记录明文密码 |\n| A2 | 主动删除、眼睛按钮、确认密码与系统生成密码可用 | 模拟器交互及前端测试 | 主动清空不会被误恢复；切换显示不丢字；既有校验正确。系统生成密码正式接受实跑按本轮用户决定免除，保留自动化替身校验 |\n| A3 | 其他登录与正式构建不回退 | 完整 iOS 测试、Release 构建、范围核对 | 测试和构建通过；不改后端、truth、reference 或用户已有字符串资源 |\n\n验收安排：执行者代跑并记录原样命令、退出码与观察，标未独立验证；用户最终验收。若 iOS 自身清空无法在保留系统建议的前提下稳定拦截，回执如实标未通过，不以构建成功代替交互成功。", "origin": "用户在 iPhone 18 Pro、iOS 27 的注册页发现：输入首个密码字符时弹出系统强密码建议，关闭后首字符消失，必须重新输入。用户明确要求实施既定修复方案：保留系统强密码建议，但关闭后保留已输入字符并能继续输入。本件继续属于家属登录前端 T7。", "plan": "1. 返工 T7 并一次更新批准基线；复现和定位输入、焦点变化，不记录密码内容。\n2. 仅替换注册密码控件，保留系统强密码建议，保护手动草稿及焦点。\n3. 实跑取消、续输、主动删除、显示切换、确认及强密码接受路径；运行完整测试与 Release 构建。\n4. 记录结果并在验证通过时交付，同批本地提交；不推送。", "scope": "本轮验收调整：用户明确接受当前交付，放弃系统强密码建议正式接受的实跑要求。保留该功能及自动化事件顺序校验；该系统实跑仍标为未测，不虚构测试结果。此前取消建议后草稿保留的观察和既有输入控件回归事实沿用，代码不变。\n\n- 要交付：注册页的密码与确认密码使用身份稳定的输入控件，继续标记新密码以保留 iOS 强密码建议；显示/隐藏不重建输入控件；系统提示取消后的非用户主动清空不丢失草稿，焦点可以继续输入；用户主动删除仍正常；邮箱、长度和确认一致校验、Debug 预览登录、Release 真正登录路径保持原有行为。\n- 不包含：后端、账号、证书、系统密码管理器设置、登录页现有密码输入方式、truth 与 reference 改动；不纳入已有两份字符串资源的工作区修改。\n- 允许修改的位置：object/ios/ 下注册输入 SwiftUI 源码、相关测试与使用说明；必要时既有 Xcode 工程及源码生成清单。队列记录只经工具维护。", "title": "注册页密码输入中断返工"}}
+- #556｜deliver｜Codex｜{"artifacts": [{"path": "object/ios/SafeOrbit/OnboardingUI.swift", "sha256": "a705fbac4aa1d75d93177386cea01d820d62e44fa1d142ae24bb4e3a576378ae"}, {"path": "object/ios/SafeOrbitTests/OnboardingTests.swift", "sha256": "8481455e35ef688254a4753a45921e719e081813213513c4dba5cda0dff024e1"}, {"path": "object/ios/Verification/T7/confirmation-preview.png", "sha256": "88da29f8d17a00503f0a5e205e425f8c7afea7e360b857fc1b15f1faa442632e"}], "expect": 555, "id": "T7", "receipt": "# T7 接受当前交付与验收余项调整\n\n用户明确要求验收 T7，并明确接受当前交付、放弃系统强密码建议正式接受的实跑要求，已通过 amend 写入本轮基线。系统强密码正式接受仍未实跑，不将放弃写为测试成功。代码未改，注册账号入口继续冻结。\n\n沿用 receipt-000110 的系统建议关闭后首字符仍在、确认栏为空观察；原自动化覆盖草稿恢复、主动删除、显示恢复及生成密码写入两栏顺序。独立子代理本轮实跑完整86项iOS测试、0失败及iphoneos Release，退出码均为0，包含OnboardingTests上述回归；原样命令输出见 object/ios/Verification/T9/acceptance-20261014/report.md。测试由独立子代理完成，结果仍为 Agent 自报，未独立验证。没有新增真实账号操作或强密码系统路径实测。\n", "summary": "按用户明确免除强密码接受实跑的新基线重交，保留未测事实；86项回归通过", "verification": "passed"}
+- #557｜close｜Codex｜{"authority": {"basis": "用户明确要求验收T7，并接受当前交付、放弃系统强密码正式接受实跑要求，再次指示继续验收。", "by": "用户"}, "expect": 556, "id": "T7"}
 
 ## 接手说明
 
