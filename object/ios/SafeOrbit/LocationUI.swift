@@ -1123,7 +1123,7 @@ private func locationPreview() -> ElderLocationSnapshot {
 #endif
 
 /// The dot stays centered on the coordinate; only the direction beam rotates with the camera.
-private struct CurrentLocationDot: View {
+struct CurrentLocationDot: View {
     let heading: Double?
     let label: LocalizedStringKey
     private let blue = OrbitMapStyle.blue

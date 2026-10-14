@@ -12,6 +12,7 @@ struct ElderHomePage: View {
     @State private var homeCamera: MapCameraPosition = .automatic
     @State private var selectedHome: GeoPoint?
     @State private var camera: MapCameraPosition = .region(ElderDemoMapData.region)
+    @State private var visibleHeading = 0.0
     @State private var showingVolume = false
     @State private var overlayHeight: CGFloat = 70
     let chooseRole: () -> Void
@@ -113,7 +114,8 @@ struct ElderHomePage: View {
     private var map: some View {
         AMapConsentSurface {
             AMapCanvas(camera: $camera, markers: mapMarkers,
-                       lines: mapLines, bottomOverlayInset: overlayHeight + 36)
+                       lines: mapLines, bottomOverlayInset: overlayHeight + 36,
+                       onCameraChange: { visibleHeading = $0.heading })
         }.ignoresSafeArea().accessibilityIdentifier("elder-map")
     }
     private var mapMarkers: [AMapMarker] {
@@ -130,11 +132,9 @@ struct ElderHomePage: View {
         let point = session.usesLiveNavigation ? live.point : ElderDemoMapData.position
         if let point {
             markers.append(AMapMarker(id: "position", coordinate: point.appleCoordinate,
-                content: AnyView(Image(systemName: "location.north.fill").font(.system(size: 58, weight: .bold))
-                    .foregroundStyle(OrbitStyle.teal)
-                    .rotationEffect(.degrees(session.usesLiveNavigation ? live.navigation.markerHeading ?? 0 : 0))
-                    .shadow(color: .black.opacity(0.18), radius: 3, y: 3)
-                    .accessibilityLabel(session.usesLiveNavigation ? "Your location" : "Sample position"))))
+                content: AnyView(CurrentLocationDot(
+                    heading: (session.usesLiveNavigation ? live.navigation.markerHeading ?? 0 : 0) - visibleHeading,
+                    label: session.usesLiveNavigation ? "Your location" : "Sample position"))))
         }
         return markers
     }
