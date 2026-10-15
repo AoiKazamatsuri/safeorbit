@@ -1,4 +1,4 @@
-# 修复位置页与新增安全区地图首次进入缩放异常
+# 修复地图首次进入缩放异常，首页轨迹改为实线
 
 ## 范围
 
@@ -10,8 +10,10 @@
   - 把“就绪与请求保留”的状态逻辑写成不依赖高德 SDK 的类型，使模拟器单元测试能覆盖：初始化先于布局、布局先于初始化、重复回调、更新期间替换请求、销毁、用户手势；维护受影响的现有用例。
   - Debug 构建下记录首次应用后的实际缩放级别与每点米数，供真机复测核对；不记录密钥与完整位置。
   - 为编译真机版本，用 `object/dev/setup-amap.sh` 恢复高德 SDK 到被忽略的 `object/ios/.build/AMap`（根契约第 23 条），版本与校验写进回执。
-- 不包含：真机安装、签名、密钥配置与实机复测（由用户另行安排）；`LocationUI.swift`、`LocationModels.swift` 与其他页面（确需修改时先停下报告）；导航相机与跟随规则；地图服务、配色与布局；不新增依赖；不改 truth。
-- 允许修改的位置：`object/ios/SafeOrbit/AMapCanvas.swift`、`object/ios/SafeOrbit/SafeZoneSelectionMap.swift`、`object/ios/SafeOrbitTests/LocationTests.swift`；被忽略的 `object/ios/.build/AMap`。队列记录只经工具维护。
+  - 位置页老人轨迹改为实线：`CaregiverTrailStyle` 生成两条叠放的线——底层白色细边（每侧约 1.5 点）与上层约 6 点系统蓝实线，圆线头、圆拐角，不再设虚线；位置页改用这两条线。高德与模拟器地图共用同一规格。
+  - `object/ios/README.md` 中两处与轨迹相关的说明同步：样例轨迹来源改为苹果地图步行路线（补任务 T20 漏改的说明），“老人轨迹保持系统蓝色虚线”改为实线。
+- 不包含：真机安装、签名、密钥配置与实机复测（由用户另行安排）；导航路线、出行详情页轨迹（随问题 4 另改）与老人端地图；`LocationModels.swift` 与其他页面；导航相机与跟随规则；地图服务与其他配色、布局；不新增依赖；不改 truth。
+- 允许修改的位置：`object/ios/SafeOrbit/AMapCanvas.swift`、`object/ios/SafeOrbit/SafeZoneSelectionMap.swift`、`object/ios/SafeOrbitTests/LocationTests.swift`、`object/ios/SafeOrbit/LocationUI.swift`（仅位置页轨迹线）、`object/ios/README.md`（仅上述两处说明）；被忽略的 `object/ios/.build/AMap`。队列记录只经工具维护。
 
 ## 验收标准与验证方法
 
@@ -23,5 +25,7 @@
 | A4 | 现有测试不回退 | 在模拟器运行全部 iOS 单元测试与截图测试 | 退出码 0、无失败用例；无关的既有失败如实区分 |
 | A5 | 真机版本可以编译 | 恢复 SDK 后以 `-sdk iphoneos`、`CODE_SIGNING_ALLOWED=NO` 构建 | 构建成功 |
 | A6 | 改动只在授权位置 | `git diff --stat`、`git diff --check`；提交时的队列检查 | 仅授权文件；检查退出码 0 |
+| A7 | 位置页轨迹为带白边的连续实线 | 单元测试核对两条线的顺序、宽度、颜色且无虚线；模拟器默认比例与街区级截图 | 测试通过；截图中为连续蓝线带白边，无珠串状 |
+| A8 | 说明与代码一致 | `grep -n -e '虚线' -e '校准的固定示例' object/ios/README.md` | 不再称轨迹为虚线，样例来源写为苹果地图步行路线 |
 
-验收安排：A1–A6 由执行者代跑（施工可由子代理完成，回执注明），附原样命令、退出码与输出摘录，标“未独立验证”。实机效果——两页首次进入即显示街区范围、拖动后可回到默认视图、用户缩放不被覆盖——由用户安排真机复测后决定是否通过。
+验收安排：A1–A8 由执行者代跑（首轮施工由子代理完成，回执注明），附原样命令、退出码与输出摘录，标“未独立验证”。实机效果——两页首次进入即显示街区范围、拖动后可回到默认视图、用户缩放不被覆盖、首页轨迹为带白边的连续实线——由用户安排真机复测后决定是否通过。
