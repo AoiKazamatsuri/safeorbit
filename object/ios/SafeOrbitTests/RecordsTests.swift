@@ -3,10 +3,192 @@ import SwiftUI
 @testable import SafeOrbit
 
 final class RecordsTests: XCTestCase {
+    @MainActor func testRecordingLayoutMatrixAndRealScrollReachability() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("T15Snapshots")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let sizes = [CGSize(width: 320, height: 568), CGSize(width: 375, height: 812),
+                     CGSize(width: 390, height: 844), CGSize(width: 393, height: 852),
+                     CGSize(width: 402, height: 874), CGSize(width: 430, height: 932)]
+        let types: [(String, DynamicTypeSize)] = [("large", .large), ("xxxLarge", .xxxLarge),
+                                                 ("accessibility1", .accessibility1), ("accessibility5", .accessibility5)]
+        for size in sizes {
+            for (typeName, type) in types {
+                for trend in [false, true] {
+                    let name = "\(trend ? "trend" : "data")-\(Int(size.width))x\(Int(size.height))-\(typeName)"
+                    var frames: [String: CGRect] = [:]
+                    let window = UIWindow(windowScene: scene)
+                    window.frame = CGRect(origin: .zero, size: size)
+                    window.rootViewController = UIHostingController(rootView: ZStack {
+                        RecordsPage(showTrendInitially: trend, onLayout: { frames = $0 })
+                        CaregiverTabBar(selection: .constant(.records))
+                    }.environment(\.dynamicTypeSize, type).environment(\.colorScheme, .light))
+                    window.makeKeyAndVisible()
+                    defer { window.isHidden = true; previous?.makeKeyAndVisible() }
+                    try await Task.sleep(for: .milliseconds(250))
+                    let view = try XCTUnwrap(window.rootViewController?.view)
+                    view.layoutIfNeeded()
+                    try snapshotRecording(window, to: folder.appendingPathComponent(name + "-top.png"))
+                    let title = try XCTUnwrap(frames["title"], name)
+                    let picker = try XCTUnwrap(frames["picker"], name)
+                    XCTAssertLessThanOrEqual(title.maxY, picker.minY, name)
+                    var visited = frames
+                    let scrolls = recordingScrollViews(in: view)
+                    let vertical = try XCTUnwrap(scrolls.first(where: { $0.bounds.height > 0 && $0.contentSize.height > $0.bounds.height + 1 }), name)
+                    var end: CGFloat = 0
+                    for _ in 0..<100 {
+                        end = max(0, vertical.contentSize.height - vertical.bounds.height + vertical.adjustedContentInset.bottom)
+                        let next = min(end, vertical.contentOffset.y + vertical.bounds.height * 0.8)
+                        vertical.setContentOffset(CGPoint(x: 0, y: next), animated: false)
+                        try await Task.sleep(for: .milliseconds(70))
+                        visited.merge(frames, uniquingKeysWith: { _, latest in latest })
+                        if abs(vertical.contentOffset.y - end) < 1 { break }
+                    }
+                    XCTAssertEqual(vertical.contentOffset.y, end, accuracy: 1, name)
+                    XCTAssertGreaterThan(end, 0, name)
+                    XCTAssertEqual(frames["title"], title, name + " title must stay fixed")
+                    XCTAssertEqual(frames["picker"], picker, name + " picker must stay fixed")
+                    try snapshotRecording(window, to: folder.appendingPathComponent(name + "-bottom.png"))
+                    if let horizontal = scrolls.first(where: { $0.contentSize.width > $0.bounds.width + 1 }) {
+                        let trailing = horizontal.contentSize.width - horizontal.bounds.width
+                        horizontal.setContentOffset(CGPoint(x: trailing, y: 0), animated: false)
+                        try await Task.sleep(for: .milliseconds(80))
+                        XCTAssertEqual(horizontal.contentOffset.x, trailing, accuracy: 1, name + " horizontal end is reachable")
+                    } else if type.isAccessibilitySize {
+                        XCTFail(name + " large calendar/chart labels need a horizontal viewport")
+                    }
+                    for (key, rect) in visited {
+                        XCTAssertGreaterThan(rect.width, 0, name + " " + key)
+                        XCTAssertGreaterThanOrEqual(rect.minX, -0.5, name + " " + key)
+                        XCTAssertLessThanOrEqual(rect.maxX, size.width + 0.5, name + " " + key)
+                    }
+                    if trend {
+                        for metric in ["Unusual Movement", "Navigation Assistance", "High-risk Events", "Safe Return Rate"] {
+                            let card = try XCTUnwrap(visited["metric-" + metric], name + metric)
+                            for prefix in ["metric-summary-", "metric-bars-"] {
+                                let field = try XCTUnwrap(visited[prefix + metric], name + prefix + metric)
+                                XCTAssertGreaterThanOrEqual(field.minX, card.minX, name + prefix)
+                                XCTAssertLessThanOrEqual(field.maxX, card.maxX + 0.5, name + prefix)
+                            }
+                        }
+                        let summary = try XCTUnwrap(visited["trend-summary"], name)
+                        let chart = try XCTUnwrap(visited["trend-chart-viewport"], name)
+                        XCTAssertTrue(summary.maxX <= chart.minX + 0.5 || summary.maxY <= chart.minY + 0.5, name)
+                    } else {
+                        for control in ["previous-month", "next-month", "previous-week", "next-week", "expand-week"] {
+                            let rect = try XCTUnwrap(visited[control], name + control)
+                            XCTAssertGreaterThanOrEqual(rect.width, 44, name + control)
+                            XCTAssertGreaterThanOrEqual(rect.height, 44, name + control)
+                        }
+                        for trip in DemoRecords.trips.filter({ $0.month == 8 && (24...27).contains($0.day) }) {
+                            let row = try XCTUnwrap(visited["trip-" + trip.id], name)
+                            let fields = try ["date-", "risk-", "route-", "duration-"].map {
+                                try XCTUnwrap(visited[$0 + trip.id], name + $0 + trip.id)
+                            }
+                            for field in fields {
+                                XCTAssertGreaterThanOrEqual(field.minX, row.minX - 0.5, name)
+                                XCTAssertLessThanOrEqual(field.maxX, row.maxX + 0.5, name)
+                                XCTAssertGreaterThanOrEqual(field.minY, row.minY - 0.5, name)
+                                XCTAssertLessThanOrEqual(field.maxY, row.maxY + 0.5, name)
+                            }
+                            for a in fields.indices {
+                                for b in fields.indices where b > a {
+                                    let intersection = fields[a].intersection(fields[b])
+                                    XCTAssertTrue(intersection.isNull || intersection.width < 0.5 || intersection.height < 0.5,
+                                                  name + " trip fields must not overlap")
+                                }
+                            }
+                            if type == .large { XCTAssertLessThan(row.height, 100, name + " compact rows") }
+                            if type == .xxxLarge { XCTAssertLessThan(row.height, 150, name + " grouped rows") }
+                        }
+                    }
+                    print("T15 layout \(name): viewport=\(vertical.bounds.size), scrollEnd=\(end), measured=\(visited.count)")
+                }
+            }
+        }
+        print("T15 snapshots: \(folder.path)")
+    }
+
+    @MainActor func testRecordingCalendarFilteringExpansionAndDetailReturn() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        let driver = RecordsTestDriver()
+        var frames: [String: CGRect] = [:]
+        var detailPresented = false
+        window.rootViewController = UIHostingController(rootView: RecordsPage(onLayout: { frames = $0 },
+            onDetailPresentationChanged: { detailPresented = $0 })
+            .environment(\.recordsTestDriver, driver).environment(\.dynamicTypeSize, .xxxLarge))
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; previous?.makeKeyAndVisible() }
+        try await Task.sleep(for: .milliseconds(250))
+        let perform = try XCTUnwrap(driver.perform)
+        func rows() -> Set<String> { Set(frames.keys.filter { $0.hasPrefix("trip-") }) }
+        XCTAssertEqual(rows().count, 4)
+        perform(.toggleExpanded)
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertEqual(rows().count, 5)
+        perform(.toggleExpanded)
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertEqual(rows().count, 4)
+        perform(.selectDay(DemoRecords.date(2026, 8, 24)))
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertEqual(rows(), ["trip-2026-08-24"])
+        let selected = try XCTUnwrap(DemoRecords.trips.first { $0.id == "2026-08-24" })
+        perform(.openTrip(selected))
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertTrue(detailPresented)
+        perform(.closeTrip)
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertFalse(detailPresented)
+        XCTAssertEqual(rows(), ["trip-2026-08-24"], "Returning retains the selected date")
+        perform(.selectDay(DemoRecords.date(2026, 8, 23)))
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertTrue(rows().isEmpty)
+        XCTAssertNotNil(frames["empty-records"])
+        perform(.shiftWeek(-1))
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertEqual(rows(), Set([18, 20, 21, 22].map { "trip-2026-08-\($0)" }))
+        XCTAssertNil(frames["clear-day"])
+        perform(.selectDay(DemoRecords.date(2026, 8, 12)))
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertEqual(rows(), ["trip-2026-08-12"])
+        perform(.shiftMonth(-1))
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertNil(frames["clear-day"])
+        XCTAssertEqual(rows().count, 5, "Month controls clear filtering without losing the selected week's records")
+        perform(.shiftMonth(1))
+        perform(.shiftWeek(2))
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertEqual(rows().count, 4)
+        perform(.showTrend(true))
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertNotNil(frames["trend-card"])
+        perform(.showTrend(false))
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertEqual(rows().count, 4)
+    }
+
+    @MainActor private func recordingScrollViews(in view: UIView) -> [UIScrollView] {
+        ((view as? UIScrollView).map { [$0] } ?? []) + view.subviews.flatMap { recordingScrollViews(in: $0) }
+    }
+    @MainActor private func snapshotRecording(_ window: UIWindow, to path: URL) throws {
+        let image = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in
+            window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+        try XCTUnwrap(image.pngData()).write(to: path)
+    }
+
+
     @MainActor func testTrendDateLabelsFitTheRenderedChartAndDoNotOverlap() async throws {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let previous = scene.windows.first(where: \.isKeyWindow)
-        for (width, type) in [(CGFloat(206), DynamicTypeSize.large), (CGFloat(184), .large), (CGFloat(272), .accessibility1)] {
+        for (width, type) in [CGFloat(184), 206, 272, 298].flatMap({ width in
+            [DynamicTypeSize.large, .xxxLarge, .accessibility1, .accessibility5].map { (width, $0) }
+        }) {
             var frames: [Int: CGRect] = [:]
             var contentSize: CGSize = .zero
             let window = UIWindow(windowScene: scene)

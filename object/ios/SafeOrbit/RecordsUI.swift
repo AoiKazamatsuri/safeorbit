@@ -8,7 +8,15 @@ private enum RecordsSection: String, CaseIterable {
 
 struct RecordsPage: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var pageWidth: CGFloat = 402
+    @ScaledMetric(relativeTo: .body) private var titleHeight: CGFloat = 24
+    @ScaledMetric(relativeTo: .body) private var calendarColumnWidth: CGFloat = 34
+    @ScaledMetric(relativeTo: .body) private var minimumMetricWidth: CGFloat = 154
+    @ScaledMetric(relativeTo: .body) private var metricIconSize: CGFloat = 28
+    @ScaledMetric(relativeTo: .body) private var metricBarWidth: CGFloat = 30
+    let onLayout: (([String: CGRect]) -> Void)?
+#if DEBUG
+    @Environment(\.recordsTestDriver) private var testDriver
+#endif
     @State private var section: RecordsSection = .data
     @State private var month = DemoRecords.date(2026, 8, 1)
     @State private var weekStart = DemoRecords.date(2026, 8, 23)
@@ -17,7 +25,8 @@ struct RecordsPage: View {
     @State private var selectedTrip: DemoTrip?
     let onDetailPresentationChanged: (Bool) -> Void
 
-    init(showTrendInitially: Bool = false, onDetailPresentationChanged: @escaping (Bool) -> Void = { _ in }) {
+    init(showTrendInitially: Bool = false, onLayout: (([String: CGRect]) -> Void)? = nil, onDetailPresentationChanged: @escaping (Bool) -> Void = { _ in }) {
+        self.onLayout = onLayout
         self.onDetailPresentationChanged = onDetailPresentationChanged
         _section = State(initialValue: showTrendInitially ? .trend : .data)
     }
@@ -32,13 +41,14 @@ struct RecordsPage: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            CaregiverTopBar(height: dynamicTypeSize.isAccessibilitySize ? 74 : 47) {
+            CaregiverTopBar(height: max(47, titleHeight + 16)) {
                 Text("Recording")
                     .orbitDisplayFont(20)
                     .foregroundStyle(.white)
+                    .recordsFrame("title")
             }
             VStack(spacing: 0) {
-                sectionPicker
+                sectionPicker.recordsFrame("picker")
                     .padding(.horizontal, 34)
                     .padding(.top, 12)
                     .padding(.bottom, 23)
@@ -47,6 +57,7 @@ struct RecordsPage: View {
                         if section == .data { dataContent.padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 0 : 12) }
                         else { trendContent }
                     }
+                    .recordsFrame("content")
                     .padding(.horizontal, 22)
                     .padding(.bottom, 112)
                 }
@@ -55,12 +66,23 @@ struct RecordsPage: View {
             .background(alignment: .top) { OrbitStyle.teal.frame(height: 40) }
         }
         .background(Color.white.ignoresSafeArea(edges: .bottom))
-        .background {
-            GeometryReader { geometry in
-                Color.clear.onAppear { pageWidth = geometry.size.width }
-                    .onChange(of: geometry.size.width) { _, width in pageWidth = width }
+        .coordinateSpace(name: "RecordsPage")
+        .onPreferenceChange(RecordsFrames.self) { onLayout?($0) }
+#if DEBUG
+        .onAppear {
+            testDriver?.perform = { action in
+                switch action {
+                case .selectDay(let date): selectDay(date)
+                case .shiftMonth(let amount): shiftMonth(amount)
+                case .shiftWeek(let amount): shiftWeek(amount)
+                case .toggleExpanded: expanded.toggle()
+                case .openTrip(let trip): selectedTrip = trip
+                case .closeTrip: selectedTrip = nil
+                case .showTrend(let show): section = show ? .trend : .data
+                }
             }
         }
+#endif
         .settingsSlide(item: $selectedTrip) { TripDetailPage(trip: $0) { selectedTrip = nil } }
         .onChange(of: selectedTrip?.id) { _, id in onDetailPresentationChanged(id != nil) }
         .onDisappear { onDetailPresentationChanged(false) }
@@ -72,7 +94,7 @@ struct RecordsPage: View {
                 Button { section = item } label: {
                     Text(item.rawValue)
                         .caregiverText()
-                        .frame(maxWidth: .infinity).frame(minHeight: 30).padding(.vertical, 3)
+                        .frame(maxWidth: .infinity).frame(minHeight: 44).padding(.vertical, 3)
                         .foregroundStyle(section == item ? .black : .white)
                         .background(section == item ? .white : .clear, in: Capsule())
                 }.accessibilityAddTraits(section == item ? .isSelected : [])
@@ -84,73 +106,103 @@ struct RecordsPage: View {
     private var dataContent: some View {
         VStack(spacing: 22) {
             calendarCard
-            (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))) {
-                Button { shiftWeek(-1) } label: { Image(systemName: "chevron.left").frame(width: 26) }
-                    .accessibilityLabel("Previous week")
-                Text(selectedDay == nil ? "This Week" : dayTitle(selectedDay!))
-                    .recordingFont(18, weight: .medium)
-                if selectedDay != nil {
-                    Button("Clear") { selectedDay = nil }.caregiverText(.caption)
+            HStack(spacing: 4) {
+                weekButton(-1)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { weekTitle; weekRange.fixedSize() }
+                    VStack(alignment: .leading, spacing: 4) { weekTitle; weekRange }
                 }
-                Spacer()
-                Text("\(shortDate(weekStart)) – \(shortDate(calendar.date(byAdding: .day, value: 6, to: weekStart)!))")
-                    .caregiverText(.secondary).foregroundStyle(.secondary)
-                Button { shiftWeek(1) } label: { Image(systemName: "chevron.right").frame(width: 26) }
-                    .accessibilityLabel("Next week")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                weekButton(1)
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 9)
             weekCard
         }
     }
 
-    private var calendarCard: some View {
-        VStack(spacing: 9) {
-            HStack {
-                Button { shiftMonth(-1) } label: { Image(systemName: "chevron.left") }
-                    .accessibilityLabel("Previous month")
-                Spacer()
-                Text(monthTitle(month)).recordingFont(19, weight: .medium)
-                Spacer()
-                Button { shiftMonth(1) } label: { Image(systemName: "chevron.right") }
-                    .accessibilityLabel("Next month")
-            }.buttonStyle(.plain)
-            HStack(spacing: 0) {
-                ForEach(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], id: \.self) { label in
-                    Text(dynamicTypeSize.isAccessibilitySize ? String(label.prefix(1)) : label).caregiverText(.secondary).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            let days = monthCells
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 3) {
-                ForEach(days.indices, id: \.self) { index in
-                    if let day = days[index] {
-                        let date = DemoRecords.date(calendar.component(.year, from: month),
-                                                    calendar.component(.month, from: month), day)
-                        let risk = DemoRecords.highestRisk(on: date)
-                        let incomplete = DemoRecords.trips(on: date).contains { $0.incomplete }
-                        Button {
-                            selectedDay = date
-                            weekStart = calendar.dateInterval(of: .weekOfYear, for: date)!.start
-                            expanded = true
-                        } label: {
-                            Text("\(day)")
-                                .caregiverText()
-                                .foregroundStyle(risk == .high ? .white : .black)
-                                .frame(maxWidth: .infinity).frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 44 : 30)
-                                .background(riskColor(risk), in: Circle())
-                                .overlay {
-                                    if incomplete { Circle().stroke(.gray, style: StrokeStyle(lineWidth: 1.5, dash: [3, 2])) }
-                                }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("\(dayTitle(date)), \(risk?.title ?? "No trips")\(incomplete ? ", incomplete record" : "")")
-                    } else { Color.clear.frame(height: 30) }
-                }
+    private var weekTitle: some View {
+        HStack(spacing: 8) {
+            Text(selectedDay == nil ? "This Week" : dayTitle(selectedDay!))
+                .recordingFont(18, weight: .medium).fixedSize(horizontal: false, vertical: true)
+            if selectedDay != nil {
+                Button("Clear") { selectedDay = nil }.caregiverText(.caption)
+                    .frame(minWidth: 44, minHeight: 44).recordsFrame("clear-day")
             }
         }
+    }
+    private var weekRange: some View {
+        Text("\(shortDate(weekStart)) – \(shortDate(calendar.date(byAdding: .day, value: 6, to: weekStart)!))")
+            .caregiverText(.secondary).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+    private func weekButton(_ amount: Int) -> some View {
+        Button { shiftWeek(amount) } label: {
+            Image(systemName: amount < 0 ? "chevron.left" : "chevron.right")
+                .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+        }
+        .accessibilityLabel(amount < 0 ? "Previous week" : "Next week")
+        .recordsFrame(amount < 0 ? "previous-week" : "next-week")
+    }
+    private var calendarCard: some View {
+        VStack(spacing: 9) {
+            HStack(spacing: 4) {
+                monthButton(-1)
+                Text(monthTitle(month)).recordingFont(19, weight: .medium)
+                    .fixedSize(horizontal: false, vertical: true).multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity).recordsFrame("month-title")
+                monthButton(1)
+            }.buttonStyle(.plain)
+            // Keep seven aligned columns and full weekday names at every text size.
+            // When their natural widths no longer fit, the entire calendar scrolls.
+            RecordsHorizontalViewport(minimumWidth: calendarColumnWidth * 7 + 12) {
+                VStack(spacing: 3) {
+                    HStack(spacing: 2) {
+                        ForEach(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], id: \.self) { label in
+                            Text(label).caregiverText(.secondary).foregroundStyle(.secondary)
+                                .fixedSize().frame(maxWidth: .infinity)
+                        }
+                    }
+                    let days = monthCells
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 3) {
+                        ForEach(days.indices, id: \.self) { index in
+                            if let day = days[index] {
+                                let date = DemoRecords.date(calendar.component(.year, from: month),
+                                                            calendar.component(.month, from: month), day)
+                                let risk = DemoRecords.highestRisk(on: date)
+                                let incomplete = DemoRecords.trips(on: date).contains { $0.incomplete }
+                                Button { selectDay(date) } label: {
+                                    Text("\(day)").caregiverText().fixedSize()
+                                        .foregroundStyle(risk == .high ? .white : .black)
+                                        .frame(maxWidth: .infinity).frame(minHeight: max(36, calendarColumnWidth))
+                                        .background(riskColor(risk), in: Circle())
+                                        .overlay {
+                                            if incomplete { Circle().stroke(.gray, style: StrokeStyle(lineWidth: 1.5, dash: [3, 2])) }
+                                        }
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("\(dayTitle(date)), \(risk?.title ?? "No trips")\(incomplete ? ", incomplete record" : "")")
+                            } else { Color.clear.frame(height: max(36, calendarColumnWidth)) }
+                        }
+                    }
+                }
+            }
+            .accessibilityIdentifier("records-calendar")
+        }
         .padding(dynamicTypeSize.isAccessibilitySize ? 8 : 14)
-        .caregiverCard()
+        .caregiverCard().recordsFrame("calendar")
+    }
+    private func monthButton(_ amount: Int) -> some View {
+        Button { shiftMonth(amount) } label: {
+            Image(systemName: amount < 0 ? "chevron.left" : "chevron.right")
+                .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+        }
+        .accessibilityLabel(amount < 0 ? "Previous month" : "Next month")
+        .recordsFrame(amount < 0 ? "previous-month" : "next-month")
+    }
+    private func selectDay(_ date: Date) {
+        selectedDay = date
+        weekStart = calendar.dateInterval(of: .weekOfYear, for: date)!.start
+        expanded = true
     }
 
     private var monthCells: [Int?] {
@@ -161,42 +213,33 @@ struct RecordsPage: View {
         return Array(repeating: nil, count: offset) + (1...count).map { Optional($0) }
     }
 
-    private var stackedRecordRows: Bool { dynamicTypeSize > .large }
-
     private var weekCard: some View {
         VStack(spacing: 0) {
             if weekTrips.isEmpty {
-                Text("No trips in this period").foregroundStyle(.secondary)
+                Text("No trips in this period").caregiverText().foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true).recordsFrame("empty-records")
                     .frame(maxWidth: .infinity).padding(22)
             } else {
                 ForEach(Array(weekTrips.prefix(expanded ? weekTrips.count : 4).enumerated()), id: \.element.id) { index, trip in
                     Button { selectedTrip = trip } label: {
-                        (stackedRecordRows ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(shortDate(trip.date)).caregiverText().fixedSize(horizontal: !stackedRecordRows, vertical: true).foregroundStyle(.black)
-                                Text(weekday(trip.date)).caregiverText(.caption).foregroundStyle(.secondary)
-                            }.frame(width: stackedRecordRows ? nil : 52, alignment: .leading)
-                            Text(trip.risk == .high ? "Risk" : trip.risk.title)
-                                .caregiverText(.caption).fixedSize()
-                                .padding(.horizontal, 8).padding(.vertical, 4)
-                                .foregroundStyle(trip.risk == .high ? .white : .black)
-                                .background(riskColor(trip.risk), in: Capsule())
-                                .frame(width: stackedRecordRows ? nil : 60, alignment: .leading)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(trip.name).fixedSize(horizontal: false, vertical: true)
-                                    .caregiverText(.caption).foregroundStyle(.black)
-                                if trip.deviations > 0 {
-                                    Text("Route Deviation").caregiverText(.caption).foregroundStyle(.secondary)
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 8) {
+                                tripDate(trip)
+                                tripRisk(trip)
+                                tripRoute(trip).frame(minWidth: 70, maxWidth: .infinity, alignment: .leading)
+                                tripDuration(trip)
+                            }
+                            VStack(alignment: .leading, spacing: 8) {
+                                RecordsFlowLayout(spacing: 10) {
+                                    tripDate(trip)
+                                    tripRisk(trip)
+                                    tripDuration(trip)
                                 }
-                            }.frame(maxWidth: .infinity, alignment: .leading)
-                            Text("\(trip.durationMinutes) min")
-                                .caregiverText(.caption).foregroundStyle(.black)
-                                .frame(width: stackedRecordRows ? nil : 40, alignment: .leading)
-                            Image(systemName: "chevron.right").recordingFont(13, weight: .semibold)
-                                .foregroundStyle(.black)
-                                .frame(width: stackedRecordRows ? nil : 12, alignment: .leading)
+                                tripRoute(trip).frame(maxWidth: .infinity, alignment: .leading)
+                            }
                         }
-                        .padding(.horizontal, 14).padding(.vertical, stackedRecordRows ? 12 : 0).frame(minHeight: 50)
+                        .padding(.horizontal, 14).padding(.vertical, 8).frame(minHeight: 50)
+                        .recordsFrame("trip-\(trip.id)")
                     }.buttonStyle(.plain)
                     if index < min(weekTrips.count, expanded ? weekTrips.count : 4) - 1 {
                         Divider().padding(.horizontal, 12)
@@ -206,12 +249,42 @@ struct RecordsPage: View {
                     Button { expanded.toggle() } label: {
                         Label(expanded ? "View Less" : "View More", systemImage: expanded ? "chevron.up" : "chevron.down")
                             .caregiverText().foregroundStyle(.black)
-                            .frame(maxWidth: .infinity).frame(height: 36)
+                            .frame(maxWidth: .infinity).frame(minHeight: 44).padding(.vertical, 4)
+                            .recordsFrame("expand-week")
                     }
                 }
             }
         }
         .caregiverCard()
+    }
+
+    private func tripDate(_ trip: DemoTrip) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(shortDate(trip.date)).caregiverText().foregroundStyle(.black)
+            Text(weekday(trip.date)).caregiverText(.caption).foregroundStyle(.secondary)
+        }.fixedSize().recordsFrame("date-\(trip.id)")
+    }
+    private func tripRisk(_ trip: DemoTrip) -> some View {
+        Text(trip.risk == .high ? "Risk" : trip.risk.title)
+            .caregiverText(.caption).fixedSize()
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .foregroundStyle(trip.risk == .high ? .white : .black)
+            .background(riskColor(trip.risk), in: Capsule())
+            .recordsFrame("risk-\(trip.id)")
+    }
+    private func tripRoute(_ trip: DemoTrip) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(trip.name).caregiverText(.caption).foregroundStyle(.black)
+            if trip.deviations > 0 {
+                Text("Route Deviation").caregiverText(.caption).foregroundStyle(.secondary)
+            }
+        }.fixedSize(horizontal: false, vertical: true).recordsFrame("route-\(trip.id)")
+    }
+    private func tripDuration(_ trip: DemoTrip) -> some View {
+        HStack(spacing: 8) {
+            Text("\(trip.durationMinutes) min").caregiverText(.caption)
+            Image(systemName: "chevron.right").recordingFont(13, weight: .semibold)
+        }.foregroundStyle(.black).fixedSize().recordsFrame("duration-\(trip.id)")
     }
 
     private var trendContent: some View {
@@ -228,20 +301,18 @@ struct RecordsPage: View {
             Text("Route Deviation Trend").orbitDisplayFont(20, weight: .semibold)
                 .fixedSize(horizontal: false, vertical: true)
             ViewThatFits(in: .horizontal) {
-                if !dynamicTypeSize.isAccessibilitySize {
-                    HStack(alignment: .bottom, spacing: 8) {
-                        trendSummary(current, previous: previous).frame(width: 76, alignment: .leading)
-                        TrendDeviationChart().frame(minWidth: 206)
-                    }
+                HStack(alignment: .bottom, spacing: 8) {
+                    trendSummary(current, previous: previous).fixedSize(horizontal: true, vertical: false)
+                    TrendDeviationChart().frame(minWidth: 206).recordsFrame("trend-chart-viewport")
                 }
                 VStack(alignment: .leading, spacing: 16) {
                     trendSummary(current, previous: previous)
-                    TrendDeviationChart()
+                    TrendDeviationChart().recordsFrame("trend-chart-viewport")
                 }
             }
         }
         .padding(24)
-        .caregiverCard()
+        .caregiverCard().recordsFrame("trend-card")
     }
 
     private func trendSummary(_ current: Int, previous: Int) -> some View {
@@ -251,7 +322,7 @@ struct RecordsPage: View {
             Text(percentChange(current, previous)).orbitDisplayFont(20).padding(.top, 16)
             Text("vs last month").caregiverText(.caption).foregroundStyle(.secondary)
         }
-        .fixedSize(horizontal: false, vertical: true)
+        .fixedSize(horizontal: false, vertical: true).recordsFrame("trend-summary")
     }
 
     private var metricGrid: some View {
@@ -267,8 +338,7 @@ struct RecordsPage: View {
             ("Safe Return Rate", "shield.lefthalf.filled", DemoRecords.safeReturnRate(month: 8),
              DemoRecords.safeReturnRate(month: 7), "%")
         ]
-        let columns = (dynamicTypeSize.isAccessibilitySize || pageWidth < 380) ? [GridItem(.flexible())]
-            : [GridItem(.flexible(), spacing: 18), GridItem(.flexible(), spacing: 18)]
+        let columns = [GridItem(.adaptive(minimum: minimumMetricWidth), spacing: 18, alignment: .top)]
         return LazyVGrid(columns: columns, spacing: 16) {
             ForEach(metrics, id: \.0) { metric in
                 metricCard(metric)
@@ -280,18 +350,24 @@ struct RecordsPage: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .center, spacing: 8) {
                 Image(systemName: metric.1).orbitDisplayFont(16)
-                    .frame(width: 28, height: 28).background(OrbitStyle.pale, in: Circle())
+                    .frame(width: metricIconSize, height: metricIconSize).background(OrbitStyle.pale, in: Circle())
                 Text(metric.0).caregiverText(.caption).fixedSize(horizontal: false, vertical: true)
             }.frame(minHeight: 28, alignment: .leading)
-            (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(alignment: .bottom, spacing: 4))) {
-                metricSummary(metric).layoutPriority(1)
-                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
-                metricBars(metric)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .bottom, spacing: 4) {
+                    metricSummary(metric).fixedSize(horizontal: true, vertical: false)
+                    Spacer(minLength: 0)
+                    metricBars(metric).fixedSize()
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    metricSummary(metric)
+                    metricBars(metric)
+                }
             }
         }
         .frame(maxWidth: .infinity, minHeight: 136, alignment: .leading)
         .padding(12)
-        .caregiverCard(radius: 24, opacity: 0.13)
+        .caregiverCard(radius: 24, opacity: 0.13).recordsFrame("metric-\(metric.0)")
     }
     private func metricSummary(_ metric: (String, String, Int, Int, String)) -> some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -300,13 +376,13 @@ struct RecordsPage: View {
             Text(metric.4 == "%" ? percentagePointChange(metric.2, metric.3) : percentChange(metric.2, metric.3))
                 .orbitDisplayFont(17)
             Text("vs. last month").caregiverText(.caption).foregroundStyle(.secondary)
-        }.fixedSize(horizontal: false, vertical: true)
+        }.fixedSize(horizontal: false, vertical: true).recordsFrame("metric-summary-\(metric.0)")
     }
     private func metricBars(_ metric: (String, String, Int, Int, String)) -> some View {
         HStack(alignment: .bottom, spacing: 4) {
             bar(metric.3, maxValue: max(metric.2, metric.3), percent: metric.4 == "%", lighter: true)
             bar(metric.2, maxValue: max(metric.2, metric.3), percent: metric.4 == "%", lighter: false)
-        }
+        }.recordsFrame("metric-bars-\(metric.0)")
     }
     private func bar(_ value: Int, maxValue: Int, percent: Bool, lighter: Bool) -> some View {
         VStack(spacing: 3) {
@@ -317,7 +393,7 @@ struct RecordsPage: View {
                 .frame(width: 22, height: CGFloat(max(8, value * 52 / max(1, maxValue))))
             Text(lighter ? "Last\nmonth" : "This\nmonth")
                 .caregiverText(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center).fixedSize()
-        }.frame(minWidth: dynamicTypeSize.isAccessibilitySize ? 55 : 28)
+        }.frame(minWidth: metricBarWidth)
     }
 
     private func shiftMonth(_ amount: Int) {
@@ -363,6 +439,93 @@ struct RecordsPage: View {
         return "\(delta >= 0 ? "▲ +" : "▼ ")\(delta) pts"
     }
 }
+
+// Measure the proposed width rather than using a device-size breakpoint.
+private struct RecordsHorizontalViewport<Content: View>: View {
+    let minimumWidth: CGFloat
+    @ViewBuilder let content: () -> Content
+    @State private var availableWidth: CGFloat = 0
+    var body: some View {
+        ScrollView(.horizontal) {
+            content().frame(width: max(availableWidth, minimumWidth))
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .background {
+            GeometryReader { geometry in
+                Color.clear.onAppear { availableWidth = geometry.size.width }
+                    .onChange(of: geometry.size.width) { _, width in availableWidth = width }
+            }
+        }
+    }
+}
+
+// Only metadata groups wrap; a duration and its disclosure arrow stay together.
+private struct RecordsFlowLayout: Layout {
+    let spacing: CGFloat
+    private func arrangement(_ subviews: Subviews, width: CGFloat) -> (CGSize, [CGPoint]) {
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0
+        var positions: [CGPoint] = []
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0 && x + size.width > width {
+                x = 0; y += rowHeight + spacing; rowHeight = 0
+            }
+            positions.append(CGPoint(x: x, y: y))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return (CGSize(width: width, height: y + rowHeight), positions)
+    }
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let ideal = subviews.reduce(CGFloat(0)) { $0 + $1.sizeThatFits(.unspecified).width + spacing }
+        return arrangement(subviews, width: proposal.width ?? max(0, ideal - spacing)).0
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let positions = arrangement(subviews, width: bounds.width).1
+        for (view, position) in zip(subviews, positions) {
+            view.place(at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y),
+                       anchor: .topLeading, proposal: .unspecified)
+        }
+    }
+}
+
+private struct RecordsFrames: PreferenceKey {
+    static var defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+private extension View {
+    func recordsFrame(_ name: String) -> some View {
+        background {
+            GeometryReader { geometry in
+                Color.clear.preference(key: RecordsFrames.self,
+                    value: [name: geometry.frame(in: .named("RecordsPage"))])
+            }
+        }
+    }
+}
+
+#if DEBUG
+// Internal render-test entry: exercises the same state changes as the controls.
+// This does not substitute for a physical touch or a device acceptance test.
+enum RecordsTestAction {
+    case selectDay(Date), shiftMonth(Int), shiftWeek(Int), toggleExpanded
+    case openTrip(DemoTrip), closeTrip, showTrend(Bool)
+}
+final class RecordsTestDriver {
+    var perform: ((RecordsTestAction) -> Void)?
+}
+private struct RecordsTestDriverKey: EnvironmentKey {
+    static let defaultValue: RecordsTestDriver? = nil
+}
+extension EnvironmentValues {
+    var recordsTestDriver: RecordsTestDriver? {
+        get { self[RecordsTestDriverKey.self] }
+        set { self[RecordsTestDriverKey.self] = newValue }
+    }
+}
+#endif
 
 struct TripDetailPage: View {
     let trip: DemoTrip

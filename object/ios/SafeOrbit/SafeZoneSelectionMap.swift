@@ -98,7 +98,12 @@ struct SafeZoneMapView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UIView {
         let surface = NativeMapSurface()
-        guard AMapRuntime.prepare() else { return surface }
+        guard AMapRuntime.prepare() else {
+            context.coordinator.report(false, issue: AMapRuntime.hasKey
+                ? "Map unavailable. Enable map services to continue."
+                : "Map configuration required. Add the AMap iOS SDK key to this device’s local build configuration.")
+            return surface
+        }
         let map = MAMapView(frame: surface.bounds)
         map.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         surface.addSubview(map)
@@ -280,7 +285,7 @@ struct SafeZoneMapView: UIViewRepresentable {
             report(false, issue: "Map unavailable. Check your internet connection.")
         }
 
-        private func report(_ available: Bool, issue: String?) {
+        fileprivate func report(_ available: Bool, issue: String?) {
             guard selection.report(available: available, issue: issue) else { return }
             DispatchQueue.main.async { [weak self] in
                 self?.parent.onState(available, issue)

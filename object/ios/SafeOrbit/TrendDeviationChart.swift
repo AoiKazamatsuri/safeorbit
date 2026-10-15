@@ -22,9 +22,12 @@ struct TrendDeviationChart: View {
     let onLabelsLayout: ((CGSize, [Int: CGRect]) -> Void)?
     init(onLabelsLayout: ((CGSize, [Int: CGRect]) -> Void)? = nil) { self.onLabelsLayout = onLabelsLayout }
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .caption) private var labelWidth: CGFloat = 23
-    @ScaledMetric(relativeTo: .caption) private var labelHeight: CGFloat = 26
-    private var chartWidth: CGFloat { 24 + labelWidth * 8 }
+    // caregiverText scales relative to body, including its 10-point caption.
+    // Reserve the same scaled space as the visible two-line labels.
+    @ScaledMetric(relativeTo: .body) private var labelWidth: CGFloat = 23
+    @ScaledMetric(relativeTo: .body) private var labelHeight: CGFloat = 26
+    @ScaledMetric(relativeTo: .body) private var axisWidth: CGFloat = 24
+    private var chartWidth: CGFloat { axisWidth + labelWidth * 8 }
 
     var body: some View {
         GeometryReader { geometry in
