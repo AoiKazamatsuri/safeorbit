@@ -40,5 +40,8 @@
 | --- | --- | --- | --- |
 | `tool/diagram/puppeteer-config.json` | `executablePath` 由 macOS 上 Google Chrome 的标准位置，改为相对仓库根的 chrome-headless-shell 路径 | 本机 Chrome 154 无界面导出的退出码为 2，导出器判为失败；做法见 [catalog.md](catalog.md)“制图工具” | T1 |
 | `tool/diagram/AGENTS.md` | 标题与首段写明本仓已启用；启用步骤 3 注明 `design_doc` 须与文档同批登记；步骤 5 注明 npm 不运行 puppeteer 的安装脚本、Chrome 导出失败时改用 chrome-headless-shell | 把 T1、T2 踩过的坑写进启用步骤 | T3 |
+| `tool/queue_v2.py` | `legacy()` 不再整份深复制全部任务，改为逐件复制一层，另行复制旧格式逻辑会原地修改的依赖、批准基线、回执、历史四个列表与方案，事件、基线与回执记录只读共用；`apply()` 的 `before` 只记各任务原来的状态 | 每笔事件都把全部任务连同历史正文整份复制两次，重放耗时随账本长度平方增长：609 笔时只读命令每条约 35 秒、写一笔账约 1.5 分钟；行为与输出不变 | T22 |
+| `tool/task_queue.py` | `response_files()` 只生成一次全部任务视图，供各行共用 | `task status` 原来每列一件任务就把全部视图重新生成一遍 | T22 |
+| `gate/test_task_queue.py` | 新增 `test_63`：重放不改动账本记录；旧格式逻辑拒绝的事件不改动既有任务 | 守住上面这种复制方式的前提，日后改旧格式逻辑时能拦住 | T22 |
 
 返回 [根契约](../AGENTS.md)。

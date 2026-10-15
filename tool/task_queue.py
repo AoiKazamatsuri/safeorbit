@@ -88,7 +88,10 @@ class Store:
     def response_files(self, tasks, selected=None, stage_paths=None):
         """Explicit coordinates, always relative to the Git root, never guessed names."""
         rows = []
-        for ident in sorted(tasks if selected is None else selected, key=lambda key: int(key[1:])):
+        chosen = sorted(tasks if selected is None else selected, key=lambda key: int(key[1:]))
+        # Render all views once for every row, not once per row.
+        managed = projections(tasks) if chosen else {}
+        for ident in chosen:
             item = tasks[ident]
             task_home = home(item)
             baseline = item['approvals'][-1] if item['approvals'] else None
@@ -97,7 +100,7 @@ class Store:
                          'approval': self.gpath(f"{task_home}/approval-{baseline['round']:03d}.md") if baseline else None,
                          'receipt': self.gpath(f"{task_home}/receipt-{delivery['seq']:06d}.md") if delivery else None,
                          'legacy': self.gpath(f'{task_home}/legacy-import.md') if item['legacy'] else None,
-                         'package': sorted(self.gpath(p) for p in projections(tasks) if p.startswith(task_home + '/'))})
+                         'package': sorted(self.gpath(p) for p in managed if p.startswith(task_home + '/'))})
         result = {'base': str(self.repo), 'ledger': self.gpath(LEDGER), 'tasks': rows}
         if stage_paths is not None:
             result['stage_paths'] = sorted(set(stage_paths))

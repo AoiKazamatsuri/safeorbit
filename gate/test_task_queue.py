@@ -836,6 +836,56 @@ sys.exit(q.main(['--root',root]+sys.argv[4:]))
         path.write_text(''.join(json.dumps(r, ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n' for r in rows))
         self.assertEqual(self.r.call('doctor', expected=1)['code'], 'format')
 
+    def test_63_replay_shares_records_read_only_and_rejected_events_change_nothing(self):
+        # queue_v2.legacy copies only what the old rules change in place; recorded events, baselines
+        # and receipts are shared. Replay must not edit them, and old-rule rejections must not leak.
+        done = self.r.create()['task']
+        self.r.write('claim', done)
+        plan = self.r.input / 'plan.md'; plan.write_text('1. 改计划后照常交付。\n')
+        self.r.write('replan', done, '--plan', plan, '--basis', '模拟改计划')
+        self.r.write('handoff', done, '--text', '模拟交接')
+        self.r.deliver(done)
+        amended = self.r.input / 'amended.md'; amended.write_text(PROPOSAL.replace('result OK', 'result OK，改范围后'))
+        self.r.write('rework', done, '--basis', '模拟返工')
+        self.r.write('amend', done, '--proposal', amended, *AUTH)
+        self.r.deliver(done)
+        self.r.write('close', done, *AUTH)
+        released = self.r.create()['task']
+        self.r.write('claim', released); self.r.write('release', released, '--text', '模拟让出')
+        self.r.write('revoke', released, *AUTH)
+        self.r.write('cancel', self.r.create(approve=False)['task'], *AUTH)
+        first = self.r.create(approve=False)['task']
+        second = self.r.create(approve=False, deps=[first])['task']
+        claimed = self.r.create()['task']; self.r.write('claim', claimed)
+        code = '''import copy,json,sys
+from pathlib import Path
+root,first,second,claimed,done=sys.argv[1:6]
+sys.path.insert(0,str(Path(root)/'tool'))
+from queue_model import QueueError,decode,replay
+from queue_v2 import apply
+events=decode((Path(root)/'.shell/queue/ledger.jsonl').read_bytes()); pristine=copy.deepcopy(events)
+def dump(t): return json.dumps([t,t.protocol,t.config,t.numbering_version],ensure_ascii=False,sort_keys=True)
+tasks=replay(events); state=dump(tasks)
+assert events==pristine,'replay edited recorded events'
+assert dump(replay(events))==state,'second replay differs'
+last=events[-1]
+def event(op,data,actor='Agent A'):
+ return dict(last,seq=last['seq']+1,request='rejected-'+op,actor=actor,operation=op,data=data)
+rejected=[event('revise',{'id':first,'expect':tasks[first]['revision'],'proposal':tasks[first]['proposal'],'parent':None,'deps':[second],'basis':'成环'}),
+ event('deliver',{'id':claimed,'expect':tasks[claimed]['revision'],'artifacts':[],'receipt':'空','verification':'passed','summary':'空'}),
+ event('replan',{'id':claimed,'expect':tasks[claimed]['revision'],'plan':'他人改计划','basis':'越权'},actor='Agent B'),
+ event('close',{'id':done,'expect':tasks[done]['revision'],'authority':{'by':'测试','basis':'重复通过'}})]
+for bad in rejected:
+ try: apply(tasks,bad)
+ except QueueError: pass
+ else: sys.exit('accepted '+bad['operation'])
+ assert dump(tasks)==state,'rejected '+bad['operation']+' changed tasks'
+assert events==pristine,'rejected events edited recorded events'
+print('REPLAY ISOLATION OK')
+'''
+        p = run([sys.executable, '-B', '-c', code, self.r.root, first, second, claimed, done], self.r.repo)
+        self.assertIn('REPLAY ISOLATION OK', p.stdout)
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

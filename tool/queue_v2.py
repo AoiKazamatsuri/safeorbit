@@ -45,10 +45,16 @@ def check_capacity(tasks, policy):
 
 
 def legacy(tasks):
-    result = copy.deepcopy(dict(tasks))
-    for t in result.values():
-        t['status'] = TO_OLD[t['status']]
+    # The old rules change a task only by replacing its fields, appending to these lists or editing
+    # its proposal, so copying those isolates the original; recorded events, baselines and receipts
+    # are shared read-only. A full deepcopy per event made replay quadratic in ledger size.
+    result = {}
+    for key, t in tasks.items():
+        one = dict(t, status=TO_OLD[t['status']], proposal=dict(t['proposal']))
+        for name in ('deps', 'approvals', 'receipts', 'history'):
+            one[name] = list(t[name])
         # v2 never uses legacy renderer with a new projection version.
+        result[key] = one
     return result
 
 
@@ -127,7 +133,7 @@ def apply(tasks, event):
         tasks.numbering_version = numbering
         return
     require(policy == tasks.config, '任务事件使用了未登记的配置。', 'config')
-    before = copy.deepcopy(dict(tasks))
+    before = {key: t['status'] for key, t in tasks.items()}
     if op == 'rework':
         exact(data, {'id', 'expect', 'basis'}, '返工')
         ident = data['id']; require(ident in tasks, '任务不存在。', 'identity')
@@ -170,7 +176,7 @@ def apply(tasks, event):
                 if op in {'create', 'approve', 'release'}: stage = '批准'
                 elif op in {'claim', 'replan'}: stage = '领取'
                 elif op == 'deliver': stage = '交付'
-                else: stage = before[key]['status']
+                else: stage = before[key]
             t['status'] = stage
             if op == 'release': t['delivery'] = None
             t['history'][-1] = event
