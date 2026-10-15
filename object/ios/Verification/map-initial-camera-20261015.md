@@ -4,11 +4,11 @@
 
 ## 结论与证据强度
 
-首页与新增安全区页都存在同一种初始化缺口：只等地图视图尺寸非零，就发送显示范围设置并记为已处理，没有等待高德地图引擎初始化完成。若第一次设置过早而没有生效，后续重复布局和相同相机请求不会补设。这个条件能够解释用户描述的首次进入停留在全国范围现象，是本轮最优先的修复方向。
+2026-10-15 追加实机验证：在已安装原版 SafeOrbit 的 iPhone 14 上，首页与新增安全区页都复现了全国范围。调试器记录到程序已发送正确量级的范围，但加载后的实际范围远大于请求。等待加载完成后，对同一地图实例重发最初的完整范围，两页都恢复到街区范围；没有修改或重装 App。
 
-这是一条源码与 SDK 契约支持的高概率原因，尚未取得实机回调顺序、实际 zoomLevel 或 region 日志，不能称为已经实机复现或证实 SDK 丢弃了本次请求。当前已登记的 iPhone 14 处于 unavailable 状态。本轮没有修改 App 源码，也没有安装或启动真机 App。
+这证实了首次范围应用不可靠、加载后重发可恢复。应用层存在共同缺口：仅以视图尺寸非零为可设置条件，在 setRegion 前即记为已处理，后续相同请求不会补设。修复应同时协调引擎就绪和布局、保留最新请求并核对实际尺度。本轮没有直接记录 SDK 内部初始化阶段，因此不能进一步断言是哪个内部阶段造成错误，或将问题说成 setRegion 完全未执行。首轮设备不可用时的源码推断和模拟器读数保留在后面的历史验证部分。
 
-另外发现安全区页与首页的范围宽高不一致：安全区页使用等宽等高的地面范围，首页按屏幕宽高计算。竖屏适配后会有比例差异的风险，但这个量级不足以解释全国范围。
+安全区页与首页的范围宽高差异也得到实机读数支持：重发后首页为6.6055米/点，安全区为12.7508米/点，比例为1.9303；安全区实际视图750/390的宽高比为1.9231，和正方形地面范围适配竖屏的预期吻合。这是独立的比例问题，不能只补设首次范围而忽略它。
 
 ## 两页的具体路径
 
@@ -23,7 +23,7 @@
 | 同文件 `175–185` | 只检查 bounds 非零与 `initialRegionApplied`；在调用 `setRegion` 前把标记置为 true | 同样把一次尝试当作完成 |
 | 同文件 `277–281` | 加载完成回调调用 `layoutMap()`，再报告可用 | 此时若标记已为 true，layoutMap 在第178行返回；有加载回调仍不能补设缩放 |
 
-共同失效序列是：创建地图 → 外层尺寸出现 → 发送首次范围设置并缓存“已处理” → 高德引擎稍后就绪 → 相同请求不再发送。这里最后两步中“首次设置未生效”的发生情况仍需真机日志确认。
+实机已观察到：发送首次范围并缓存“已处理” → 地图稳定后范围仍异常 → 未发生自动补设 → 调试器重发同一完整范围后恢复。创建地图、外层布局与 SDK 初始化之间的精确先后顺序没有直接测量，仍需在修复时覆盖两种到达顺序。
 
 高德本地 SDK 为 AMapNaviKit 11.3.100，见 `object/ios/.build/AMap/AMapNaviKit.framework/version.txt`。其 `Headers/MAMapView.h:1596–1602` 将 `mapInitComplete` 定义为地图初始化完成、之后可以进行坐标计算的回调；第361–379行说明 region 会按地图窗口调整。这支持把“有尺寸”和“引擎就绪”分别处理，但头文件没有声称所有初始化前的 setRegion 必然失败。
 
@@ -36,7 +36,7 @@
 - 老人首页也使用通用 `AMapCanvas`（ElderHomeUI.swift:114–119），会受同一初始化缺口影响；本轮没有假定用户指的是哪一种身份，主路径按家属首页与新增安全区核对。
 - 通用原生地图仅在 `wasUserAction` 为 true 时回写相机（AMapCanvas.swift:234–245），没有发现程序初始化回调直接把全国范围写回 camera 的路径。首次失败后若相同相机不变，单纯刷新相同位置也未必能触发重设。
 - `showsScale = false`（AMapCanvas.swift:104）只控制比例尺控件显示，并没有设置缩放。改成 true 可辅助观察，不能修复范围初始化。
-- 本轮没有核对密钥有效性或联网权限状态，也没有调用真实定位、路线或逆地理服务，不能完全排除配置或加载失败；当前代码中的初始化缺口有更直接的共同证据。
+- 本轮没有查看密钥值，只核对其存在及已有同意标记。实机真实高德底图可加载，重发相同范围即可显示街区，不支持把本次范围异常优先归因于密钥缺失或底图不能加载。App 正常加载页面时的服务调用未额外拦截；本轮没有主动请求 GPS、规划路线或改变账号配置。
 
 ## 安全区页的比例差异
 
@@ -57,7 +57,7 @@
 
 实施前建议统一纳入以上两个文件、相应比例尺方法和关联测试，按仓库规则另经用户决定，不在本轮排查中修改业务正本。
 
-## 本轮验证与原样读数
+## 首轮模拟器验证与设备检查（历史）
 
 执行者自验，未独立验证。只运行与排查结论直接相关的三个既有用例，没有宣称全量回归或实机通过。
 
@@ -88,3 +88,90 @@ Executed 3 tests, with 0 failures (0 unexpected) in 0.003 (0.017) seconds
 ## 修复后的实机复测
 
 对家属首页和添加安全区分别重复冷启动进入、首次同意地图服务、再次进入、横竖尺寸变化及先进入后收到老人位置。确认地图初始化后达到既定地面比例，不长期停在全国范围；用户缩放和拖图后不会被迟到回调拉回。安全区页还应覆盖更改全部半径、拖钉、网络失败后重试和快速退出再进入。用实际米/pt读数核对两页比例，不只凭截图判断。
+
+## 追加：原版本实机复现与同参对照
+
+用户连接并解锁 iPhone 14，手动选择 Caregiver、进入新增安全区并返回首页；执行者运行调试器、采集参数与截图、完成临时范围对照。结果为执行者自报，未独立验证，不代用户验收或宣布已修复。
+
+设备上已安装 `org.safeorbit.demo`，版本0.1.0、构建号1。LLDB 调试符号中的原生 Coordinator、源文件名和相应行号与排查路径一致。本轮直接启动原安装版本，没有构建、签名、安装、修改源码或保存安全区。地图同意标记及 Key 存在检查均为真，只读取布尔值。
+
+首次进入时的请求由 `-[MAMapView setRegion:animated:]` 断点直接记录。最终采用的轻量回调只读取调用参数和调用方名称，立即放行，不在首次调用断点执行 App 内表达式。待页面显示后，在主线程短暂停下读取 bounds、zoomLevel、metersPerPointForCurrentZoom、region 的跨度并截图，不输出实际中心坐标。
+
+| 页面 | 视图尺寸（pt） | 原请求纬/经跨度（度） | 稳定后的原版 zoomLevel | 原版实际米/点 | 重发原请求后 zoomLevel | 重发后实际米/点 |
+|---|---|---|---|---|---|---|
+| 首页 | 390×844 | 0.050509762 / 0.027406117 | 3.256875277 | 17566.836479 | 14.348878860 | 6.605546 |
+| 新增安全区 | 390×750 | 0.044884267 / 0.052704072 | 3.459919691 | 15520.439807 | 13.406385422 | 12.750843 |
+
+原版首页实际纬/经跨度为114.756889538 / 72.610223839度，新增安全区为95.416358831 / 64.152382111度。截图均显示中国及周边国家。首次首页采集和重新启动后的轻量采集得到相同首页尺度，轻量采集还稳定复现了安全区异常。
+
+对照保留第一次调用的完整 region 在调试器内存中，加载完成后向同一实例重新调用相同的 setRegion:animated:NO。安全区原请求的中心和跨度均未改；首页同样。关闭采集断点后，两次调用均返回成功。恢复运行并再次读取，尺度保持表中结果；返回首页后首页仍保持6.605546米/点。重发后的实际范围经过 SDK 适配，不要求与请求逐位相等。
+
+这说明：无需换位置、换 Key、换网络或改比例参数，仅改变应用范围的时机，就能恢复正确量级；首页原请求本身已接近设计的5800/874 = 6.636156米/点。安全区原请求本身还需修正宽高，才能和首页比例一致。
+
+### 执行命令、证据与限制
+
+设备参数使用本机实机标识，下列以环境变量表示，避免把个人设备标识写进仓库。应用文件始终限定于 SafeOrbit 的临时目录。
+
+```sh
+xcrun devicectl device info apps --device "$SAFEORBIT_DEVICE" --filter 'bundleIdentifier CONTAINS "safeorbit"'
+xcrun devicectl device process launch --device "$SAFEORBIT_DEVICE" --terminate-existing --start-stopped org.safeorbit.demo
+xcrun lldb
+```
+
+前两条退出码0。原样输出摘录分别为 `SafeOrbit   org.safeorbit.demo   0.1.0     1`、`Launched application with org.safeorbit.demo bundle identifier.`。最终 LLDB 退出码0。
+
+LLDB 主要交互命令：
+
+```text
+device select <本机实机标识>
+device process attach -n SafeOrbit
+command script import /private/tmp/safeorbit_map_probe.py
+breakpoint set -n '-[MAMapView setRegion:animated:]'
+breakpoint command add -F safeorbit_map_probe.on_region 1
+continue
+process interrupt
+expression -l objc++ -- @import UIKit;
+mapscan both-pages-before-control
+mapscreenshot zone-first
+breakpoint disable 1
+mapreapply 0x134db4600
+mapreapply 0x134db7600
+mapscan after-successful-same-request-control
+continue
+process interrupt
+mapscan after-render-control
+mapscreenshot zone-after-control
+continue
+process interrupt
+mapscan home-after-return
+mapscreenshot home-after-control
+process detach
+quit
+```
+
+上面的 map 地址仅是本次进程中的临时对象地址。采集脚本与完整日志为 `/private/tmp/safeorbit_map_probe.py`、`/private/tmp/safeorbit-map-live-metrics.jsonl`；截图原始文件为：
+
+- `/private/tmp/safeorbit-map-live-home-first.png`：原版首页全国范围。
+- `/private/tmp/safeorbit-map-zone-first.png`：轻量采集的安全区全国范围。
+- `/private/tmp/safeorbit-map-zone-after-control.png`：安全区重发后街区范围。
+- `/private/tmp/safeorbit-map-home-after-control.png`：返回首页后的街区范围。
+
+截图取回命令形式：
+
+```sh
+xcrun devicectl device copy from --device "$SAFEORBIT_DEVICE" --source tmp/safeorbit-map-zone-first.png --domain-type appDataContainer --domain-identifier org.safeorbit.demo --destination /private/tmp/safeorbit-map-zone-first.png
+```
+
+四张证据图的取回命令均退出码0，原样输出含 `File received from Device`。执行者已逐张实际查看。截图是 App 窗口直接绘制的未编辑图，不包括系统状态栏，不伪称完整系统屏幕截图。
+
+采集过程中的失败明确排除：首次连接尝试一度被自动审批服务用量错误拒绝，用户要求继续后经正常审批重试成功；没有绕过审批。初版调试脚本曾有 Objective-C 表达式编译错误，修正后才取得有效读数；一次安全区采集时进程被 SIGKILL 终止，放弃该轮，不能把它当作原版 App 崩溃证据。重新启动后改用只读寄存器的断点，才取得表中稳定的两页原版结果。最初两次临时重发被自身断点打断，没有计为成功；退出未完成表达式、禁用断点后重新执行，两个返回值均为1，并重新采集稳定结果。完整日志保留这些失败记录。
+
+结束时已 `process detach` 并退出 LLDB，手机 App 继续运行。当前可见的正确地图来自临时对照，不代表代码已经修复，新建地图仍走原来的初始化逻辑。本轮未覆盖老人首页、全新安装首次同意、网络失败恢复、手势和半径矩阵，也未保存或创建安全区。
+
+```sh
+git diff --check
+git diff --name-only HEAD -- object/ios/SafeOrbit object/ios/SafeOrbitTests
+sh object/dev/queue.sh check > /private/tmp/safeorbit-map-live-queue-check.json
+```
+
+三条均退出码0，前两条输出为空，队列输出为 `{"ok": true, "protection": "ready", "seq": 588, "tasks": 17, "protocol": 2}`。业务源码和测试没有改动。本轮不重复跑无法覆盖原生高德初始化的模拟器计算测试；上轮三个通过读数保留为历史证据。
