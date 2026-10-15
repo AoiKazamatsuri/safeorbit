@@ -54,11 +54,11 @@ struct RecordsPage: View {
                     .padding(.bottom, 23)
                 ScrollView {
                     VStack(spacing: 0) {
-                        if section == .data { dataContent.padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 0 : 12) }
+                        if section == .data { dataContent }
                         else { trendContent }
                     }
                     .recordsFrame("content")
-                    .padding(.horizontal, 22)
+                    .padding(.horizontal, 16)
                     .padding(.bottom, 112)
                 }
             }
@@ -94,7 +94,7 @@ struct RecordsPage: View {
                 Button { section = item } label: {
                     Text(item.rawValue)
                         .caregiverText()
-                        .frame(maxWidth: .infinity).frame(minHeight: 44).padding(.vertical, 3)
+                        .frame(maxWidth: .infinity).frame(minHeight: 30).padding(.vertical, 3)
                         .foregroundStyle(section == item ? .black : .white)
                         .background(section == item ? .white : .clear, in: Capsule())
                 }.accessibilityAddTraits(section == item ? .isSelected : [])
@@ -155,7 +155,7 @@ struct RecordsPage: View {
             // Keep seven aligned columns and full weekday names at every text size.
             // When their natural widths no longer fit, the entire calendar scrolls.
             RecordsHorizontalViewport(minimumWidth: calendarColumnWidth * 7 + 12) {
-                VStack(spacing: 3) {
+                VStack(spacing: 9) {
                     HStack(spacing: 2) {
                         ForEach(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], id: \.self) { label in
                             Text(label).caregiverText(.secondary).foregroundStyle(.secondary)
@@ -173,7 +173,7 @@ struct RecordsPage: View {
                                 Button { selectDay(date) } label: {
                                     Text("\(day)").caregiverText().fixedSize()
                                         .foregroundStyle(risk == .high ? .white : .black)
-                                        .frame(maxWidth: .infinity).frame(minHeight: max(36, calendarColumnWidth))
+                                        .frame(maxWidth: .infinity).frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 44 : 30)
                                         .background(riskColor(risk), in: Circle())
                                         .overlay {
                                             if incomplete { Circle().stroke(.gray, style: StrokeStyle(lineWidth: 1.5, dash: [3, 2])) }
@@ -181,7 +181,7 @@ struct RecordsPage: View {
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityLabel("\(dayTitle(date)), \(risk?.title ?? "No trips")\(incomplete ? ", incomplete record" : "")")
-                            } else { Color.clear.frame(height: max(36, calendarColumnWidth)) }
+                            } else { Color.clear.frame(height: dynamicTypeSize.isAccessibilitySize ? 44 : 30) }
                         }
                     }
                 }
@@ -194,7 +194,7 @@ struct RecordsPage: View {
     private func monthButton(_ amount: Int) -> some View {
         Button { shiftMonth(amount) } label: {
             Image(systemName: amount < 0 ? "chevron.left" : "chevron.right")
-                .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+                .frame(minWidth: 44).contentShape(Rectangle())
         }
         .accessibilityLabel(amount < 0 ? "Previous month" : "Next month")
         .recordsFrame(amount < 0 ? "previous-month" : "next-month")
