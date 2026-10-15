@@ -129,8 +129,7 @@ struct SafeZoneMapView: UIViewRepresentable {
     }
 
     static func dismantleUIView(_ surface: UIView, coordinator: Coordinator) {
-        coordinator.loadTimeout?.cancel()
-        coordinator.map?.delegate = nil
+        coordinator.close()
         (surface as? NativeMapSurface)?.onLayout = nil
     }
 
@@ -144,7 +143,12 @@ struct SafeZoneMapView: UIViewRepresentable {
         private var circleCenter: GeoPoint?
         private var circleRadius: Int?
         fileprivate weak var map: MAMapView?
-        private var initialRegionApplied = false
+        /// Only the initial region goes through the gate; later loads, radius changes
+        /// and drags never move the camera. Retry recreates the view and this state.
+        private var initialRegion = MapCameraGate<GeoPoint>()
+        #if DEBUG
+        private var probeSettled = false
+        #endif
         private var dragOrigin: CLLocationCoordinate2D?
         var loadTimeout: Task<Void, Never>?
 
@@ -164,6 +168,7 @@ struct SafeZoneMapView: UIViewRepresentable {
             pin.title = "Safe zone"
             map.addAnnotation(pin)
             updateCircle(in: map)
+            initialRegion.request(selectedCenter)
             layoutMap()
             loadTimeout = Task { @MainActor [weak self] in
                 do { try await Task.sleep(for: .seconds(15)) } catch { return }
@@ -173,16 +178,34 @@ struct SafeZoneMapView: UIViewRepresentable {
         }
 
         func layoutMap() {
-            guard let map, map.bounds.width > 0, map.bounds.height > 0 else { return }
+            guard let map else { return }
+            initialRegion.layout(map.bounds.size)
+            guard map.bounds.width > 0, map.bounds.height > 0 else { return }
             map.logoCenter = CGPoint(x: 45, y: map.bounds.height - max(12, map.logoSize.height / 2 + 4))
-            guard !initialRegionApplied, selectedCenter.isValid else { return }
-            initialRegionApplied = true
+            applyInitialRegion(stage: "layout")
+        }
+
+        private func applyInitialRegion(stage: String) {
+            guard let map, let center = initialRegion.due, center.isValid else { return }
             // Keep the pin above the editor card at the same ground scale as Location.
-            let region = OrbitMapScale.region(center: pin.coordinate,
-                                              viewportHeight: map.bounds.height, verticalOffset: 0.15)
+            let region = OrbitMapScale.region(center: center.appleCoordinate,
+                                              viewportSize: map.bounds.size, verticalOffset: 0.15)
             map.setRegion(MACoordinateRegion(center: region.center,
                          span: MACoordinateSpan(latitudeDelta: region.span.latitudeDelta,
                                                 longitudeDelta: region.span.longitudeDelta)), animated: false)
+            let first = initialRegion.didApply(center)
+            #if DEBUG
+            if first { AMapScaleProbe.record(map, page: "safe-zone", stage: "applied via \(stage)"); probeSettled = true }
+            #else
+            _ = first
+            #endif
+        }
+
+        func close() {
+            initialRegion.close()
+            loadTimeout?.cancel()
+            loadTimeout = nil
+            map?.delegate = nil
         }
 
         func updateCircle(in map: MAMapView, force: Bool = false) {
@@ -274,11 +297,25 @@ struct SafeZoneMapView: UIViewRepresentable {
             finishDirectDrag(in: map, commit: true)
         }
 
+        func mapInitComplete(_ mapView: MAMapView!) {
+            initialRegion.engineDidInitialize()
+            applyInitialRegion(stage: "init")
+        }
+
         func mapViewDidFinishLoadingMap(_ mapView: MAMapView!) {
             guard selectedCenter.isValid else { return }
+            // A finished load also proves the engine is up; it only fills in a pending initial region.
+            initialRegion.engineDidInitialize()
             layoutMap()
             loadTimeout?.cancel()
             report(true, issue: nil)
+        }
+
+        func mapView(_ mapView: MAMapView!, regionDidChangeAnimated animated: Bool, wasUserAction: Bool) {
+            if wasUserAction { initialRegion.userMoved() }
+            #if DEBUG
+            if probeSettled, !wasUserAction { probeSettled = false; AMapScaleProbe.record(mapView, page: "safe-zone", stage: "settled") }
+            #endif
         }
 
         func mapViewDidFailLoadingMap(_ mapView: MAMapView!, withError error: Error!) {
@@ -288,7 +325,8 @@ struct SafeZoneMapView: UIViewRepresentable {
         fileprivate func report(_ available: Bool, issue: String?) {
             guard selection.report(available: available, issue: issue) else { return }
             DispatchQueue.main.async { [weak self] in
-                self?.parent.onState(available, issue)
+                guard let self, !self.initialRegion.closed else { return }
+                self.parent.onState(available, issue)
             }
         }
 
@@ -325,7 +363,7 @@ struct SafeZoneMapView: View {
     var body: some View {
         GeometryReader { geometry in
             AMapCanvas(camera: .constant(.region(OrbitMapScale.region(center: initialCenter.appleCoordinate,
-                            viewportHeight: geometry.size.height, verticalOffset: 0.15))),
+                            viewportSize: geometry.size, verticalOffset: 0.15))),
                        bottomOverlayInset: bottomOverlayInset)
                 .onAppear { onState(false, "AMap requires a physical iPhone on this simulator runtime.") }
         }

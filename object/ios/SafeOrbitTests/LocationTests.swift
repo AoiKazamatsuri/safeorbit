@@ -67,6 +67,135 @@ final class LocationTests: XCTestCase {
         }
     }
 
+    func testSafeZoneScaleMatchesBothAxesAndKeepsPinAboveCard() {
+        let center = LocationPreviewData.campus.appleCoordinate
+        let size = CGSize(width: 402, height: 874)
+        let region = OrbitMapScale.region(center: center, viewportSize: size, verticalOffset: 0.15)
+        let verticalMeters = CLLocation(latitude: region.center.latitude - region.span.latitudeDelta / 2,
+                                        longitude: region.center.longitude)
+            .distance(from: CLLocation(latitude: region.center.latitude + region.span.latitudeDelta / 2,
+                                       longitude: region.center.longitude))
+        let horizontalMeters = CLLocation(latitude: region.center.latitude,
+                                          longitude: region.center.longitude - region.span.longitudeDelta / 2)
+            .distance(from: CLLocation(latitude: region.center.latitude,
+                                       longitude: region.center.longitude + region.span.longitudeDelta / 2))
+        XCTAssertEqual(verticalMeters / size.height, horizontalMeters / size.width, accuracy: 0.1)
+        XCTAssertEqual(verticalMeters / size.height, OrbitMapScale.metersPerPoint, accuracy: 0.1)
+        XCTAssertEqual(region.center.longitude, center.longitude, accuracy: 0.000001)
+        let pinY = size.height / 2 - (center.latitude - region.center.latitude) / region.span.latitudeDelta * size.height
+        XCTAssertEqual(pinY, size.height * 0.35, accuracy: 0.01, "The pin stays above the editor card")
+    }
+
+    func testMapCameraGateAppliesWhenInitCompletesBeforeLayout() {
+        var gate = MapCameraGate<Int>()
+        gate.request(1)
+        gate.engineDidInitialize()
+        XCTAssertNil(gate.due, "No size yet")
+        gate.layout(.zero)
+        XCTAssertNil(gate.due, "A zero-size layout keeps the request")
+        gate.layout(CGSize(width: 402, height: 874))
+        XCTAssertEqual(gate.due, 1)
+        XCTAssertTrue(gate.didApply(1))
+        XCTAssertNil(gate.due)
+        XCTAssertEqual(gate.applied, 1)
+    }
+
+    func testMapCameraGateAppliesWhenLayoutPrecedesInit() {
+        var gate = MapCameraGate<Int>()
+        gate.request(1)
+        gate.layout(CGSize(width: 390, height: 750))
+        XCTAssertNil(gate.due, "Engine not initialised")
+        XCTAssertNil(gate.applied, "Nothing is recorded before it is sent")
+        gate.engineDidInitialize()
+        XCTAssertEqual(gate.due, 1)
+        gate.didApply(1)
+        XCTAssertNil(gate.due)
+    }
+
+    func testMapCameraGateIgnoresRepeatedCallbacksAfterApplying() {
+        var gate = MapCameraGate<Int>()
+        gate.request(1)
+        gate.engineDidInitialize()
+        gate.layout(CGSize(width: 402, height: 874))
+        XCTAssertTrue(gate.didApply(1))
+        for _ in 0..<3 {
+            gate.engineDidInitialize()
+            gate.layout(CGSize(width: 402, height: 874))
+            gate.request(1)
+            XCTAssertNil(gate.due, "Later loads and layouts must not snap back to the first region")
+        }
+        gate.request(2)
+        XCTAssertEqual(gate.due, 2)
+        XCTAssertFalse(gate.didApply(2), "Only the first application is reported as first")
+    }
+
+    func testMapCameraGateKeepsTheNewestRequestWhenReplacedDuringUpdate() {
+        var gate = MapCameraGate<Int>()
+        gate.request(1)
+        gate.request(2)
+        gate.engineDidInitialize()
+        gate.layout(CGSize(width: 402, height: 874))
+        XCTAssertEqual(gate.due, 2, "Only the newest waiting request is applied")
+        gate.request(3)
+        gate.didApply(2)
+        XCTAssertEqual(gate.due, 3, "A request that arrives while another is sent stays pending")
+        gate.didApply(3)
+        XCTAssertNil(gate.due)
+    }
+
+    func testMapCameraGateDropsWorkAfterDismantle() {
+        var gate = MapCameraGate<Int>()
+        gate.request(1)
+        gate.close()
+        gate.engineDidInitialize()
+        gate.layout(CGSize(width: 402, height: 874))
+        gate.request(2)
+        XCTAssertTrue(gate.closed)
+        XCTAssertNil(gate.pending)
+        XCTAssertNil(gate.due)
+    }
+
+    func testMapCameraGateLetsUserGesturesWinOverLateInitialRegion() {
+        var gate = MapCameraGate<Int>()
+        gate.request(1)
+        gate.layout(CGSize(width: 402, height: 874))
+        gate.userMoved(to: 9)
+        gate.engineDidInitialize()
+        XCTAssertNil(gate.due, "A late init callback cannot override the gesture")
+        gate.request(1)
+        XCTAssertNil(gate.due, "Re-reading the old binding before the gesture is written back is ignored")
+        gate.request(9)
+        XCTAssertNil(gate.due, "The written-back gesture camera is already shown")
+        gate.request(1)
+        XCTAssertEqual(gate.due, 1, "An explicit later request such as reset still applies")
+        gate.didApply(1)
+        gate.userMoved()
+        XCTAssertNil(gate.due)
+        XCTAssertEqual(gate.applied, 1)
+    }
+
+    func testMapCameraGateTreatsAutomaticAsNotYetApplied() throws {
+        var gate = MapCameraGate<MapCameraPosition>()
+        gate.request(.automatic)
+        gate.engineDidInitialize()
+        gate.layout(CGSize(width: 402, height: 874))
+        XCTAssertEqual(gate.due, .automatic)
+        XCTAssertNil(AMapCameraTarget.resolve(.automatic), "No senior fix means no region to send")
+        XCTAssertNil(gate.applied)
+        let region = OrbitMapScale.caregiverHomeRegion(center: LocationPreviewData.campus.appleCoordinate,
+                                                       mapFrame: CGRect(x: 0, y: 0, width: 402, height: 874), cardTop: 600)
+        gate.request(.region(region))
+        let due = try XCTUnwrap(gate.due)
+        let target = try XCTUnwrap(AMapCameraTarget.resolve(due))
+        XCTAssertEqual(target.region.span.latitudeDelta, region.span.latitudeDelta, accuracy: 0.0000001)
+        XCTAssertEqual(target.heading, 0)
+        gate.didApply(due)
+        XCTAssertNil(gate.due)
+        let camera = try XCTUnwrap(AMapCameraTarget.resolve(.camera(MapCamera(centerCoordinate: region.center,
+                                                                             distance: 650, heading: 90, pitch: 0))))
+        XCTAssertEqual(camera.heading, 90)
+    }
+
     @MainActor func testSafeZoneCircleUsesMapCoordinatesAndMeters() {
         let center = GeoPoint(latitude: 32.061, longitude: 118.778)
         let circle = SafeZoneSelectionMap.circle(center: center, radius: 200)
@@ -199,7 +328,7 @@ final class LocationTests: XCTestCase {
                 : CGRect(x: 0, y: 0, width: 393, height: 852)
             window.rootViewController = UIHostingController(rootView: ZStack {
                 LocationPage(profile: profile, snapshot: LocationPreviewData.snapshot(), message: nil,
-                             loading: false, refresh: {}, agent: {}, navigate: {}, riskState: risk)
+                             agent: {}, navigate: {}, riskState: risk)
                 VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)) }
             }.environment(\.colorScheme, .light))
             window.makeKeyAndVisible()
@@ -544,8 +673,8 @@ extension LocationTests {
             let window = UIWindow(windowScene: scene)
             window.frame = CGRect(origin: .zero, size: size)
             window.rootViewController = UIHostingController(rootView:
-                LocationPage(profile: profile, snapshot: senior, message: nil, loading: false,
-                             refresh: {}, agent: {}, navigate: {}, navigation: model)
+                LocationPage(profile: profile, snapshot: senior, message: nil,
+                             agent: {}, navigate: {}, navigation: model)
                 .environment(\.dynamicTypeSize, type).environment(\.colorScheme, .light))
             window.makeKeyAndVisible()
             window.rootViewController?.view.frame = window.bounds

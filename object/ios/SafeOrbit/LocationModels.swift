@@ -76,16 +76,23 @@ struct ElderLocationSnapshot: Decodable {
 
 /// Illustrative road-aligned sample near Nanjing University's Gulou Campus; never used by the live location flow.
 enum LocationPreviewData {
-    // Fixed illustrative points checked against visible Beijing West Road and
-    // Ninghai Road at several zoom levels. MapKit coordinates are converted to
-    // the WGS-84 form used by snapshots and the live API.
+    // Interior points are the vertices of an Apple Maps walking route (MapKit
+    // coordinates, fetched once on 2026-10-15) along Beijing West Road and
+    // Ninghai Road, so the trail follows the roads instead of cutting corners.
+    // The first and last points keep the original sample endpoints, 3 m and
+    // 25 m from the route ends. MapKit coordinates are converted to the WGS-84
+    // form used by snapshots and the live API.
     private static let walkingMapGeometry = [
         GeoPoint(latitude: 32.0600471, longitude: 118.7665265),
-        GeoPoint(latitude: 32.0599101, longitude: 118.7677551),
-        GeoPoint(latitude: 32.0597504, longitude: 118.7689515),
-        GeoPoint(latitude: 32.0595408, longitude: 118.7706009),
-        GeoPoint(latitude: 32.0587606, longitude: 118.7709242),
-        GeoPoint(latitude: 32.0576466, longitude: 118.7712769),
+        GeoPoint(latitude: 32.0596075, longitude: 118.7695238),
+        GeoPoint(latitude: 32.0595431, longitude: 118.7700819),
+        GeoPoint(latitude: 32.0595270, longitude: 118.7701677),
+        GeoPoint(latitude: 32.0594706, longitude: 118.7701946),
+        GeoPoint(latitude: 32.0576495, longitude: 118.7709991),
+        GeoPoint(latitude: 32.0568178, longitude: 118.7713961),
+        GeoPoint(latitude: 32.0567159, longitude: 118.7715947),
+        GeoPoint(latitude: 32.0566731, longitude: 118.7717071),
+        GeoPoint(latitude: 32.0566797, longitude: 118.7717591),
         GeoPoint(latitude: 32.0564731, longitude: 118.7718559)]
     static let trail = walkingMapGeometry.map(MainlandCoordinates.toWGS84)
     static let startingPoint = trail[0]

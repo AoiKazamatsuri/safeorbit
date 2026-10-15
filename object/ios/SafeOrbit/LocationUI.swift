@@ -151,8 +151,7 @@ struct CaregiverHomePage: View {
         ZStack {
             ZStack {
                 LocationPage(profile: store.elder, snapshot: store.location,
-                             message: store.locationError, loading: store.locationLoading,
-                             refresh: { Task { await store.refreshLocation() } },
+                             message: store.locationError,
                              agent: { agentSessions.showList(); tab = .agent }, navigate: { Task {
                                  if navigation.isDemoRoute { await store.refreshLocation() }
                                  await navigation.start(to: store.location)
@@ -232,8 +231,6 @@ struct LocationPage: View {
     let profile: ElderProfile
     let snapshot: ElderLocationSnapshot?
     let message: String?
-    let loading: Bool
-    let refresh: () -> Void
     let agent: () -> Void
     let navigate: () -> Void
     var settings: () -> Void = {}
@@ -325,8 +322,6 @@ struct LocationPage: View {
                         FloatingMapButton(symbol: "plus", label: "Add safe zone") {
                             zoneEditor = SafeZoneEditorSelection(zone: nil)
                         }
-                        FloatingMapButton(symbol: "arrow.clockwise", label: "Refresh location", action: refresh)
-                            .disabled(loading)
                     }
                 }.padding(.bottom, 23)
                 if snapshot == nil || snapshot?.isCurrent == false || message != nil {
@@ -1099,8 +1094,8 @@ struct WalkingNavigationPage: View {
         self.init(snapshot: snapshot, name: name, model: WalkingNavigationModel(), end: end)
     }
     var body: some View {
-        LocationPage(profile: ElderProfile(), snapshot: snapshot, message: nil, loading: false,
-                     refresh: {}, agent: {}, navigate: {}, navigation: model)
+        LocationPage(profile: ElderProfile(), snapshot: snapshot, message: nil,
+                     agent: {}, navigate: {}, navigation: model)
             .task { if !model.isPresented { await model.start(to: snapshot) } }
     }
 }
@@ -1112,13 +1107,13 @@ private func locationPreview() -> ElderLocationSnapshot {
 }
 #Preview("Location") {
     var elder = ElderProfile(); elder.name = "Cuilan Liu"; elder.phone = "+8613800000000"
-    return LocationPage(profile: elder, snapshot: locationPreview(), message: nil, loading: false,
-                        refresh: {}, agent: {}, navigate: {})
+    return LocationPage(profile: elder, snapshot: locationPreview(), message: nil,
+                        agent: {}, navigate: {})
 }
 #Preview("Location unavailable") {
     var elder = ElderProfile(); elder.name = "Cuilan Liu"
-    return LocationPage(profile: elder, snapshot: nil, message: nil, loading: false,
-                        refresh: {}, agent: {}, navigate: {})
+    return LocationPage(profile: elder, snapshot: nil, message: nil,
+                        agent: {}, navigate: {})
 }
 #endif
 

@@ -426,8 +426,8 @@ final class OnboardingTests: XCTestCase {
             ("expired", AnyView(FamilyBindingPage(profile: profile, code: .init(token: code.token, expiresAt: .distantPast), busy: false, generate: {}, refresh: {}, edit: {}))),
             ("scan", AnyView(ScanPage(busy: false, payload: .constant(""), bind: { _ in }))),
             ("ready", AnyView(ElderReadyPage(profile: profile))),
-            ("location", AnyView(ZStack { LocationPage(profile: profile, snapshot: sampleLocation, message: nil, loading: false, refresh: {}, agent: {}, navigate: {}); VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)) } })),
-            ("location-empty", AnyView(ZStack { LocationPage(profile: profile, snapshot: nil, message: nil, loading: false, refresh: {}, agent: {}, navigate: {}); VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)) } })),
+            ("location", AnyView(ZStack { LocationPage(profile: profile, snapshot: sampleLocation, message: nil, agent: {}, navigate: {}); VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)) } })),
+            ("location-empty", AnyView(ZStack { LocationPage(profile: profile, snapshot: nil, message: nil, agent: {}, navigate: {}); VStack { Spacer(); CaregiverTabBar(selection: .constant(.location)) } })),
             ("navigation-unavailable", AnyView(WalkingNavigationPage(snapshot: nil, name: profile.name, end: {})))
         ]
 #if DEBUG
@@ -445,7 +445,7 @@ final class OnboardingTests: XCTestCase {
         }
         let large = AnyView(ProfilePage(profile: .constant(profile), busy: false, next: {}).environment(\.dynamicTypeSize, .accessibility2))
         try await snapshot(large, size: CGSize(width: 375, height: 812)).write(to: folder.appendingPathComponent("profile-large-text.png"))
-        let locationLarge = AnyView(LocationPage(profile: profile, snapshot: sampleLocation, message: nil, loading: false, refresh: {}, agent: {}, navigate: {})
+        let locationLarge = AnyView(LocationPage(profile: profile, snapshot: sampleLocation, message: nil, agent: {}, navigate: {})
             .environment(\.dynamicTypeSize, .accessibility2))
         try await snapshot(locationLarge, size: CGSize(width: 375, height: 812), waitMilliseconds: 2500)
             .write(to: folder.appendingPathComponent("location-large-text.png"))
