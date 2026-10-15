@@ -30,14 +30,16 @@ struct AMapLine {
     var dash: [CGFloat] = []
 }
 
+/// A solid blue trail over a slightly wider white edge. Solid lines render the same on
+/// MapKit and AMap, whose dashes only come in SDK presets.
 enum CaregiverTrailStyle {
-    static let width: CGFloat = 8
-    static let dash: [CGFloat] = [10, 8]
+    static let width: CGFloat = 6
+    static let edgeWidth: CGFloat = 9
 
-    static func line(coordinates: [CLLocationCoordinate2D]) -> AMapLine? {
-        guard coordinates.count > 1 else { return nil }
-        return AMapLine(id: "senior-trail", coordinates: coordinates,
-                        color: OrbitMapStyle.blue, width: width, dash: dash)
+    static func lines(coordinates: [CLLocationCoordinate2D]) -> [AMapLine] {
+        guard coordinates.count > 1 else { return [] }
+        return [AMapLine(id: "senior-trail-edge", coordinates: coordinates, color: .white, width: edgeWidth),
+                AMapLine(id: "senior-trail", coordinates: coordinates, color: OrbitMapStyle.blue, width: width)]
     }
 }
 struct AMapCameraContext {
@@ -317,7 +319,7 @@ struct NativeAMapCanvas: UIViewRepresentable {
                 renderer.lineCapType = MALineCapType(rawValue: 3)
                 renderer.lineJoinType = MALineJoinType(rawValue: 2)
                 if !style.dash.isEmpty { renderer.lineDashType = MALineDashType(rawValue: 1) }
-                if style.id == "senior-trail" { renderer.reducePoint = false }
+                if style.id.hasPrefix("senior-trail") { renderer.reducePoint = false }
                 return renderer
             }
         }

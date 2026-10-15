@@ -450,7 +450,7 @@ struct LocationPage: View {
             ] } ?? []
         }
         let trail = snapshot?.trail.filter(\.isValid).map(\.appleCoordinate) ?? []
-        return CaregiverTrailStyle.line(coordinates: trail).map { [$0] } ?? []
+        return CaregiverTrailStyle.lines(coordinates: trail)
     }
     private var mapMarkers: [AMapMarker] {
         if navigation.isPresented {

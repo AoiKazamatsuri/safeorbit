@@ -20,12 +20,17 @@ import SwiftUI
 final class LocationTests: XCTestCase {
     func testCaregiverTrailUsesTheSameVisibleStyleForBothMapBackends() throws {
         let coordinates = LocationPreviewData.trail.map(\.appleCoordinate)
-        let line = try XCTUnwrap(CaregiverTrailStyle.line(coordinates: coordinates))
-        XCTAssertEqual(line.id, "senior-trail")
+        let lines = CaregiverTrailStyle.lines(coordinates: coordinates)
+        XCTAssertEqual(lines.map(\.id), ["senior-trail-edge", "senior-trail"], "The white edge is drawn first, under the blue line")
+        let edge = try XCTUnwrap(lines.first), line = try XCTUnwrap(lines.last)
         XCTAssertEqual(line.coordinates.count, coordinates.count)
-        XCTAssertEqual(line.width, 8)
-        XCTAssertEqual(line.dash, [10, 8])
-        XCTAssertNil(CaregiverTrailStyle.line(coordinates: Array(coordinates.prefix(1))))
+        XCTAssertEqual(edge.coordinates.count, coordinates.count)
+        XCTAssertEqual(line.width, 6)
+        XCTAssertEqual(edge.width, 9)
+        XCTAssertEqual(line.color, OrbitMapStyle.blue)
+        XCTAssertEqual(edge.color, .white)
+        XCTAssertTrue(lines.allSatisfy(\.dash.isEmpty), "Solid lines look the same on MapKit and AMap")
+        XCTAssertTrue(CaregiverTrailStyle.lines(coordinates: Array(coordinates.prefix(1))).isEmpty)
     }
 
     func testWalkingRouteErrorsKeepActionableCause() {
