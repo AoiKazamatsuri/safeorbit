@@ -11,7 +11,7 @@ struct RecordsPage: View {
     @ScaledMetric(relativeTo: .body) private var titleHeight: CGFloat = 24
     @ScaledMetric(relativeTo: .body) private var calendarColumnWidth: CGFloat = 34
     @ScaledMetric(relativeTo: .body) private var metricIconSize: CGFloat = 28
-    @ScaledMetric(relativeTo: .body) private var metricBarWidth: CGFloat = 30
+    @ScaledMetric(relativeTo: .body) private var metricBarWidth: CGFloat = 28
     let onLayout: (([String: CGRect]) -> Void)?
 #if DEBUG
     @Environment(\.recordsTestDriver) private var testDriver
@@ -21,7 +21,6 @@ struct RecordsPage: View {
     @State private var weekStart = RecordsPage.currentWeekStart
     @State private var expanded = false
     @State private var selectedTrip: DemoTrip?
-    @State private var pageWidth: CGFloat = 402
     let onDetailPresentationChanged: (Bool) -> Void
 
     init(showTrendInitially: Bool = false, onLayout: (([String: CGRect]) -> Void)? = nil, onDetailPresentationChanged: @escaping (Bool) -> Void = { _ in }) {
@@ -65,12 +64,6 @@ struct RecordsPage: View {
             .background(alignment: .top) { OrbitStyle.teal.frame(height: 40) }
         }
         .background(Color.white.ignoresSafeArea(edges: .bottom))
-        .background {
-            GeometryReader { geometry in
-                Color.clear.onAppear { pageWidth = geometry.size.width }
-                    .onChange(of: geometry.size.width) { _, width in pageWidth = width }
-            }
-        }
         .coordinateSpace(name: "RecordsPage")
         .onPreferenceChange(RecordsFrames.self) { onLayout?($0) }
 #if DEBUG
@@ -349,16 +342,11 @@ struct RecordsPage: View {
             ("Safe Return Rate", "shield.lefthalf.filled", DemoRecords.safeReturnRate(month: 8),
              DemoRecords.safeReturnRate(month: 7), "%")
         ]
-        // Two columns from 380 pt at standard text sizes. Grid rows give both cards in a row
-        // the height of the taller one.
-        let columns = dynamicTypeSize.isAccessibilitySize || pageWidth < 380 ? 1 : 2
-        return Grid(horizontalSpacing: 18, verticalSpacing: 16) {
-            ForEach(Array(stride(from: 0, to: metrics.count, by: columns)), id: \.self) { start in
-                GridRow {
-                    ForEach(metrics[start..<min(start + columns, metrics.count)], id: \.0) { metric in
-                        metricCard(metric)
-                    }
-                }
+        let columns = dynamicTypeSize > .large ? [GridItem(.flexible())]
+            : [GridItem(.adaptive(minimum: 170), spacing: 18, alignment: .top)]
+        return LazyVGrid(columns: columns, spacing: 16) {
+            ForEach(metrics, id: \.0) { metric in
+                metricCard(metric)
             }
         }
     }
@@ -370,32 +358,32 @@ struct RecordsPage: View {
                     .frame(width: metricIconSize, height: metricIconSize).background(OrbitStyle.pale, in: Circle())
                     .recordsFrame("metric-icon-\(metric.0)")
                 Text(metric.0).caregiverText(.caption).fixedSize(horizontal: false, vertical: true)
+                    .recordsFrame("metric-title-\(metric.0)")
             }.frame(minHeight: 28, alignment: .leading)
-            // Numbers keep their natural width and the bars sit at the trailing edge. No extra
-            // spacing: the bars' own side inset is the gap, so "50%" fits a 170 pt card.
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .bottom, spacing: 0) {
-                    metricSummary(metric).fixedSize(horizontal: true, vertical: false)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    metricBars(metric).fixedSize()
-                }
-                VStack(alignment: .leading, spacing: 8) {
-                    metricSummary(metric)
-                    metricBars(metric)
-                }
+            // Restore the original width allocation; one card must not choose a taller layout.
+            (dynamicTypeSize > .large
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                : AnyLayout(HStackLayout(alignment: .bottom, spacing: 4))) {
+                metricSummary(metric).layoutPriority(1)
+                if dynamicTypeSize <= .large { Spacer(minLength: 0) }
+                metricBars(metric)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 136, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 136,
+               maxHeight: dynamicTypeSize <= .large ? 136 : nil, alignment: .leading)
         .padding(OrbitLayout.compactCardPadding)
         .caregiverCard(radius: 24, opacity: 0.13).recordsFrame("metric-\(metric.0)")
     }
     private func metricSummary(_ metric: (String, String, Int, Int, String)) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("\(metric.2)\(metric.4 == "%" ? "%" : "")").orbitDisplayFont(36, weight: .semibold)
+                .lineLimit(1).fixedSize()
                 .recordsFrame("metric-value-\(metric.0)")
             if metric.4 != "%" { Text(metric.4).caregiverText(.secondary).foregroundStyle(.secondary) }
             Text(metric.4 == "%" ? percentagePointChange(metric.2, metric.3) : percentChange(metric.2, metric.3))
-                .orbitDisplayFont(17).recordsFrame("metric-change-\(metric.0)")
+                .orbitDisplayFont(17)
+                .lineLimit(1).fixedSize()
+                .recordsFrame("metric-change-\(metric.0)")
             Text("vs. last month").caregiverText(.caption).foregroundStyle(.secondary)
         }.fixedSize(horizontal: false, vertical: true).recordsFrame("metric-summary-\(metric.0)")
     }

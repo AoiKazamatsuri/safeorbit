@@ -68,13 +68,39 @@ final class RecordsTests: XCTestCase {
                         XCTAssertLessThanOrEqual(rect.maxX, size.width + 0.5, name + " " + key)
                     }
                     if trend {
+                        let compact = type <= .large
+                        let twoColumns = compact && size.width >= 390
+                        let expectedCardWidth = twoColumns ? (size.width - 32 - 18) / 2 : size.width - 32
                         for metric in ["Unusual Movement", "Navigation Assistance", "High-risk Events", "Safe Return Rate"] {
                             let card = try XCTUnwrap(visited["metric-" + metric], name + metric)
-                            for prefix in ["metric-summary-", "metric-bars-"] {
+                            XCTAssertEqual(card.width, expectedCardWidth, accuracy: 0.5, name + metric)
+                            if compact { XCTAssertEqual(card.height, 160, accuracy: 0.5, name + metric) }
+                            for prefix in ["metric-title-", "metric-summary-", "metric-bars-", "metric-value-", "metric-change-"] {
                                 let field = try XCTUnwrap(visited[prefix + metric], name + prefix + metric)
-                                XCTAssertGreaterThanOrEqual(field.minX, card.minX, name + prefix)
-                                XCTAssertLessThanOrEqual(field.maxX, card.maxX + 0.5, name + prefix)
+                                XCTAssertGreaterThanOrEqual(field.minX, card.minX + 12 - 0.5, name + prefix + metric)
+                                XCTAssertLessThanOrEqual(field.maxX, card.maxX - 12 + 0.5, name + prefix + metric)
+                                XCTAssertGreaterThanOrEqual(field.minY, card.minY + 12 - 0.5, name + prefix + metric)
+                                XCTAssertLessThanOrEqual(field.maxY, card.maxY - 12 + 0.5, name + prefix + metric)
                             }
+                            let metricSummary = try XCTUnwrap(visited["metric-summary-" + metric], name + metric)
+                            let bars = try XCTUnwrap(visited["metric-bars-" + metric], name + metric)
+                            if compact {
+                                XCTAssertLessThanOrEqual(metricSummary.maxX, bars.minX + 0.5, name + metric + " side by side")
+                                let value = try XCTUnwrap(visited["metric-value-" + metric], name + metric)
+                                let change = try XCTUnwrap(visited["metric-change-" + metric], name + metric)
+                                XCTAssertLessThanOrEqual(value.height, UIFont.systemFont(ofSize: 36, weight: .semibold).lineHeight + 0.5,
+                                                         name + metric + " value stays on one line")
+                                XCTAssertLessThanOrEqual(change.height, UIFont.systemFont(ofSize: 17, weight: .medium).lineHeight + 0.5,
+                                                         name + metric + " change stays on one line")
+                                if metric == "Safe Return Rate" {
+                                    let fullValue = "\(DemoRecords.safeReturnRate(month: 8))%" as NSString
+                                    let fullWidth = fullValue.size(withAttributes: [.font: UIFont.systemFont(ofSize: 36, weight: .semibold)]).width
+                                    XCTAssertGreaterThanOrEqual(value.width + 0.5, fullWidth, name + " full percentage at original font size")
+                                }
+                            } else {
+                                XCTAssertLessThanOrEqual(metricSummary.maxY, bars.minY + 0.5, name + metric + " enlarged layout")
+                            }
+                            print("Trend metric \(name) \(metric): card=\(card.size), summary=\(metricSummary.size), bars=\(bars.size)")
                         }
                         let summary = try XCTUnwrap(visited["trend-summary"], name)
                         let chart = try XCTUnwrap(visited["trend-chart-viewport"], name)
@@ -245,6 +271,8 @@ final class RecordsTests: XCTestCase {
             window.makeKeyAndVisible()
             defer { window.isHidden = true; previous?.makeKeyAndVisible() }
             try await Task.sleep(for: .milliseconds(300))
+            let measured = try await recordingMetricFramesByScrolling(window, frames: { frames })
+            frames.merge(measured, uniquingKeysWith: { _, latest in latest })
             let content = try XCTUnwrap(frames["content"], name)
             let cards = try names.map { try XCTUnwrap(frames["metric-" + $0], name + $0) }
             for (metric, card) in zip(names, cards) {
@@ -300,6 +328,27 @@ final class RecordsTests: XCTestCase {
 
     @MainActor private func recordingScrollViews(in view: UIView) -> [UIScrollView] {
         ((view as? UIScrollView).map { [$0] } ?? []) + view.subviews.flatMap { recordingScrollViews(in: $0) }
+    }
+    /// Lazy grid cards are measured when reached. Remove the scroll offset so row positions
+    /// collected at different times remain comparable in the same content coordinates.
+    @MainActor private func recordingMetricFramesByScrolling(_ window: UIWindow,
+        frames: () -> [String: CGRect]) async throws -> [String: CGRect] {
+        let view = try XCTUnwrap(window.rootViewController?.view)
+        let scroll = try XCTUnwrap(recordingScrollViews(in: view).first {
+            $0.bounds.height > 0 && $0.contentSize.height > $0.bounds.height + 1
+        } ?? recordingScrollViews(in: view).max { $0.bounds.height < $1.bounds.height })
+        var measured: [String: CGRect] = [:]
+        for _ in 0..<100 {
+            for (key, rect) in frames() where key.hasPrefix("metric-") {
+                measured[key] = rect.offsetBy(dx: 0, dy: scroll.contentOffset.y)
+            }
+            let end = max(0, scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom)
+            if abs(scroll.contentOffset.y - end) < 1 { return measured }
+            scroll.setContentOffset(CGPoint(x: 0, y: min(end, scroll.contentOffset.y + scroll.bounds.height * 0.8)), animated: false)
+            try await Task.sleep(for: .milliseconds(70))
+        }
+        XCTFail("Metric grid scrolling did not reach the end")
+        return measured
     }
     @MainActor private func snapshotRecording(_ window: UIWindow, to path: URL) throws {
         let image = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in
@@ -1014,7 +1063,11 @@ extension RecordsTests {
             for trend in [false, true] {
                 let name = "\(trend ? "trend" : "data") \(Int(size.width))x\(Int(size.height))"
                 var frames: [String: CGRect] = [:]
-                try await h.render(RecordsPage(showTrendInitially: trend, onLayout: { frames = $0 }), size: size) { _ in
+                try await h.render(RecordsPage(showTrendInitially: trend, onLayout: { frames = $0 }), size: size) { window in
+                    if trend {
+                        let measured = try await self.recordingMetricFramesByScrolling(window, frames: { frames })
+                        frames.merge(measured, uniquingKeysWith: { _, latest in latest })
+                    }
                     func rect(_ key: String) throws -> CGRect { try XCTUnwrap(frames[key], name + " " + key) }
                     h.assertOuterEdges(try rect("picker"), width: size.width, name + " picker")
                     h.assertOuterEdges(try rect("content"), width: size.width, name + " content")
