@@ -54,7 +54,7 @@
 - 检查对象：`object/ios/` 下的 Xcode 工程能否构建，以及 App 的单元测试（如坐标换算、位置缓存与补传、身份切换等逻辑）。
 - 工作目录：`object/ios/`。
 - 前置条件：macOS 与 Xcode；一个 iOS 17 或以上的模拟器运行时。
-- 命令：仓库根运行 `sh object/dev/ios-check.sh`；脚本调用 `xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination "platform=iOS Simulator,id=<可用 iPhone 的编号>" -derivedDataPath object/ios/DerivedData CODE_SIGNING_ALLOWED=NO test`。可用 `SAFEORBIT_SIMULATOR_ID` 指定模拟器。
+- 命令：仓库根运行 `sh object/dev/ios-check.sh`；脚本调用 `xcodebuild -project object/ios/SafeOrbit.xcodeproj -scheme SafeOrbit -destination "platform=iOS Simulator,id=<可用 iPhone 的编号>" -derivedDataPath object/ios/DerivedData -collect-test-diagnostics never CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test`。可用 `SAFEORBIT_SIMULATOR_ID` 指定模拟器。测试用本机临时签名（“Sign to Run Locally”），不需要开发者账号或证书；不签名时 App 读写不了钥匙串，登录与会话类用例会失败（任务 [T29](../queue/tasks/T29/goal.md)）。`-collect-test-diagnostics never` 让有失败时不再额外收集模拟器诊断。仓库放在 iCloud 同步的文件夹时，iCloud 会给编译出的 App 包加上文件属性，签名工具因此拒签（报 “resource fork, Finder information, or similar detritus not allowed”），所以脚本每次先删除上次生成的 App 包再编译，编过的代码仍有缓存。真机版本编译仍按各任务的验收方法以 `-sdk iphoneos`、`CODE_SIGNING_ALLOWED=NO` 构建，不受影响。
 - 通过条件：构建成功，退出码 0，无失败用例。
 - 限制：模拟器不能证明后台定位、锁屏自动开始语音导航、推送送达与局域网连接等真机行为，这些靠[工程架构](../truth/工程架构.md)第 15 节的真机验证与模拟轨迹回放；也不证明界面与设计图一致。
 - 方法来源：[工程架构](../truth/工程架构.md)第 10、15 节。
