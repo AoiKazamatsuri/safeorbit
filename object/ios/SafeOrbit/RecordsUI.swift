@@ -10,7 +10,6 @@ struct RecordsPage: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var titleHeight: CGFloat = 24
     @ScaledMetric(relativeTo: .body) private var calendarColumnWidth: CGFloat = 34
-    @ScaledMetric(relativeTo: .body) private var minimumMetricWidth: CGFloat = 154
     @ScaledMetric(relativeTo: .body) private var metricIconSize: CGFloat = 28
     @ScaledMetric(relativeTo: .body) private var metricBarWidth: CGFloat = 30
     let onLayout: (([String: CGRect]) -> Void)?
@@ -19,10 +18,10 @@ struct RecordsPage: View {
 #endif
     @State private var section: RecordsSection = .data
     @State private var month = DemoRecords.date(2026, 8, 1)
-    @State private var weekStart = DemoRecords.date(2026, 8, 23)
+    @State private var weekStart = RecordsPage.currentWeekStart
     @State private var expanded = false
-    @State private var selectedDay: Date?
     @State private var selectedTrip: DemoTrip?
+    @State private var pageWidth: CGFloat = 402
     let onDetailPresentationChanged: (Bool) -> Void
 
     init(showTrendInitially: Bool = false, onLayout: (([String: CGRect]) -> Void)? = nil, onDetailPresentationChanged: @escaping (Bool) -> Void = { _ in }) {
@@ -32,11 +31,11 @@ struct RecordsPage: View {
     }
 
     private let calendar = DemoRecords.calendar
+    // The demo's "today" week; the trend chart ends with the same Monday.
+    static let currentWeekStart = DemoRecords.weekStarts().last!
     private var weekEnd: Date { calendar.date(byAdding: .day, value: 7, to: weekStart)! }
     private var weekTrips: [DemoTrip] {
-        DemoRecords.trips.filter { $0.date >= weekStart && $0.date < weekEnd &&
-            (selectedDay == nil || calendar.isDate($0.date, inSameDayAs: selectedDay!)) }
-            .sorted { $0.date < $1.date }
+        DemoRecords.trips.filter { $0.date >= weekStart && $0.date < weekEnd }.sorted { $0.date < $1.date }
     }
 
     var body: some View {
@@ -66,10 +65,18 @@ struct RecordsPage: View {
             .background(alignment: .top) { OrbitStyle.teal.frame(height: 40) }
         }
         .background(Color.white.ignoresSafeArea(edges: .bottom))
+        .background {
+            GeometryReader { geometry in
+                Color.clear.onAppear { pageWidth = geometry.size.width }
+                    .onChange(of: geometry.size.width) { _, width in pageWidth = width }
+            }
+        }
         .coordinateSpace(name: "RecordsPage")
         .onPreferenceChange(RecordsFrames.self) { onLayout?($0) }
 #if DEBUG
+        .onChange(of: weekStart) { _, start in testDriver?.weekStart = start }
         .onAppear {
+            testDriver?.weekStart = weekStart
             testDriver?.perform = { action in
                 switch action {
                 case .selectDay(let date): selectDay(date)
@@ -120,20 +127,18 @@ struct RecordsPage: View {
         }
     }
 
-    private var weekTitle: some View {
-        HStack(spacing: 8) {
-            Text(selectedDay == nil ? "This Week" : dayTitle(selectedDay!))
+    // Other weeks are named by their date range alone.
+    @ViewBuilder private var weekTitle: some View {
+        if weekStart == RecordsPage.currentWeekStart {
+            Text("This Week")
                 .recordingFont(18, weight: .medium).fixedSize(horizontal: false, vertical: true)
-            if selectedDay != nil {
-                Button("Clear") { selectedDay = nil }.caregiverText(.caption)
-                    .frame(minWidth: 44, minHeight: 44).recordsFrame("clear-day")
-            }
+                .recordsFrame("this-week")
         }
     }
     private var weekRange: some View {
         Text("\(shortDate(weekStart)) – \(shortDate(calendar.date(byAdding: .day, value: 6, to: weekStart)!))")
             .caregiverText(.secondary).foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+            .fixedSize(horizontal: false, vertical: true).recordsFrame("week-range")
     }
     private func weekButton(_ amount: Int) -> some View {
         Button { shiftWeek(amount) } label: {
@@ -199,8 +204,8 @@ struct RecordsPage: View {
         .accessibilityLabel(amount < 0 ? "Previous month" : "Next month")
         .recordsFrame(amount < 0 ? "previous-month" : "next-month")
     }
+    // A date opens its whole Monday–Sunday week, already expanded.
     private func selectDay(_ date: Date) {
-        selectedDay = date
         weekStart = calendar.dateInterval(of: .weekOfYear, for: date)!.start
         expanded = true
     }
@@ -338,10 +343,16 @@ struct RecordsPage: View {
             ("Safe Return Rate", "shield.lefthalf.filled", DemoRecords.safeReturnRate(month: 8),
              DemoRecords.safeReturnRate(month: 7), "%")
         ]
-        let columns = [GridItem(.adaptive(minimum: minimumMetricWidth), spacing: 18, alignment: .top)]
-        return LazyVGrid(columns: columns, spacing: 16) {
-            ForEach(metrics, id: \.0) { metric in
-                metricCard(metric)
+        // Two columns from 380 pt at standard text sizes. Grid rows give both cards in a row
+        // the height of the taller one.
+        let columns = dynamicTypeSize.isAccessibilitySize || pageWidth < 380 ? 1 : 2
+        return Grid(horizontalSpacing: 18, verticalSpacing: 16) {
+            ForEach(Array(stride(from: 0, to: metrics.count, by: columns)), id: \.self) { start in
+                GridRow {
+                    ForEach(metrics[start..<min(start + columns, metrics.count)], id: \.0) { metric in
+                        metricCard(metric)
+                    }
+                }
             }
         }
     }
@@ -353,10 +364,12 @@ struct RecordsPage: View {
                     .frame(width: metricIconSize, height: metricIconSize).background(OrbitStyle.pale, in: Circle())
                 Text(metric.0).caregiverText(.caption).fixedSize(horizontal: false, vertical: true)
             }.frame(minHeight: 28, alignment: .leading)
+            // Numbers keep their natural width and the bars sit at the trailing edge. No extra
+            // spacing: the bars' own side inset is the gap, so "50%" fits a 170 pt card.
             ViewThatFits(in: .horizontal) {
-                HStack(alignment: .bottom, spacing: 4) {
+                HStack(alignment: .bottom, spacing: 0) {
                     metricSummary(metric).fixedSize(horizontal: true, vertical: false)
-                    Spacer(minLength: 0)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     metricBars(metric).fixedSize()
                 }
                 VStack(alignment: .leading, spacing: 8) {
@@ -365,16 +378,17 @@ struct RecordsPage: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 136, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 136, maxHeight: .infinity, alignment: .topLeading)
         .padding(12)
         .caregiverCard(radius: 24, opacity: 0.13).recordsFrame("metric-\(metric.0)")
     }
     private func metricSummary(_ metric: (String, String, Int, Int, String)) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("\(metric.2)\(metric.4 == "%" ? "%" : "")").orbitDisplayFont(36, weight: .semibold)
+                .recordsFrame("metric-value-\(metric.0)")
             if metric.4 != "%" { Text(metric.4).caregiverText(.secondary).foregroundStyle(.secondary) }
             Text(metric.4 == "%" ? percentagePointChange(metric.2, metric.3) : percentChange(metric.2, metric.3))
-                .orbitDisplayFont(17)
+                .orbitDisplayFont(17).recordsFrame("metric-change-\(metric.0)")
             Text("vs. last month").caregiverText(.caption).foregroundStyle(.secondary)
         }.fixedSize(horizontal: false, vertical: true).recordsFrame("metric-summary-\(metric.0)")
     }
@@ -398,11 +412,10 @@ struct RecordsPage: View {
 
     private func shiftMonth(_ amount: Int) {
         month = calendar.date(byAdding: .month, value: amount, to: month)!
-        selectedDay = nil
     }
     private func shiftWeek(_ amount: Int) {
         weekStart = calendar.date(byAdding: .weekOfYear, value: amount, to: weekStart)!
-        selectedDay = nil; expanded = false
+        expanded = false
         month = calendar.dateInterval(of: .month, for: weekStart)!.start
     }
     private func monthTitle(_ date: Date) -> String {
@@ -515,6 +528,7 @@ enum RecordsTestAction {
 }
 final class RecordsTestDriver {
     var perform: ((RecordsTestAction) -> Void)?
+    fileprivate(set) var weekStart: Date?
 }
 private struct RecordsTestDriverKey: EnvironmentKey {
     static let defaultValue: RecordsTestDriver? = nil
@@ -552,6 +566,8 @@ struct TripDetailPage: View {
         }
         return markers
     }
+    // Same solid trail as the location page.
+    var trailLines: [AMapLine] { CaregiverTrailStyle.lines(coordinates: route) }
     var body: some View {
         VStack(spacing: 0) {
             CaregiverTopBar {
@@ -567,9 +583,7 @@ struct TripDetailPage: View {
                 .padding(.horizontal, 23)
             }
             AMapConsentSurface {
-                AMapCanvas(camera: $mapCamera, markers: tripMarkers,
-                    lines: [AMapLine(id: "trip", coordinates: route, color: OrbitMapStyle.blue,
-                                     width: 4, dash: [6, 5])])
+                AMapCanvas(camera: $mapCamera, markers: tripMarkers, lines: trailLines)
             }
             .onAppear { mapCamera = .region(region) }
             .frame(height: 280)

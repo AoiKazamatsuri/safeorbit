@@ -41,7 +41,7 @@ enum DemoRecords {
     static var calendar: Calendar {
         var result = Calendar(identifier: .gregorian)
         result.timeZone = TimeZone(identifier: "Asia/Shanghai")!
-        result.firstWeekday = 1
+        result.firstWeekday = 2
         return result
     }
 

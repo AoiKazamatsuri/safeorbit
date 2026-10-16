@@ -132,39 +132,63 @@ final class RecordsTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(250))
         let perform = try XCTUnwrap(driver.perform)
         func rows() -> Set<String> { Set(frames.keys.filter { $0.hasPrefix("trip-") }) }
-        XCTAssertEqual(rows().count, 4)
+        func trips(_ month: Int, _ days: [Int]) -> Set<String> {
+            Set(days.map { "trip-2026-\(String(format: "%02d", month))-\(String(format: "%02d", $0))" })
+        }
+        func week(_ month: Int, _ day: Int) -> Date { DemoRecords.calendar.startOfDay(for: DemoRecords.date(2026, month, day)) }
+        XCTAssertEqual(driver.weekStart, week(8, 24))
+        XCTAssertNotNil(frames["this-week"])
+        XCTAssertEqual(rows(), trips(8, [24, 25, 26, 27]))
         perform(.toggleExpanded)
         try await Task.sleep(for: .milliseconds(120))
-        XCTAssertEqual(rows().count, 5)
+        XCTAssertEqual(rows(), trips(8, [24, 25, 26, 27, 28]))
         perform(.toggleExpanded)
         try await Task.sleep(for: .milliseconds(120))
         XCTAssertEqual(rows().count, 4)
-        perform(.selectDay(DemoRecords.date(2026, 8, 24)))
+        perform(.selectDay(DemoRecords.date(2026, 8, 26)))
         try await Task.sleep(for: .milliseconds(120))
-        XCTAssertEqual(rows(), ["trip-2026-08-24"])
-        let selected = try XCTUnwrap(DemoRecords.trips.first { $0.id == "2026-08-24" })
+        XCTAssertEqual(driver.weekStart, week(8, 24))
+        XCTAssertEqual(rows(), trips(8, [24, 25, 26, 27, 28]), "A date shows its whole week, expanded")
+        XCTAssertNotNil(frames["this-week"])
+        XCTAssertNil(frames["clear-day"])
+        let selected = try XCTUnwrap(DemoRecords.trips.first { $0.id == "2026-08-26" })
         perform(.openTrip(selected))
         try await Task.sleep(for: .milliseconds(250))
         XCTAssertTrue(detailPresented)
         perform(.closeTrip)
         try await Task.sleep(for: .milliseconds(250))
         XCTAssertFalse(detailPresented)
-        XCTAssertEqual(rows(), ["trip-2026-08-24"], "Returning retains the selected date")
+        XCTAssertEqual(driver.weekStart, week(8, 24))
+        XCTAssertEqual(rows(), trips(8, [24, 25, 26, 27, 28]), "Returning retains the selected week")
+        perform(.selectDay(DemoRecords.date(2026, 8, 2)))
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertEqual(driver.weekStart, week(7, 27), "Sunday Aug 2 belongs to the week starting Monday Jul 27")
+        XCTAssertEqual(rows(), trips(7, [29]))
+        XCTAssertNil(frames["this-week"], "Other weeks show only their date range")
+        XCTAssertNotNil(frames["week-range"])
+        XCTAssertNil(frames["clear-day"])
         perform(.selectDay(DemoRecords.date(2026, 8, 23)))
         try await Task.sleep(for: .milliseconds(120))
+        XCTAssertEqual(driver.weekStart, week(8, 17))
+        XCTAssertEqual(rows(), trips(8, [18, 20, 21, 22]))
+        perform(.shiftWeek(2))
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertEqual(driver.weekStart, week(8, 31))
         XCTAssertTrue(rows().isEmpty)
         XCTAssertNotNil(frames["empty-records"])
         perform(.shiftWeek(-1))
         try await Task.sleep(for: .milliseconds(120))
-        XCTAssertEqual(rows(), Set([18, 20, 21, 22].map { "trip-2026-08-\($0)" }))
-        XCTAssertNil(frames["clear-day"])
+        XCTAssertEqual(driver.weekStart, week(8, 24))
+        XCTAssertEqual(rows().count, 4)
+        XCTAssertNotNil(frames["this-week"])
         perform(.selectDay(DemoRecords.date(2026, 8, 12)))
         try await Task.sleep(for: .milliseconds(120))
-        XCTAssertEqual(rows(), ["trip-2026-08-12"])
+        XCTAssertEqual(rows(), trips(8, [10, 12, 13, 14, 15]))
         perform(.shiftMonth(-1))
         try await Task.sleep(for: .milliseconds(120))
+        XCTAssertEqual(driver.weekStart, week(8, 10), "Month controls keep the listed week")
+        XCTAssertEqual(rows(), trips(8, [10, 12, 13, 14, 15]))
         XCTAssertNil(frames["clear-day"])
-        XCTAssertEqual(rows().count, 5, "Month controls clear filtering without losing the selected week's records")
         perform(.shiftMonth(1))
         perform(.shiftWeek(2))
         try await Task.sleep(for: .milliseconds(120))
@@ -175,6 +199,103 @@ final class RecordsTests: XCTestCase {
         perform(.showTrend(false))
         try await Task.sleep(for: .milliseconds(120))
         XCTAssertEqual(rows().count, 4)
+    }
+
+    @MainActor func testRecordsWeeksRunMondayToSunday() async throws {
+        let calendar = DemoRecords.calendar
+        XCTAssertEqual(DemoRecords.weekStarts().map { calendar.component(.weekday, from: $0) }, Array(repeating: 2, count: 8))
+        XCTAssertEqual(TrendAxisDate.samples.map(\.fullLabel),
+                       ["Jul 6", "Jul 13", "Jul 20", "Jul 27", "Aug 3", "Aug 10", "Aug 17", "Aug 24"])
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        let driver = RecordsTestDriver()
+        window.rootViewController = UIHostingController(rootView: RecordsPage().environment(\.recordsTestDriver, driver))
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; previous?.makeKeyAndVisible() }
+        try await Task.sleep(for: .milliseconds(250))
+        let perform = try XCTUnwrap(driver.perform)
+        var starts = [try XCTUnwrap(driver.weekStart)]
+        XCTAssertEqual(starts[0], calendar.startOfDay(for: DemoRecords.date(2026, 8, 24)), "Default week is Aug 24 – Aug 30")
+        XCTAssertEqual(starts[0], DemoRecords.weekStarts().last)
+        for amount in [-1, 2] {
+            perform(.shiftWeek(amount))
+            try await Task.sleep(for: .milliseconds(120))
+            starts.append(try XCTUnwrap(driver.weekStart))
+        }
+        XCTAssertEqual(starts, [24, 17, 31].map { calendar.startOfDay(for: DemoRecords.date(2026, 8, $0)) })
+        XCTAssertEqual(starts.map { calendar.component(.weekday, from: $0) }, [2, 2, 2])
+    }
+
+    @MainActor func testMetricCardsSitSideBySideWithEqualRowHeights() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        let names = ["Unusual Movement", "Navigation Assistance", "High-risk Events", "Safe Return Rate"]
+        let valueLine = UIFont.systemFont(ofSize: 36, weight: .semibold).lineHeight
+        let changeLine = UIFont.systemFont(ofSize: 17, weight: .medium).lineHeight
+        for (size, columns) in [(CGSize(width: 390, height: 844), 2), (CGSize(width: 402, height: 874), 2),
+                                (CGSize(width: 375, height: 812), 1)] {
+            let name = "\(Int(size.width))x\(Int(size.height))"
+            var frames: [String: CGRect] = [:]
+            let window = UIWindow(windowScene: scene)
+            window.frame = CGRect(origin: .zero, size: size)
+            window.rootViewController = UIHostingController(rootView: RecordsPage(showTrendInitially: true, onLayout: { frames = $0 })
+                .environment(\.dynamicTypeSize, .large).environment(\.colorScheme, .light))
+            window.makeKeyAndVisible()
+            defer { window.isHidden = true; previous?.makeKeyAndVisible() }
+            try await Task.sleep(for: .milliseconds(300))
+            let content = try XCTUnwrap(frames["content"], name)
+            let cards = try names.map { try XCTUnwrap(frames["metric-" + $0], name + $0) }
+            for (metric, card) in zip(names, cards) {
+                let label = "\(name) \(metric)"
+                let summary = try XCTUnwrap(frames["metric-summary-" + metric], label)
+                let bars = try XCTUnwrap(frames["metric-bars-" + metric], label)
+                let value = try XCTUnwrap(frames["metric-value-" + metric], label)
+                let change = try XCTUnwrap(frames["metric-change-" + metric], label)
+                print("Metric \(label): card=\(card) summary=\(summary) bars=\(bars) value=\(value) change=\(change)")
+                XCTAssertLessThanOrEqual(summary.maxX, bars.minX + 0.5, label + " bars sit right of the numbers")
+                XCTAssertTrue(bars.minY < summary.maxY && summary.minY < bars.maxY, label + " bars overlap the numbers vertically")
+                for field in [summary, bars] {
+                    XCTAssertGreaterThanOrEqual(field.minX, card.minX - 0.5, label)
+                    XCTAssertLessThanOrEqual(field.maxX, card.maxX + 0.5, label)
+                    XCTAssertGreaterThanOrEqual(field.minY, card.minY - 0.5, label)
+                    XCTAssertLessThanOrEqual(field.maxY, card.maxY + 0.5, label)
+                }
+                XCTAssertLessThan(value.height, valueLine * 1.5, label + " value and unit stay on one line")
+                XCTAssertLessThan(change.height, changeLine * 1.5, label + " arrow and change stay on one line")
+            }
+            if columns == 2 {
+                for row in [0, 2] {
+                    let (left, right) = (cards[row], cards[row + 1])
+                    XCTAssertEqual(left.minY, right.minY, accuracy: 0.5, name)
+                    XCTAssertEqual(left.height, right.height, accuracy: 1, name + " cards in a row share a height")
+                    XCTAssertLessThanOrEqual(left.maxX, right.minX, name)
+                }
+                XCTAssertLessThan(cards[1].maxY, cards[2].minY, name)
+            } else {
+                for (upper, lower) in zip(cards, cards.dropFirst()) {
+                    XCTAssertEqual(upper.minX, lower.minX, accuracy: 0.5, name)
+                    XCTAssertLessThan(upper.maxY, lower.minY, name + " single column")
+                }
+                XCTAssertEqual(cards[0].width, content.width, accuracy: 1, name)
+            }
+            XCTAssertEqual(cards[0].minX, content.minX, accuracy: 0.5, name)
+            XCTAssertEqual(cards.map(\.maxX).max() ?? 0, content.maxX, accuracy: 0.5, name)
+        }
+    }
+
+    func testTripDetailTrailIsSolidWithWhiteEdge() throws {
+        let trip = try XCTUnwrap(DemoRecords.trips.first { $0.id == "2026-08-24" })
+        let lines = TripDetailPage(trip: trip, back: {}).trailLines
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertEqual(lines.map(\.width), [9, 6])
+        XCTAssertEqual(lines.map(\.color), [.white, OrbitMapStyle.blue])
+        XCTAssertTrue(lines.allSatisfy { $0.dash.isEmpty }, "The trail must not be dashed")
+        for line in lines {
+            XCTAssertEqual(line.coordinates.map(\.latitude), DemoRecords.route.map(\.appleCoordinate.latitude))
+            XCTAssertEqual(line.coordinates.map(\.longitude), DemoRecords.route.map(\.appleCoordinate.longitude))
+        }
     }
 
     @MainActor private func recordingScrollViews(in view: UIView) -> [UIScrollView] {
@@ -219,7 +340,7 @@ final class RecordsTests: XCTestCase {
     func testTrendDatesCoverEveryDataPointInChronologicalOrder() {
         let labels = TrendAxisDate.samples
         XCTAssertEqual(labels.count, DemoRecords.weeklyDeviations().count)
-        XCTAssertEqual(labels.map(\.fullLabel), ["Jul 5", "Jul 12", "Jul 19", "Jul 26", "Aug 2", "Aug 9", "Aug 16", "Aug 23"])
+        XCTAssertEqual(labels.map(\.fullLabel), ["Jul 6", "Jul 13", "Jul 20", "Jul 27", "Aug 3", "Aug 10", "Aug 17", "Aug 24"])
         XCTAssertEqual(labels.map(\.id), Array(0...7))
         XCTAssertTrue(labels.allSatisfy { !$0.month.isEmpty && !$0.day.isEmpty })
     }
@@ -240,6 +361,7 @@ final class RecordsTests: XCTestCase {
         XCTAssertTrue(DemoRecords.trips(on: DemoRecords.date(2026, 8, 12)).contains { $0.incomplete })
         XCTAssertEqual(DemoRecords.weeklyDeviations().count, 8)
         XCTAssertEqual(DemoRecords.weeklyDeviations().suffix(4).reduce(0, +), 4)
+        XCTAssertEqual(DemoRecords.weeklyDeviations(), [0, 2, 1, 2, 0, 0, 2, 2])
         let latest = try XCTUnwrap(august.filter { $0.risk == .high }.max(by: { $0.date < $1.date }))
         XCTAssertEqual(latest.day, 24)
         XCTAssertTrue(DemoRecords.answer(to: DemoRecords.quickQuestions[0]).contains("August 24, 2026"))
@@ -247,7 +369,7 @@ final class RecordsTests: XCTestCase {
         XCTAssertTrue(DemoRecords.answer(to: "What is the weather?").contains("don't have a verified answer"))
         XCTAssertTrue(DemoRecords.answer(to: "8 月路线偏离几次？").contains("演示回答"))
         XCTAssertTrue(DemoRecords.answer(to: "明天天气如何？").contains("无法核对"))
-        XCTAssertEqual(DemoRecords.weekStarts().map { DemoRecords.calendar.component(.weekday, from: $0) }, Array(repeating: 1, count: 8))
+        XCTAssertEqual(DemoRecords.weekStarts().map { DemoRecords.calendar.component(.weekday, from: $0) }, Array(repeating: 2, count: 8))
         for trip in DemoRecords.trips {
             XCTAssertEqual(trip.events.last?.minute, DemoRecords.calendar.component(.hour, from: trip.date) * 60
                            + DemoRecords.calendar.component(.minute, from: trip.date) + trip.durationMinutes)
