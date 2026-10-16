@@ -48,7 +48,7 @@ struct RecordsPage: View {
             }
             VStack(spacing: 0) {
                 sectionPicker.recordsFrame("picker")
-                    .padding(.horizontal, 34)
+                    .padding(.horizontal, OrbitLayout.pageMargin)
                     .padding(.top, 12)
                     .padding(.bottom, 23)
                 ScrollView {
@@ -57,7 +57,7 @@ struct RecordsPage: View {
                         else { trendContent }
                     }
                     .recordsFrame("content")
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, OrbitLayout.pageMargin)
                     .padding(.bottom, 112)
                 }
             }
@@ -140,10 +140,12 @@ struct RecordsPage: View {
             .caregiverText(.secondary).foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true).recordsFrame("week-range")
     }
+    // The chevrons' visible edges sit on the content edges; the hit areas extend inward.
     private func weekButton(_ amount: Int) -> some View {
         Button { shiftWeek(amount) } label: {
             Image(systemName: amount < 0 ? "chevron.left" : "chevron.right")
-                .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+                .recordsFrame(amount < 0 ? "previous-week-glyph" : "next-week-glyph")
+                .iconHitArea(amount < 0 ? .leading : .trailing)
         }
         .accessibilityLabel(amount < 0 ? "Previous week" : "Next week")
         .recordsFrame(amount < 0 ? "previous-week" : "next-week")
@@ -193,13 +195,16 @@ struct RecordsPage: View {
             }
             .accessibilityIdentifier("records-calendar")
         }
-        .padding(dynamicTypeSize.isAccessibilitySize ? 8 : 14)
+        .padding(.horizontal, OrbitLayout.cardPadding)
+        .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 14)
         .caregiverCard().recordsFrame("calendar")
     }
+    // Inside the card the chevrons sit on the card's text lines. Natural row height (T16).
     private func monthButton(_ amount: Int) -> some View {
         Button { shiftMonth(amount) } label: {
             Image(systemName: amount < 0 ? "chevron.left" : "chevron.right")
-                .frame(minWidth: 44).contentShape(Rectangle())
+                .recordsFrame(amount < 0 ? "previous-month-glyph" : "next-month-glyph")
+                .iconHitArea(amount < 0 ? .leading : .trailing, minHeight: nil)
         }
         .accessibilityLabel(amount < 0 ? "Previous month" : "Next month")
         .recordsFrame(amount < 0 ? "previous-month" : "next-month")
@@ -223,7 +228,8 @@ struct RecordsPage: View {
             if weekTrips.isEmpty {
                 Text("No trips in this period").caregiverText().foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true).recordsFrame("empty-records")
-                    .frame(maxWidth: .infinity).padding(22)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, OrbitLayout.cardPadding).padding(.vertical, 22)
             } else {
                 ForEach(Array(weekTrips.prefix(expanded ? weekTrips.count : 4).enumerated()), id: \.element.id) { index, trip in
                     Button { selectedTrip = trip } label: {
@@ -243,11 +249,11 @@ struct RecordsPage: View {
                                 tripRoute(trip).frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
-                        .padding(.horizontal, 14).padding(.vertical, 8).frame(minHeight: 50)
+                        .padding(.horizontal, OrbitLayout.cardPadding).padding(.vertical, 8).frame(minHeight: 50)
                         .recordsFrame("trip-\(trip.id)")
                     }.buttonStyle(.plain)
                     if index < min(weekTrips.count, expanded ? weekTrips.count : 4) - 1 {
-                        Divider().padding(.horizontal, 12)
+                        Divider().padding(.horizontal, OrbitLayout.cardPadding)
                     }
                 }
                 if weekTrips.count > 4 {
@@ -304,7 +310,7 @@ struct RecordsPage: View {
         let previous = DemoRecords.trips.filter { $0.month == 7 }.reduce(0) { $0 + $1.deviations }
         return VStack(alignment: .leading, spacing: 18) {
             Text("Route Deviation Trend").orbitDisplayFont(20, weight: .semibold)
-                .fixedSize(horizontal: false, vertical: true)
+                .fixedSize(horizontal: false, vertical: true).recordsFrame("trend-title")
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .bottom, spacing: 8) {
                     trendSummary(current, previous: previous).fixedSize(horizontal: true, vertical: false)
@@ -316,7 +322,7 @@ struct RecordsPage: View {
                 }
             }
         }
-        .padding(24)
+        .padding(.horizontal, OrbitLayout.cardPadding).padding(.vertical, 24)
         .caregiverCard().recordsFrame("trend-card")
     }
 
@@ -362,6 +368,7 @@ struct RecordsPage: View {
             HStack(alignment: .center, spacing: 8) {
                 Image(systemName: metric.1).orbitDisplayFont(16)
                     .frame(width: metricIconSize, height: metricIconSize).background(OrbitStyle.pale, in: Circle())
+                    .recordsFrame("metric-icon-\(metric.0)")
                 Text(metric.0).caregiverText(.caption).fixedSize(horizontal: false, vertical: true)
             }.frame(minHeight: 28, alignment: .leading)
             // Numbers keep their natural width and the bars sit at the trailing edge. No extra
@@ -379,7 +386,7 @@ struct RecordsPage: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 136, maxHeight: .infinity, alignment: .topLeading)
-        .padding(12)
+        .padding(OrbitLayout.compactCardPadding)
         .caregiverCard(radius: 24, opacity: 0.13).recordsFrame("metric-\(metric.0)")
     }
     private func metricSummary(_ metric: (String, String, Int, Int, String)) -> some View {
@@ -571,16 +578,20 @@ struct TripDetailPage: View {
     var body: some View {
         VStack(spacing: 0) {
             CaregiverTopBar {
-                HStack(spacing: 12) {
-                    Button(action: back) { Image(systemName: "chevron.left")
-                        .recordingFont(21, weight: .semibold) }
-                        .accessibilityLabel("Back to records")
+                // The back button starts at the screen edge so its glyph lands on the margin line.
+                HStack(spacing: 0) {
+                    Button(action: back) {
+                        Image(systemName: "chevron.left").recordingFont(21, weight: .semibold)
+                            .layoutProbe("trip-back-glyph")
+                            .iconHitArea(.leading, inset: OrbitLayout.pageMargin)
+                    }
+                    .accessibilityLabel("Back to records").layoutProbe("trip-back")
                     Text("\(trip.month == 8 ? "Aug" : "Jul") \(trip.day)")
                         .recordingFont(25, weight: .semibold)
                     Spacer()
                 }
                 .foregroundStyle(.white)
-                .padding(.horizontal, 23)
+                .padding(.trailing, OrbitLayout.pageMargin)
             }
             AMapConsentSurface {
                 AMapCanvas(camera: $mapCamera, markers: tripMarkers, lines: trailLines)
@@ -593,6 +604,7 @@ struct TripDetailPage: View {
                         HStack(spacing: 6) { summaryPills }
                         VStack(alignment: .leading, spacing: 6) { summaryPills }
                     }
+                    .layoutProbe("trip-pills")
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(trip.events.enumerated()), id: \.element.id) { index, event in
                             HStack(alignment: .top, spacing: 17) {
@@ -610,9 +622,9 @@ struct TripDetailPage: View {
                             .frame(minHeight: 76, alignment: .top)
                         }
                     }
-                    .padding(.horizontal, 23)
+                    .layoutProbe("trip-timeline")
                 }
-                .padding(.horizontal, 22).padding(.top, 20)
+                .padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 20)
             }
             .background(.white, in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
             .padding(.top, -18)

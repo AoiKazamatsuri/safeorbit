@@ -423,4 +423,59 @@ extension SettingsTests {
             window.isHidden = true; previous?.makeKeyAndVisible()
         }
     }
+
+    @MainActor func testSettingsPagesAndDrawerLinesAtRequiredSizes() async throws {
+        let h = LayoutLineHarness.self
+        let suite = "org.safeorbit.settings-lines." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = CaregiverSettingsStore(defaults: defaults)
+        let onboarding = OnboardingStore(homeAccessEnabled: true)
+        let zones = SafeZoneSessionStore()
+        func group(_ value: CaregiverSettingsGroup) -> AnyView {
+            AnyView(CaregiverSettingsGroupPage(group: value, settings: store, onboarding: onboarding, zones: zones, back: {}))
+        }
+        let member = LocalFamilyMember(name: "Sample Member", phone: "+12025550102", relationship: "Daughter")
+        let pages: [(String, AnyView, [String])] = [
+            ("ai", group(.ai), ["Data use", "Voice input permissions"]),
+            ("profiles", group(.people), ["Account Settings", "Senior Profile", "Family Members"]),
+            ("help", group(.help), ["Getting started", "Frequently asked questions"]),
+            ("notifications", group(.notifications), []),
+            ("member-detail", AnyView(SettingsMemberDetail(member: member, isSelf: false, settings: store, back: {})), [])
+        ]
+        for size in h.sizes {
+            for (pageName, page, sections) in pages {
+                let name = "settings \(pageName) \(Int(size.width))x\(Int(size.height))"
+                try await h.render(page, size: size) { _ in
+                    XCTAssertEqual(try h.probe("settings-back-glyph", name).minX, h.margin, accuracy: 1, name + " back glyph")
+                    h.assertHitArea(try h.probe("settings-back", name), name + " back")
+                    h.assertOuterEdges(try h.probe("settings-card", name), width: size.width, name + " card")
+                    XCTAssertEqual(try h.probe("settings-card-content", name).minX, h.textLine, accuracy: 0.5, name + " card text")
+                    for title in sections {
+                        XCTAssertEqual(try h.probe("settings-section-" + title, name).minX, h.textLine, accuracy: 0.5,
+                                       name + " section title " + title)
+                    }
+                }
+            }
+            // Same composition as the location page's drawer (LocationUI).
+            let drawer = Color.white.settingsSidebar(isPresented: .constant(true), widthFraction: 0.765) {
+                SettingsSidebarPanel(name: "Emma Liu", badge: "Primary caregiver", logout: {}) {
+                    Color.gray
+                } entries: {
+                    ForEach(CaregiverSettingsGroup.allCases) { item in
+                        SettingsSidebarRow(title: item.rawValue, symbol: item.symbol, familyIcon: item == .people) {}
+                    }
+                }
+            }
+            let name = "caregiver drawer \(Int(size.width))x\(Int(size.height))"
+            try await h.render(drawer, size: size) { _ in
+                let panel = size.width * 0.765
+                h.assertOuterEdges(try h.probe("drawer-header", name), width: panel, name + " header")
+                h.assertOuterEdges(try h.probe("drawer-logout", name), width: panel, name + " log out")
+                for item in CaregiverSettingsGroup.allCases {
+                    h.assertOuterEdges(try h.probe("drawer-row-" + item.rawValue, name), width: panel, name + " " + item.rawValue)
+                }
+            }
+        }
+    }
 }

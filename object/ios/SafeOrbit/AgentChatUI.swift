@@ -150,24 +150,30 @@ struct AgentSessionPage: View {
             CaregiverTopBar(height: dynamicTypeSize.isAccessibilitySize ? 74 : 47) {
                 ZStack {
                     Text("Assistant").orbitDisplayFont(20).foregroundStyle(.white)
+                    // The button reaches the screen edge so the glyph lands on the margin line.
                     HStack {
                         Spacer()
                         Button { sessions.newConversation() } label: {
                             Image(systemName: "plus").font(.system(size: 22, weight: .medium))
-                                .frame(width: 44, height: 44).foregroundStyle(.white)
+                                .foregroundStyle(.white).layoutProbe("agent-new-glyph")
+                                .iconHitArea(.trailing, inset: OrbitLayout.pageMargin)
                         }.accessibilityLabel("New conversation").disabled(sessions.storageError != nil)
-                    }.padding(.trailing, 12)
+                            .layoutProbe("agent-new")
+                    }
                 }
             }
+            // The conversation list has no cards: its title and rows start on the page margin line.
             VStack(alignment: .leading, spacing: 0) {
                 Text("Recent").caregiverText(.secondary).foregroundStyle(.secondary)
-                    .padding(.horizontal, 28).padding(.top, 24).padding(.bottom, 8)
+                    .layoutProbe("agent-recent-title")
+                    .padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 24).padding(.bottom, 8)
                 if let error = sessions.storageError {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
                             Text(error).caregiverText().fixedSize(horizontal: false, vertical: true)
+                                .layoutProbe("agent-load-error")
                             Button("Retry") { sessions.retryLoading() }.caregiverText().frame(minHeight: 44)
-                        }.padding(.horizontal, 28).padding(.bottom, 101)
+                        }.padding(.horizontal, OrbitLayout.pageMargin).padding(.bottom, 101)
                     }
                 } else {
                     List {
@@ -175,11 +181,13 @@ struct AgentSessionPage: View {
                             Button { sessions.open(session.id) } label: {
                                 Text(session.title).caregiverText().foregroundStyle(.black)
                                     .fixedSize(horizontal: false, vertical: true)
+                                    .layoutProbe("agent-row-\(session.id)")
                                     .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 28, bottom: 0, trailing: 28))
+                            .listRowInsets(EdgeInsets(top: 0, leading: OrbitLayout.pageMargin,
+                                                      bottom: 0, trailing: OrbitLayout.pageMargin))
                             .listRowSeparator(.visible, edges: .bottom)
                             .listRowSeparatorTint(Color.black.opacity(0.12))
                             .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
@@ -237,10 +245,11 @@ struct AgentChatPage: View {
                 HStack {
                     Button { stopInput(); back() } label: {
                         Image(systemName: "chevron.left").font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(.white).frame(width: 44, height: 44)
-                    }.accessibilityLabel("Back to conversations")
+                            .foregroundStyle(.white).layoutProbe("chat-back-glyph")
+                            .iconHitArea(.leading, inset: OrbitLayout.pageMargin)
+                    }.accessibilityLabel("Back to conversations").layoutProbe("chat-back")
                     Spacer()
-                }.padding(.leading, 12)
+                }
             }
                 .overlay(alignment: .bottom) {
                     Image("AgentAvatar")
@@ -264,6 +273,7 @@ struct AgentChatPage: View {
                                         .padding(.horizontal, 16).padding(.vertical, 13)
                                         .background(line.fromCaregiver ? OrbitStyle.teal : OrbitStyle.pale,
                                                     in: RoundedRectangle(cornerRadius: 20))
+                                        .layoutProbe("chat-bubble-\(line.id)")
                                         .frame(maxWidth: 315, alignment: line.fromCaregiver ? .trailing : .leading)
                                     if !line.fromCaregiver { Spacer(minLength: 30) }
                                 }
@@ -271,7 +281,7 @@ struct AgentChatPage: View {
                                 .accessibilityLabel(line.fromCaregiver ? "Your message: \(line.text)" : "Agent: \(line.text)")
                             }
                         }
-                        .padding(.horizontal, 28)
+                        .padding(.horizontal, OrbitLayout.pageMargin)
                         .padding(.bottom, 20)
                     }
                     .scrollDismissesKeyboard(.interactively)
@@ -283,10 +293,11 @@ struct AgentChatPage: View {
                 if let message = speech.message {
                     Text(message).caregiverText(.caption).foregroundStyle(.red)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 22).padding(.bottom, 5)
+                        .padding(.horizontal, OrbitLayout.pageMargin).padding(.bottom, 5)
                 }
                 composer
-                    .padding(.horizontal, 16)
+                    .layoutProbe("chat-composer")
+                    .padding(.horizontal, OrbitLayout.pageMargin)
                     .padding(.bottom, keyboardVisible ? 8 : CaregiverBottomLayout.gap(safeAreaBottom: geometry.safeAreaInsets.bottom) - geometry.safeAreaInsets.bottom)
             }
             .background(.white, in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))

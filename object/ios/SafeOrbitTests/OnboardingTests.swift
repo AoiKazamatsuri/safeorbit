@@ -450,6 +450,35 @@ final class OnboardingTests: XCTestCase {
         try await snapshot(locationLarge, size: CGSize(width: 375, height: 812), waitMilliseconds: 2500)
             .write(to: folder.appendingPathComponent("location-large-text.png"))
     }
+    @MainActor func testCenteredTitlePagesUseCenteredMarginAtRequiredSizes() async throws {
+        let h = LayoutLineHarness.self
+        let line: CGFloat = 32
+        var profile = ElderProfile(); profile.name = "Li Lan"; profile.callName = "Grandma"
+        let pages: [(String, AnyView)] = [
+            ("role", AnyView(RolePage(family: {}, elder: {}))),
+            ("email-signup", AnyView(EmailSignupPage(store: OnboardingStore()))),
+            ("phone", AnyView(PhonePage(phone: .constant("+86 138 0000 0000"), busy: false, next: {}))),
+            ("scan", AnyView(ScanPage(busy: false, payload: .constant(""), bind: { _ in }))),
+            ("ready", AnyView(ElderReadyPage(profile: profile)))
+        ]
+        for size in LayoutLineHarness.sizes {
+            for (pageName, page) in pages {
+                let name = "\(pageName) \(Int(size.width))x\(Int(size.height))"
+                try await h.render(page, size: size) { _ in
+                    let content = try h.probe("centered-page-content", name)
+                    XCTAssertEqual(content.minX, line, accuracy: 0.5, name)
+                    XCTAssertEqual(content.maxX, size.width - line, accuracy: 0.5, name)
+                    if pageName == "role" {
+                        for role in ["Caregiver", "Older adult"] {
+                            let button = try h.probe("role-" + role, name)
+                            XCTAssertEqual(button.minX, line, accuracy: 0.5, name + " " + role)
+                            XCTAssertEqual(button.maxX, size.width - line, accuracy: 0.5, name + " " + role)
+                        }
+                    }
+                }
+            }
+        }
+    }
     @MainActor private func snapshot(_ page: AnyView, size: CGSize, waitMilliseconds: Int = 120) async throws -> Data {
         let previous = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows).first(where: \.isKeyWindow)
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)

@@ -395,21 +395,27 @@ struct SettingsPage<Content: View>: View {
         VStack(spacing: 0) {
             CaregiverTopBar(height: elder ? (dynamicTypeSize.isAccessibilitySize ? 104 : 56) : 47) {
                 ZStack {
+                    // The centered title keeps clear of the back button on both sides.
                     Group {
                         if elder { Text(title).elderText(.heading).fixedSize(horizontal: false, vertical: true) }
                         else { Text(title).orbitDisplayFont(20).lineLimit(1).minimumScaleFactor(0.7) }
                     }.padding(.horizontal, 58).accessibilityAddTraits(.isHeader)
+                    // The back button reaches the screen edge so its glyph lands on the margin line.
                     HStack {
-                        Button(action: back) { Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold)).frame(width: 48, height: 44) }
-                            .accessibilityLabel("Back")
+                        Button(action: back) {
+                            Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold))
+                                .layoutProbe("settings-back-glyph")
+                                .iconHitArea(.leading, inset: OrbitLayout.pageMargin)
+                        }
+                        .accessibilityLabel("Back").layoutProbe("settings-back")
                         Spacer()
-                    }.padding(.horizontal, 12)
+                    }
                 }.foregroundStyle(.white)
             }
             ScrollView {
                 VStack(spacing: 20) {
                     content
-                }.padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 32)
+                }.padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 22).padding(.bottom, 32)
             }
             .background(Color(uiColor: .systemGroupedBackground), in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
             .clipShape(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
@@ -428,8 +434,11 @@ struct SettingsCard<Content: View>: View {
     @ViewBuilder let content: Content
     var body: some View {
         VStack(alignment: .leading, spacing: 14) { content }
-            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
+            .layoutProbe("settings-card-content")
+            .padding(.horizontal, OrbitLayout.cardPadding).padding(.vertical, 18)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(.white, in: RoundedRectangle(cornerRadius: 24))
+            .layoutProbe("settings-card")
     }
 }
 struct SettingsSection<Content: View>: View {
@@ -438,7 +447,9 @@ struct SettingsSection<Content: View>: View {
     init(_ title: String, @ViewBuilder content: () -> Content) { self.title = title; self.content = content() }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).caregiverText().padding(.horizontal, 6).accessibilityAddTraits(.isHeader)
+            // Sections hold cards, so the title starts on the cards' text line.
+            Text(title).caregiverText().layoutProbe("settings-section-" + title)
+                .padding(.horizontal, OrbitLayout.cardPadding).accessibilityAddTraits(.isHeader)
             content
         }.frame(maxWidth: .infinity, alignment: .leading)
     }

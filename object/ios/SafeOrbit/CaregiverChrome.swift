@@ -1,5 +1,56 @@
 import SwiftUI
 
+/// Horizontal layout lines from product design section 10. Fixed points: margins never scale
+/// with Dynamic Type.
+enum OrbitLayout {
+    /// Screen edge to the outer edge of cards, pickers, composers, full-width buttons and bubbles.
+    static let pageMargin: CGFloat = 16
+    static let cardPadding: CGFloat = 16
+    /// Small cards that sit two to a row.
+    static let compactCardPadding: CGFloat = 12
+    /// Where text inside a card starts; group titles above cards use the same line.
+    static let cardTextInset: CGFloat = pageMargin + cardPadding
+    /// Role choice, login and phone connection pages with a centered title.
+    static let centeredPageMargin: CGFloat = 32
+    static let minimumHitSize: CGFloat = 44
+}
+
+extension View {
+    /// Icon button label whose visible glyph edge sits on a layout line. `inset` is the distance
+    /// from the button's edge to that line (the page margin when the button touches the screen
+    /// edge). The 44 pt hit area grows away from the line.
+    func iconHitArea(_ edge: HorizontalEdge, inset: CGFloat = 0,
+                     minHeight: CGFloat? = OrbitLayout.minimumHitSize) -> some View {
+        padding(edge == .leading ? .leading : .trailing, inset)
+            .frame(minWidth: OrbitLayout.minimumHitSize, minHeight: minHeight,
+                   alignment: edge == .leading ? .leading : .trailing)
+            .contentShape(Rectangle())
+    }
+
+    /// Test hook: records this view's frame in window coordinates. Release builds keep the view as is.
+    @ViewBuilder func layoutProbe(_ name: String) -> some View {
+#if DEBUG
+        background {
+            GeometryReader { proxy in
+                let frame = proxy.frame(in: .global)
+                Color.clear
+                    .onAppear { LayoutProbe.frames[name] = frame }
+                    .onChange(of: frame) { _, latest in LayoutProbe.frames[name] = latest }
+            }
+        }
+#else
+        self
+#endif
+    }
+}
+
+#if DEBUG
+/// Written and read on the main thread only: by view updates and by the layout tests.
+enum LayoutProbe {
+    static var frames: [String: CGRect] = [:]
+}
+#endif
+
 enum CaregiverBottomLayout {
     static let barPadding: CGFloat = 7
     static let buttonHeight: CGFloat = 54
@@ -173,10 +224,12 @@ struct SettingsSidebarPanel<Portrait: View, Entries: View>: View {
                         }
                         Spacer(minLength: 0)
                     }
-                    .padding(.horizontal, elder ? 16 : 13).padding(.vertical, 12)
+                    .padding(.horizontal, OrbitLayout.cardPadding).padding(.vertical, 12)
                     .frame(minHeight: elder ? 96 : 84).background(.white, in: Capsule())
-                    .padding(.horizontal, elder ? 24 : 27).padding(.top, 57)
-                    VStack(spacing: 0) { entries() }.padding(.horizontal, 34).padding(.top, 20)
+                    .layoutProbe("drawer-header")
+                    .padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 57)
+                    // Rows have no card, so their content starts on the page margin line.
+                    VStack(spacing: 0) { entries() }.padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 20)
                     Spacer(minLength: 24)
                     Button(action: logout) {
                         Label {
@@ -189,7 +242,8 @@ struct SettingsSidebarPanel<Portrait: View, Entries: View>: View {
                         .background(Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
                     }.buttonStyle(.plain)
                     .accessibilityIdentifier(elder ? "elder-log-out" : "caregiver-log-out")
-                    .padding(.horizontal, 28).padding(.bottom, 42)
+                    .layoutProbe("drawer-logout")
+                    .padding(.horizontal, OrbitLayout.pageMargin).padding(.bottom, 42)
                 }.frame(maxWidth: .infinity, minHeight: geometry.size.height)
             }
         }
@@ -221,6 +275,6 @@ struct SettingsSidebarRow: View {
                 Spacer(minLength: 0)
             }.foregroundStyle(.black).padding(.vertical, 10)
                 .frame(minHeight: elder ? 56 : 52).contentShape(Rectangle())
-        }.buttonStyle(.plain)
+        }.buttonStyle(.plain).layoutProbe("drawer-row-" + title)
     }
 }

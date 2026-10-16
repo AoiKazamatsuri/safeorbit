@@ -17,6 +17,8 @@ struct ElderHomePage: View {
     @State private var overlayHeight: CGFloat = 70
     let chooseRole: () -> Void
     var onLayout: (([String: CGRect]) -> Void)? = nil
+    /// Opens the voice volume page on appear (layout tests).
+    var volumeInitiallyOpen = false
 
     private func text(_ en: String, _ zh: String) -> String { ElderCopy.text(en, zh, locale: locale) }
     var body: some View {
@@ -26,12 +28,12 @@ struct ElderHomePage: View {
                 VStack(spacing: 16) {
                     if session.navigating && !session.calling {
                         if dynamicTypeSize.isAccessibilitySize {
-                            ScrollView { guidanceCard.padding(.horizontal, 20).padding(.vertical, 8) }
+                            ScrollView { guidanceCard.padding(.horizontal, OrbitLayout.pageMargin).padding(.vertical, 8) }
                                 .frame(height: max(100, geometry.size.height - geometry.safeAreaInsets.top - overlayHeight - 130))
                                 .clipped().elderMeasured("guidance-viewport")
-                        } else { guidanceCard.padding(.horizontal, 20) }
+                        } else { guidanceCard.padding(.horizontal, OrbitLayout.pageMargin) }
                     } else {
-                        topControls.padding(.horizontal, 32)
+                        topControls.padding(.horizontal, OrbitLayout.pageMargin)
                     }
                 }.padding(.top, session.navigating && !session.calling ? 8 : 2)
                 CaregiverBottomOverlay {
@@ -65,7 +67,10 @@ struct ElderHomePage: View {
             if phase != .active { session.suspendSpeech(); if session.usesLiveNavigation { live.pause() } }
             else if session.usesLiveNavigation { Task { await live.resume() } }
         }
-        .onAppear { if session.usesLiveNavigation { live.startLocation(); updateLiveVoice() } }
+        .onAppear {
+            if volumeInitiallyOpen { showingVolume = true }
+            if session.usesLiveNavigation { live.startLocation(); updateLiveVoice() }
+        }
         .onChange(of: mapConsent) { _, allowed in if allowed && session.usesLiveNavigation { live.startLocation() } }
         .onChange(of: session.voiceOn) { _, _ in updateLiveVoice() }
         .onChange(of: session.volume) { _, _ in updateLiveVoice() }
@@ -85,9 +90,12 @@ struct ElderHomePage: View {
         .preferredColorScheme(.light)
     }
 
+    // Cards and button rows sit on the page margins. Below 302 pt of row width (320 pt screens)
+    // the two home buttons stack; otherwise Go Home takes 44.8 % of the row after its spacing.
     private func bottomContent(width: CGFloat) -> some View {
-        VStack(spacing: 20) {
-            if session.calling { callCard.padding(.horizontal, 30) }
+        let rowWidth = width - OrbitLayout.pageMargin * 2
+        return VStack(spacing: 20) {
+            if session.calling { callCard.padding(.horizontal, OrbitLayout.pageMargin) }
             else if session.navigating {
                 HStack(spacing: 14) {
                     ElderActionButton(title: "Cancel", white: true, fillsRowHeight: true) {
@@ -97,15 +105,15 @@ struct ElderHomePage: View {
                     ElderActionButton(title: "Call Family", symbol: "phone.fill", fillsRowHeight: true) {
                         session.showCall()
                     }.elderMeasured("call-family").accessibilityIdentifier("elder-call-family")
-                }.fixedSize(horizontal: false, vertical: true).padding(.horizontal, 6)
+                }.fixedSize(horizontal: false, vertical: true).padding(.horizontal, OrbitLayout.pageMargin)
             } else {
-                if dynamicTypeSize.isAccessibilitySize || width < 350 {
-                    VStack(spacing: 12) { goHomeButton; callButton }.padding(.horizontal, 24)
+                if dynamicTypeSize.isAccessibilitySize || rowWidth < 302 {
+                    VStack(spacing: 12) { goHomeButton; callButton }.padding(.horizontal, OrbitLayout.pageMargin)
                 } else {
                     HStack(spacing: 14) {
-                        goHomeButton.frame(width: (width - 62) * 0.448)
+                        goHomeButton.frame(width: (rowWidth - 14) * 0.448)
                         callButton
-                    }.padding(.horizontal, 24)
+                    }.padding(.horizontal, OrbitLayout.pageMargin)
                 }
             }
         }
@@ -155,6 +163,7 @@ struct ElderHomePage: View {
                     .overlay(Circle().stroke(OrbitStyle.teal, lineWidth: 1))
                     .shadow(color: .black.opacity(0.2), radius: 3, y: 2)
             }.buttonStyle(.plain)
+                .elderMeasured("settings-portrait")
                 .accessibilityLabel(text("Open settings", "打开设置"))
                 .accessibilityIdentifier("elder-settings-button")
             Spacer(minLength: 8)
@@ -215,7 +224,8 @@ struct ElderHomePage: View {
                     .elderText().foregroundStyle(.secondary)
             }.fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
         }
-        .foregroundStyle(.black).padding(20).frame(minHeight: 116)
+        .foregroundStyle(.black)
+        .padding(.horizontal, OrbitLayout.cardPadding).padding(.vertical, 20).frame(minHeight: 116)
         .caregiverCard(radius: 24)
         .elderMeasured("call-card").accessibilityIdentifier("elder-call-card")
     }
@@ -248,8 +258,10 @@ struct ElderHomePage: View {
                         ElderActionButton(title: "Confirm Home") {
                             if let point = selectedHome { live.home.save(point); live.showingHomeSetup = false }
                         }.disabled(selectedHome == nil || !mapConsent)
-                    }.padding(24).background(.white, in: RoundedRectangle(cornerRadius: 24))
-                }.padding(.horizontal, 16).padding(.bottom, 30)
+                    }
+                    .padding(.horizontal, OrbitLayout.cardPadding).padding(.vertical, 24)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 24))
+                }.padding(.horizontal, OrbitLayout.pageMargin).padding(.bottom, 30)
             }.navigationTitle("Home location").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { live.showingHomeSetup = false } } }
                 .onAppear {
@@ -286,7 +298,11 @@ struct ElderHomePage: View {
                     if !editing { session.announce(locale: locale) }
                 }.tint(OrbitStyle.teal).accessibilityLabel("Voice volume")
                 Text("\(Int(session.volume * 100))%").elderText().foregroundStyle(.secondary)
-            }.padding(20).background(.white, in: RoundedRectangle(cornerRadius: 24))
+            }
+            .layoutProbe("elder-volume-content")
+            .padding(.horizontal, OrbitLayout.cardPadding).padding(.vertical, 20)
+            .background(.white, in: RoundedRectangle(cornerRadius: 24))
+            .layoutProbe("elder-volume-card")
         }
     }
 

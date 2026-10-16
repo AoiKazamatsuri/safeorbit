@@ -898,3 +898,213 @@ final class AgentSessionTests: XCTestCase {
         }
     }
 }
+
+/// T26 layout lines (product design section 10): the five required screen sizes at the default
+/// text size, and a window harness that reads `layoutProbe` frames in window coordinates.
+enum LayoutLineHarness {
+    static let sizes = [CGSize(width: 320, height: 568), CGSize(width: 375, height: 812), CGSize(width: 390, height: 844),
+                        CGSize(width: 402, height: 874), CGSize(width: 430, height: 932)]
+    static let margin: CGFloat = 16
+    static let textLine: CGFloat = 32
+
+    @MainActor static func render<V: View>(_ view: V, size: CGSize, waitMilliseconds: Int = 300,
+                                           inspect: (UIWindow) async throws -> Void) async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        LayoutProbe.frames = [:]
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(origin: .zero, size: size)
+        window.rootViewController = UIHostingController(rootView: view
+            .environment(\.dynamicTypeSize, .large).environment(\.colorScheme, .light))
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; previous?.makeKeyAndVisible() }
+        window.rootViewController?.view.frame = window.bounds
+        window.rootViewController?.view.layoutIfNeeded()
+        try await Task.sleep(for: .milliseconds(waitMilliseconds))
+        try await inspect(window)
+    }
+    @MainActor static func probe(_ name: String, _ context: String,
+                                 file: StaticString = #filePath, line: UInt = #line) throws -> CGRect {
+        try XCTUnwrap(LayoutProbe.frames[name], "\(context): no frame for \(name)", file: file, line: line)
+    }
+    /// Outer edges on the page margin lines of a container `width` wide that starts at x = 0.
+    static func assertOuterEdges(_ rect: CGRect, width: CGFloat, _ message: String,
+                                 file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertEqual(rect.minX, margin, accuracy: 0.5, message + " leading edge", file: file, line: line)
+        XCTAssertEqual(rect.maxX, width - margin, accuracy: 0.5, message + " trailing edge", file: file, line: line)
+    }
+    static func assertHitArea(_ rect: CGRect, _ message: String, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertGreaterThanOrEqual(rect.width + 0.0001, 44, message + " hit width", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(rect.height + 0.0001, 44, message + " hit height", file: file, line: line)
+    }
+}
+
+extension RecordsTests {
+    @MainActor func testRecordsMarginsAndTextLinesAtRequiredSizes() async throws {
+        let h = LayoutLineHarness.self
+        let metrics = ["Unusual Movement", "Navigation Assistance", "High-risk Events", "Safe Return Rate"]
+        for size in h.sizes {
+            for trend in [false, true] {
+                let name = "\(trend ? "trend" : "data") \(Int(size.width))x\(Int(size.height))"
+                var frames: [String: CGRect] = [:]
+                try await h.render(RecordsPage(showTrendInitially: trend, onLayout: { frames = $0 }), size: size) { _ in
+                    func rect(_ key: String) throws -> CGRect { try XCTUnwrap(frames[key], name + " " + key) }
+                    h.assertOuterEdges(try rect("picker"), width: size.width, name + " picker")
+                    h.assertOuterEdges(try rect("content"), width: size.width, name + " content")
+                    if trend {
+                        h.assertOuterEdges(try rect("trend-card"), width: size.width, name + " trend card")
+                        XCTAssertEqual(try rect("trend-title").minX, h.textLine, accuracy: 0.5, name + " trend title")
+                        let cards = try metrics.map { try rect("metric-" + $0) }
+                        XCTAssertEqual(cards.map(\.minX).min() ?? 0, h.margin, accuracy: 0.5, name)
+                        XCTAssertEqual(cards.map(\.maxX).max() ?? 0, size.width - h.margin, accuracy: 0.5, name)
+                        for (metric, card) in zip(metrics, cards) {
+                            for key in ["metric-icon-", "metric-value-"] {
+                                XCTAssertEqual(try rect(key + metric).minX - card.minX, 12,
+                                               accuracy: 0.5, name + " " + key + metric)
+                            }
+                            if abs(card.minX - h.margin) < 0.5 {
+                                XCTAssertEqual(try rect("metric-icon-" + metric).minX, 28, accuracy: 0.5, name + " " + metric)
+                            }
+                        }
+                    } else {
+                        h.assertOuterEdges(try rect("calendar"), width: size.width, name + " calendar")
+                        XCTAssertEqual(try rect("previous-month-glyph").minX, h.textLine, accuracy: 1, name)
+                        XCTAssertEqual(try rect("next-month-glyph").maxX, size.width - h.textLine, accuracy: 1, name)
+                        XCTAssertEqual(try rect("previous-week-glyph").minX, h.margin, accuracy: 1, name)
+                        XCTAssertEqual(try rect("next-week-glyph").maxX, size.width - h.margin, accuracy: 1, name)
+                        for control in ["previous-week", "next-week"] { h.assertHitArea(try rect(control), name + " " + control) }
+                        for control in ["previous-month", "next-month"] {
+                            XCTAssertGreaterThanOrEqual(try rect(control).width + 0.0001, 44, name + " " + control)
+                        }
+                        for trip in DemoRecords.trips.filter({ $0.month == 8 && (24...27).contains($0.day) }) {
+                            h.assertOuterEdges(try rect("trip-" + trip.id), width: size.width, name + " row " + trip.id)
+                            XCTAssertEqual(try rect("date-" + trip.id).minX, h.textLine, accuracy: 0.5, name + " row text " + trip.id)
+                        }
+                    }
+                    print("T26 records \(name): picker=\(frames["picker"] ?? .null) content=\(frames["content"] ?? .null)")
+                }
+            }
+        }
+    }
+
+    @MainActor func testTripDetailMarginsAtRequiredSizes() async throws {
+        let h = LayoutLineHarness.self
+        let trip = try XCTUnwrap(DemoRecords.trips.first { $0.month == 8 && $0.day == 24 })
+        for size in h.sizes {
+            let name = "trip detail \(Int(size.width))x\(Int(size.height))"
+            try await h.render(TripDetailPage(trip: trip, back: {}), size: size, waitMilliseconds: 600) { _ in
+                XCTAssertEqual(try h.probe("trip-back-glyph", name).minX, h.margin, accuracy: 1, name + " back glyph")
+                h.assertHitArea(try h.probe("trip-back", name), name + " back")
+                let pills = try h.probe("trip-pills", name)
+                XCTAssertEqual(pills.minX, h.margin, accuracy: 0.5, name + " pills")
+                XCTAssertLessThanOrEqual(pills.maxX, size.width - h.margin + 0.5, name + " pills")
+                h.assertOuterEdges(try h.probe("trip-timeline", name), width: size.width, name + " timeline")
+            }
+        }
+    }
+}
+
+extension AgentSessionTests {
+    @MainActor func testConversationListAndChatLinesAtRequiredSizes() async throws {
+        let h = LayoutLineHarness.self
+        func defaults() -> UserDefaults { UserDefaults(suiteName: "safeorbit.test.lines.\(UUID().uuidString)")! }
+        let settings = CaregiverSettingsStore(defaults: defaults())
+        for size in h.sizes {
+            let label = "\(Int(size.width))x\(Int(size.height))"
+            let sessions = AgentSessionStore(defaults: defaults())
+            for question in DemoRecords.quickQuestions.prefix(2) {
+                let id = try XCTUnwrap(sessions.newConversation())
+                sessions.send(question, in: id, allowTripHistory: true)
+            }
+            sessions.showList()
+            let page = AgentSessionPage(sessions: sessions, settings: settings, keyboardVisible: false)
+            try await h.render(page, size: size) { _ in
+                let name = "agent list " + label
+                XCTAssertEqual(try h.probe("agent-recent-title", name).minX, h.margin, accuracy: 0.5, name + " title")
+                for session in sessions.sessions {
+                    XCTAssertEqual(try h.probe("agent-row-\(session.id)", name).minX, h.margin, accuracy: 0.5, name + " row")
+                }
+                XCTAssertEqual(try h.probe("agent-new-glyph", name).maxX, size.width - h.margin, accuracy: 1, name + " new glyph")
+                h.assertHitArea(try h.probe("agent-new", name), name + " new conversation")
+            }
+            let conversation = try XCTUnwrap(sessions.recent.first)
+            sessions.open(conversation.id)
+            try await h.render(page, size: size) { _ in
+                let name = "agent chat " + label
+                XCTAssertEqual(try h.probe("chat-back-glyph", name).minX, h.margin, accuracy: 1, name + " back glyph")
+                h.assertHitArea(try h.probe("chat-back", name), name + " back")
+                for message in conversation.messages {
+                    let bubble = try h.probe("chat-bubble-\(message.id)", name)
+                    if message.fromCaregiver {
+                        XCTAssertEqual(bubble.maxX, size.width - h.margin, accuracy: 0.5, name + " caregiver bubble")
+                    } else {
+                        XCTAssertEqual(bubble.minX, h.margin, accuracy: 0.5, name + " agent bubble")
+                    }
+                }
+                h.assertOuterEdges(try h.probe("chat-composer", name), width: size.width, name + " composer")
+            }
+            let damaged = defaults()
+            damaged.set(Data("corrupt".utf8), forKey: AgentSessionStore.storageKey)
+            try await h.render(AgentSessionPage(sessions: AgentSessionStore(defaults: damaged), settings: settings,
+                                                keyboardVisible: false), size: size) { _ in
+                let name = "agent load error " + label
+                XCTAssertEqual(try h.probe("agent-load-error", name).minX, h.margin, accuracy: 0.5, name)
+                XCTAssertEqual(try h.probe("agent-recent-title", name).minX, h.margin, accuracy: 0.5, name)
+            }
+        }
+    }
+}
+
+extension ElderFrontendTests {
+    @MainActor func testElderPagesUsePageMarginsAtRequiredSizes() async throws {
+        let h = LayoutLineHarness.self
+        for size in h.sizes {
+            for state in ["home", "navigation", "call", "settings", "volume"] {
+                let name = "elder \(state) \(Int(size.width))x\(Int(size.height))"
+                let session = ElderDemoSession(voice: ElderVoiceSpy())
+                if state == "navigation" { session.startNavigation(locale: Locale(identifier: "en")) }
+                if state == "call" { session.showCall() }
+                if state == "settings" { session.showingSettings = true }
+                var frames: [String: CGRect] = [:]
+                let page = NavigationStack {
+                    ElderHomePage(session: session, chooseRole: {}, onLayout: { frames = $0 },
+                                  volumeInitiallyOpen: state == "volume")
+                }.environment(\.locale, Locale(identifier: "en"))
+                try await h.render(page, size: size, waitMilliseconds: 800) { _ in
+                    func rect(_ key: String) throws -> CGRect { try XCTUnwrap(frames[key], name + " " + key) }
+                    switch state {
+                    case "home":
+                        XCTAssertEqual(try rect("settings-portrait").minX, h.margin, accuracy: 0.5, name)
+                        let go = try rect("go-home"), call = try rect("call-family")
+                        XCTAssertEqual(go.minX, h.margin, accuracy: 0.5, name + " go home")
+                        XCTAssertEqual(call.maxX, size.width - h.margin, accuracy: 0.5, name + " call family")
+                        if go.maxY <= call.minY + 0.5 {
+                            h.assertOuterEdges(go, width: size.width, name + " stacked go home")
+                            h.assertOuterEdges(call, width: size.width, name + " stacked call family")
+                        } else {
+                            XCTAssertLessThanOrEqual(go.maxX, call.minX + 0.5, name + " buttons side by side")
+                        }
+                    case "navigation":
+                        h.assertOuterEdges(try rect("guidance-card"), width: size.width, name + " guidance card")
+                        XCTAssertEqual(try rect("cancel-navigation").minX, h.margin, accuracy: 0.5, name)
+                        XCTAssertEqual(try rect("call-family").maxX, size.width - h.margin, accuracy: 0.5, name)
+                    case "call":
+                        h.assertOuterEdges(try rect("call-card"), width: size.width, name + " call card")
+                        XCTAssertEqual(try rect("dismiss-call").maxX, size.width - h.margin, accuracy: 0.5, name)
+                        XCTAssertEqual(try rect("settings-portrait").minX, h.margin, accuracy: 0.5, name)
+                    case "settings":
+                        let panel = size.width * 0.88
+                        h.assertOuterEdges(try h.probe("drawer-header", name), width: panel, name + " drawer header")
+                        h.assertOuterEdges(try h.probe("drawer-row-Voice volume", name), width: panel, name + " drawer row")
+                        h.assertOuterEdges(try h.probe("drawer-logout", name), width: panel, name + " drawer log out")
+                    default:
+                        XCTAssertEqual(try h.probe("settings-back-glyph", name).minX, h.margin, accuracy: 1, name + " back glyph")
+                        h.assertHitArea(try h.probe("settings-back", name), name + " back")
+                        h.assertOuterEdges(try h.probe("elder-volume-card", name), width: size.width, name + " volume card")
+                        XCTAssertEqual(try h.probe("elder-volume-content", name).minX, h.textLine, accuracy: 0.5, name)
+                    }
+                }
+            }
+        }
+    }
+}

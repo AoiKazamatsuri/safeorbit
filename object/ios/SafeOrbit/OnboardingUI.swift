@@ -26,7 +26,10 @@ struct PageLayout<Content: View>: View {
                     }
                 }.multilineTextAlignment(.center).frame(maxWidth: .infinity)
                 content
-            }.padding(.horizontal, 36).padding(.top, 72).padding(.bottom, 36)
+            }
+            .layoutProbe("centered-page-content")
+            // Centered title pages use the wider margin (product design section 10, rule 5).
+            .padding(.horizontal, OrbitLayout.centeredPageMargin).padding(.top, 72).padding(.bottom, 36)
                 .frame(maxWidth: 480).frame(maxWidth: .infinity)
         }.background(OrbitStyle.background).environment(\.locale, Locale(identifier: "en"))
             .tint(OrbitStyle.teal).scrollDismissesKeyboard(.interactively)
@@ -94,7 +97,7 @@ struct RolePage: View {
                 Text(title).font(.body.weight(.medium))
             }.frame(maxWidth: .infinity).padding(18).foregroundStyle(OrbitStyle.teal)
                 .background(OrbitStyle.pale, in: Capsule())
-        }.buttonStyle(.plain)
+        }.buttonStyle(.plain).layoutProbe("role-" + title)
     }
 }
 struct AuthDivider: View {
