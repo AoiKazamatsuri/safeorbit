@@ -10,7 +10,7 @@
   - 同步文档：产品设计第 5.2 节的右侧悬浮按钮加“定位老人”并写明作用，链接本任务；`object/ios/README.md` 中“改变取景后顶部可点 Back to default view”的说明改为右侧定位老人按钮。
   - 测试：新增或维护用例，覆盖按钮常驻、拖动后点击回到默认取景并恢复跟随、点击不触发取数、无位置时不可用。
 - 不包含：按跟随状态切换图标样式（如实心与空心）；新增安全区页、出行详情页、老人端与导航页的地图；默认比例与首次进入缩放（T21）；地图服务、配色与其他布局；不新增依赖。
-- 允许修改的位置：`object/ios/SafeOrbit/LocationUI.swift`；`object/ios/SafeOrbitTests/LocationTests.swift`；`object/ios/SafeOrbit/Localizable.xcstrings`（仅新按钮的文字及删去不再使用的旧文字）；`truth/产品设计.md`（仅第 5.2 节右侧悬浮按钮一句及头部复核日期）；`object/ios/README.md`（仅上述一处说明）。队列记录只经工具维护。
+- 允许修改的位置：`object/ios/SafeOrbit/LocationUI.swift`；`object/ios/SafeOrbitTests/LocationTests.swift`；`object/ios/SafeOrbit/Localizable.xcstrings`（仅新按钮的文字及删去不再使用的旧文字）；`truth/产品设计.md`（仅第 5.2 节右侧悬浮按钮一句）；`object/ios/README.md`（仅上述一处说明）。队列记录只经工具维护。
 
 ## 验收标准与验证方法
 
