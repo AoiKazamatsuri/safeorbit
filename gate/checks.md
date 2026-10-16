@@ -4,7 +4,7 @@
 
 - Agent 接手时：`python3 tool/shell.py doctor`。
 - 提交时：由安装的 Git 钩子调用 `check --staged`，无需用户手工维护。
-- 队列工具开发时：`python3 -B -m unittest discover -s gate -p 'test_*.py' -v`。含队列、状态包与编号三组测试，约 3 分钟；测试真实 CLI、进程锁、Git 提交和中断恢复，写入临时项目；不在每次业务提交时全跑。
+- 队列工具开发时：`python3 -B -m unittest discover -s gate -p 'test_*.py' -v`。含队列、状态包与编号三组测试，约 3 分钟；测试真实 CLI、进程锁、Git 提交和中断恢复，写入临时项目；不在每次业务提交时全跑。并行跑：`python3 -B gate/run_parallel.py`，每项测试一个进程，`-j N` 指定同时运行的测试数（默认本机核心数）；本机（14 核）实测默认约 25 秒、`-j 8` 约 30 秒，结果与顺序跑相同。并行时 `QUEUE_TEST_LOG` 转录的行可能交错。
 
 队列检查只证明机械规则与记录一致，不证明项目产物正确或批准来源已经独立认证。
 

@@ -7,7 +7,7 @@
 - 用法：[queue-usage.md](queue-usage.md)。
 - 依赖：Python 3.10+、Git；无第三方包、网络或后台服务。
 - 写入：初始化接入本机 Git 钩子；维护机器账、任务视图和本机恢复数据；取状态包时删除过期的状态包缓存（`.shell/local/state/` 下，只留最近 2 个过期版本）。不会自行修改对象产物、提交或推送。
-- 验证：[队列回归](../gate/test_task_queue.py)、[状态包与窗口回归](../gate/test_state_queue.py)和[编号回归](../gate/test_task_numbering.py)。
+- 验证：[队列回归](../gate/test_task_queue.py)、[状态包与窗口回归](../gate/test_state_queue.py)和[编号回归](../gate/test_task_numbering.py)；全部测试可用 [gate/run_parallel.py](../gate/run_parallel.py) 并行运行。
 
 ## 可选工具（随模板提供，默认不启用）
 

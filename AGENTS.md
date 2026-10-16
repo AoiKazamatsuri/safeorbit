@@ -162,7 +162,7 @@
 | 检查暂存内容 | `python3 tool/shell.py check --staged` | 提交钩子跑的就是它 |
 | 重建投影 | `python3 tool/shell.py repair` | 保留意外差异后，重建任务文件与配置 |
 | 比对远端账 | 见[队列用法](tool/queue-usage.md)“多个克隆与远端” | 有远端时，开工与推送前跑 |
-| 队列工具测试 | `python3 -B -m unittest discover -s gate -p 'test_*.py'` | 修改队列工具后跑；含队列、状态包与编号三组测试，约 3 分钟 |
+| 队列工具测试 | `python3 -B -m unittest discover -s gate -p 'test_*.py'`；并行：`python3 -B gate/run_parallel.py` | 修改队列工具后跑；含队列、状态包与编号三组测试，顺序约 3 分钟，并行约半分钟（`-j N` 调同时运行的测试数） |
 | 制图检查 | `node --experimental-strip-types --disable-warning=ExperimentalWarning tool/diagram/check.mts` | 画图、改图后跑；改动触及 `truth/` 或 `tool/diagram/` 的提交由钩子自动跑；渲染与安装见[制图工具](tool/diagram/AGENTS.md) |
 
 ## 6. 用语
