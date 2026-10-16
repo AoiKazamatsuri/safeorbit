@@ -929,3 +929,144 @@ extension LocationTests {
         }
     }
 }
+
+extension LocationTests {
+    func testMapCameraGateReappliesDefaultViewAfterGesture() {
+        var gate = MapCameraGate<Int>()
+        gate.request(1)
+        gate.engineDidInitialize()
+        gate.layout(CGSize(width: 402, height: 874))
+        gate.didApply(1)
+        gate.userMoved(to: 9)
+        gate.request(9)
+        XCTAssertNil(gate.due, "The written-back gesture camera is already shown")
+        gate.request(1)
+        XCTAssertEqual(gate.due, 1, "Locating the senior re-sends the same default view after a gesture")
+        gate.didApply(1)
+        XCTAssertNil(gate.due)
+    }
+
+    func testLocateSeniorRestoresDefaultViewAndResumesFollowing() throws {
+        let frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        let first = OrbitMapScale.caregiverHomeRegion(center: LocationPreviewData.campus.appleCoordinate,
+                                                      mapFrame: frame, cardTop: 600)
+        var follow = CaregiverMapFollow()
+        XCTAssertFalse(follow.canLocate)
+        XCTAssertNil(follow.locate(), "No senior position, nothing to locate")
+        XCTAssertEqual(follow.seniorMoved(to: first)?.center.latitude, first.center.latitude)
+        follow.userMoved(to: MKCoordinateRegion(center: first.center, span: first.span))
+        XCTAssertFalse(follow.paused, "Settling on the default view keeps following")
+
+        var dragged = first; dragged.center.latitude += 0.003
+        follow.userMoved(to: dragged)
+        XCTAssertTrue(follow.paused)
+        let second = OrbitMapScale.caregiverHomeRegion(center: LocationPreviewData.trail[3].appleCoordinate,
+                                                       mapFrame: frame, cardTop: 600)
+        XCTAssertNil(follow.seniorMoved(to: second), "Following stays paused after a drag")
+        let located = try XCTUnwrap(follow.locate())
+        XCTAssertEqual(located.center.latitude, second.center.latitude, accuracy: 1e-9)
+        XCTAssertEqual(located.center.longitude, second.center.longitude, accuracy: 1e-9)
+        XCTAssertEqual(located.span.latitudeDelta, second.span.latitudeDelta, accuracy: 1e-12)
+        XCTAssertEqual(located.span.longitudeDelta, second.span.longitudeDelta, accuracy: 1e-12)
+        XCTAssertFalse(follow.paused)
+        let third = OrbitMapScale.caregiverHomeRegion(center: LocationPreviewData.startingPoint.appleCoordinate,
+                                                      mapFrame: frame, cardTop: 600)
+        XCTAssertEqual(follow.seniorMoved(to: third)?.center.latitude, third.center.latitude,
+                       "The next position update moves the map again")
+
+        var zoomed = third; zoomed.span.latitudeDelta *= 0.5; zoomed.span.longitudeDelta *= 0.5
+        follow.userMoved(to: zoomed)
+        XCTAssertTrue(follow.paused, "Zooming alone also pauses following")
+        XCTAssertEqual(follow.locate()?.span.latitudeDelta ?? 0, third.span.latitudeDelta, accuracy: 1e-12,
+                       "Locating restores the default scale")
+        XCTAssertFalse(follow.paused)
+    }
+
+    @MainActor func testLocateSeniorButtonIsAlwaysShownAndFetchesNothing() async throws {
+        try await withAccessibility {
+            var refreshes = 0, navigations = 0, agents = 0
+            let (window, previous) = try hostLocationPage(snapshot: LocationPreviewData.snapshot(),
+                agent: { agents += 1 }, navigate: { navigations += 1 },
+                refresh: { refreshes += 1; return nil })
+            defer { window.isHidden = true; previous?.makeKeyAndVisible() }
+            try await Task.sleep(for: .milliseconds(1000))
+            let nodes = accessibilityNodes(in: window.rootViewController!.view)
+            XCTAssertFalse(nodes.contains { ($0.accessibilityLabel ?? "").contains("Back to default view") })
+            let labels = nodes.compactMap(\.accessibilityLabel)
+            let agent = try XCTUnwrap(labels.firstIndex(of: "Agent"))
+            let add = try XCTUnwrap(labels.firstIndex(of: "Add safe zone"))
+            let locate = try XCTUnwrap(labels.firstIndex(of: "Locate senior"))
+            XCTAssertTrue(agent < add && add < locate, "Agent, Add safe zone, then Locate senior")
+            let button = try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Locate senior" })
+            XCTAssertTrue(button.accessibilityTraits.contains(.button))
+            XCTAssertFalse(button.accessibilityTraits.contains(.notEnabled))
+            XCTAssertTrue(button.accessibilityActivate())
+            try await Task.sleep(for: .milliseconds(500))
+            XCTAssertEqual(refreshes, 0, "Locating moves the map only")
+            XCTAssertEqual(navigations, 0); XCTAssertEqual(agents, 0)
+            XCTAssertTrue(accessibilityNodes(in: window.rootViewController!.view)
+                .contains { $0.accessibilityLabel == "Locate senior" }, "The button stays after use")
+        }
+    }
+
+    @MainActor func testLocateSeniorButtonIsDisabledWithoutSeniorPosition() async throws {
+        try await withAccessibility {
+            var refreshes = 0
+            let (window, previous) = try hostLocationPage(snapshot: nil, refresh: { refreshes += 1; return nil })
+            defer { window.isHidden = true; previous?.makeKeyAndVisible() }
+            try await Task.sleep(for: .milliseconds(1000))
+            let button = try XCTUnwrap(accessibilityNodes(in: window.rootViewController!.view)
+                .first { $0.accessibilityLabel == "Locate senior" })
+            XCTAssertTrue(button.accessibilityTraits.contains(.notEnabled))
+            _ = button.accessibilityActivate()
+            XCTAssertEqual(refreshes, 0)
+        }
+    }
+
+    @MainActor private func hostLocationPage(snapshot: ElderLocationSnapshot?, agent: @escaping () -> Void = {},
+                                             navigate: @escaping () -> Void = {},
+                                             refresh: @escaping () async -> ElderLocationSnapshot?) throws -> (UIWindow, UIWindow?) {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        var profile = ElderProfile(); profile.name = "Li Lan"
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        window.rootViewController = UIHostingController(rootView:
+            LocationPage(profile: profile, snapshot: snapshot, message: nil, agent: agent, navigate: navigate,
+                         refreshDestination: refresh)
+            .environment(\.colorScheme, .light))
+        window.makeKeyAndVisible()
+        window.rootViewController?.view.frame = window.bounds
+        window.rootViewController?.view.layoutIfNeeded()
+        return (window, previous)
+    }
+
+    /// SwiftUI only builds its accessibility tree while an assistive client is attached; turn on
+    /// the automation flag (as UI tests do) so unit tests can read labels and enabled state.
+    @MainActor private func withAccessibility(_ body: () async throws -> Void) async rethrows {
+        typealias Getter = @convention(c) () -> Bool
+        typealias Setter = @convention(c) (Bool) -> Void
+        guard let library = dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW),
+              let get = dlsym(library, "_AXSAutomationEnabled"),
+              let set = dlsym(library, "_AXSSetAutomationEnabled") else { return try await body() }
+        let wasEnabled = unsafeBitCast(get, to: Getter.self)()
+        unsafeBitCast(set, to: Setter.self)(true)
+        defer { unsafeBitCast(set, to: Setter.self)(wasEnabled) }
+        try await body()
+    }
+
+    @MainActor private func accessibilityNodes(in root: NSObject) -> [NSObject] {
+        var result: [NSObject] = [], seen = Set<ObjectIdentifier>()
+        func visit(_ object: NSObject) {
+            guard seen.insert(ObjectIdentifier(object)).inserted else { return }
+            result.append(object)
+            let count = object.accessibilityElementCount()
+            if count != NSNotFound && count > 0 {
+                for index in 0..<count { (object.accessibilityElement(at: index) as? NSObject).map(visit) }
+            }
+            (object as? UIView)?.subviews.forEach(visit)
+        }
+        visit(root)
+        return result
+    }
+}

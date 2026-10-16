@@ -246,8 +246,7 @@ struct LocationPage: View {
     @State private var visibleHeading = 0.0
     private var navigationRunning: Bool { navigation.isPresented && !navigation.suspended && !navigation.arrived && scenePhase == .active }
     @State private var camera: MapCameraPosition = .automatic
-    @State private var defaultRegion: MKCoordinateRegion?
-    @State private var showingReset = false
+    @State private var mapFollow = CaregiverMapFollow()
     @State private var visibleRegion: MKCoordinateRegion?
     @State private var homeMapFrame: CGRect?
     @State private var homeCardTop: CGFloat?
@@ -266,16 +265,7 @@ struct LocationPage: View {
                     if context.wasUserAction { followsUser = false; showsOverview = false }
                     return
                 }
-                if context.wasUserAction, let defaultRegion {
-                    let from = CLLocation(latitude: defaultRegion.center.latitude,
-                                          longitude: defaultRegion.center.longitude)
-                    let to = CLLocation(latitude: context.region.center.latitude,
-                                        longitude: context.region.center.longitude)
-                    let moved = from.distance(from: to) > 5
-                    let resized = abs(context.region.span.latitudeDelta / defaultRegion.span.latitudeDelta - 1) > 0.015
-                        || abs(context.region.span.longitudeDelta / defaultRegion.span.longitudeDelta - 1) > 0.015
-                    showingReset = moved || resized
-                }
+                if context.wasUserAction { mapFollow.userMoved(to: context.region) }
             })
                 .background {
                     GeometryReader { mapGeometry in
@@ -299,21 +289,6 @@ struct LocationPage: View {
                     .accessibilityLabel("Open settings")
                     Spacer(minLength: 0)
                 }
-                if showingReset {
-                    Button {
-                        guard let defaultRegion else { return }
-                        withAnimation(.easeInOut(duration: 0.25)) { camera = .region(defaultRegion) }
-                        showingReset = false
-                    } label: {
-                        Label("Back to default view", systemImage: "arrow.uturn.backward")
-                            .caregiverText(.caption)
-                            .padding(.horizontal, 14).padding(.vertical, 9)
-                            .background(.white, in: Capsule())
-                            .shadow(color: .black.opacity(0.14), radius: 4, y: 2)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .accessibilityLabel("Back to default view")
-                }
                 Spacer(minLength: 0)
                 HStack {
                     Spacer()
@@ -322,6 +297,12 @@ struct LocationPage: View {
                         FloatingMapButton(symbol: "plus", label: "Add safe zone") {
                             zoneEditor = SafeZoneEditorSelection(zone: nil)
                         }
+                        // Moves the map only; the senior's position keeps updating on its own (T19).
+                        FloatingMapButton(symbol: "scope", label: "Locate senior") {
+                            guard let region = mapFollow.locate() else { return }
+                            withAnimation(.easeInOut(duration: 0.25)) { camera = .region(region) }
+                        }
+                        .disabled(point == nil || !mapFollow.canLocate)
                     }
                 }.padding(.bottom, 23)
                 if snapshot == nil || snapshot?.isCurrent == false || message != nil {
@@ -422,7 +403,7 @@ struct LocationPage: View {
         .settingsSlide(item: $zoneEditor) { selection in
             SafeZoneEditorPage(
                 zone: selection.zone,
-                initialCenter: selection.zone?.center ?? (showingReset ? visibleRegion.map {
+                initialCenter: selection.zone?.center ?? (mapFollow.paused ? visibleRegion.map {
                     MainlandCoordinates.toWGS84(GeoPoint(latitude: $0.center.latitude, longitude: $0.center.longitude))
                 } : nil) ?? snapshot?.coordinate ?? GeoPoint(latitude: 32.05664, longitude: 118.77361),
                 nearbyZones: zoneStore.visibleZones(in: snapshot),
@@ -527,10 +508,40 @@ struct LocationPage: View {
         guard let point, let homeMapFrame, let homeCardTop else { return }
         let region = OrbitMapScale.caregiverHomeRegion(center: point,
                                                       mapFrame: homeMapFrame, cardTop: homeCardTop)
-        defaultRegion = region
-        if !showingReset {
-            camera = .region(region)
+        if let follow = mapFollow.seniorMoved(to: region) {
+            camera = .region(follow)
         }
+    }
+}
+
+/// The caregiver map's default view (the senior's latest point at street scale) and
+/// auto-follow: a gesture that leaves the default view pauses following, and
+/// locating the senior returns to it and resumes following.
+struct CaregiverMapFollow {
+    private(set) var defaultRegion: MKCoordinateRegion?
+    private(set) var paused = false
+    var canLocate: Bool { defaultRegion != nil }
+
+    /// Records the new default view; returns it when the map should follow.
+    mutating func seniorMoved(to region: MKCoordinateRegion) -> MKCoordinateRegion? {
+        defaultRegion = region
+        return paused ? nil : region
+    }
+    mutating func userMoved(to region: MKCoordinateRegion) {
+        guard let defaultRegion else { return }
+        let from = CLLocation(latitude: defaultRegion.center.latitude,
+                              longitude: defaultRegion.center.longitude)
+        let to = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
+        let moved = from.distance(from: to) > 5
+        let resized = abs(region.span.latitudeDelta / defaultRegion.span.latitudeDelta - 1) > 0.015
+            || abs(region.span.longitudeDelta / defaultRegion.span.longitudeDelta - 1) > 0.015
+        paused = moved || resized
+    }
+    /// Returns the default view and resumes following; nil before a senior position.
+    mutating func locate() -> MKCoordinateRegion? {
+        guard let defaultRegion else { return nil }
+        paused = false
+        return defaultRegion
     }
 }
 
@@ -749,10 +760,11 @@ private struct FloatingMapButton: View {
     let symbol: String
     let label: String
     let action: () -> Void
+    @Environment(\.isEnabled) private var isEnabled
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 23, weight: .semibold))
-                .foregroundStyle(.black).frame(width: 48, height: 48)
+                .foregroundStyle(.black.opacity(isEnabled ? 1 : 0.3)).frame(width: 48, height: 48)
                 .background {
                     Circle().fill(.white)
                         .shadow(color: .black.opacity(0.126), radius: 5, y: 2)
