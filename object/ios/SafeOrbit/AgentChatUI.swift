@@ -67,6 +67,11 @@ enum AgentConversationTitle {
     func showList() { activeID = nil }
     func draft(for id: UUID) -> String { drafts[id] ?? "" }
     func setDraft(_ value: String, for id: UUID) { drafts[id] = value }
+    /// Suggested-question chips belong to a blank conversation only. The first message, however it
+    /// was sent, removes them for good; saved conversations always hold messages.
+    func showsSuggestions(in id: UUID) -> Bool {
+        conversation(id)?.messages.isEmpty == true
+    }
 
     @discardableResult func send(_ question: String, in id: UUID, allowTripHistory: Bool) -> Bool {
         let text = question.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -226,7 +231,11 @@ struct AgentChatPage: View {
     private var draft: String { sessions.draft(for: sessionID) }
     private var draftBinding: Binding<String> { Binding(get: { draft }, set: { sessions.setDraft($0, for: sessionID) }) }
     private var lines: [AgentMessage] { sessions.conversation(sessionID)?.messages ?? [] }
+    private var showsSuggestions: Bool { sessions.showsSuggestions(in: sessionID) }
     @FocusState private var composing: Bool
+#if DEBUG
+    @Environment(\.agentChatTestDriver) private var testDriver
+#endif
 
     @MainActor init(keyboardVisible: Bool, settings: CaregiverSettingsStore, sessions: AgentSessionStore,
                     sessionID: UUID, isActive: Bool = true, back: @escaping () -> Void) {
@@ -261,33 +270,40 @@ struct AgentChatPage: View {
                 .zIndex(1)
             VStack(spacing: 0) {
                 ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(spacing: 28) {
-                            Color.clear.frame(height: 45)
-                            ForEach(lines) { line in
-                                HStack {
-                                    if line.fromCaregiver { Spacer(minLength: 52) }
-                                    Text(line.text)
-                                        .caregiverText()
-                                        .foregroundStyle(line.fromCaregiver ? .white : .black)
-                                        .padding(.horizontal, 16).padding(.vertical, 13)
-                                        .background(line.fromCaregiver ? OrbitStyle.teal : OrbitStyle.pale,
-                                                    in: RoundedRectangle(cornerRadius: 20))
-                                        .layoutProbe("chat-bubble-\(line.id)")
-                                        .frame(maxWidth: 315, alignment: line.fromCaregiver ? .trailing : .leading)
-                                    if !line.fromCaregiver { Spacer(minLength: 30) }
+                    GeometryReader { viewport in
+                        ScrollView {
+                            VStack(spacing: 28) {
+                                Color.clear.frame(height: 45)
+                                ForEach(lines) { line in
+                                    HStack {
+                                        if line.fromCaregiver { Spacer(minLength: 52) }
+                                        Text(line.text)
+                                            .caregiverText()
+                                            .foregroundStyle(line.fromCaregiver ? .white : .black)
+                                            .padding(.horizontal, 16).padding(.vertical, 13)
+                                            .background(line.fromCaregiver ? OrbitStyle.teal : OrbitStyle.pale,
+                                                        in: RoundedRectangle(cornerRadius: 20))
+                                            .layoutProbe("chat-bubble-\(line.id)")
+                                            .frame(maxWidth: 315, alignment: line.fromCaregiver ? .trailing : .leading)
+                                        if !line.fromCaregiver { Spacer(minLength: 30) }
+                                    }
+                                    .id(line.id)
+                                    .accessibilityLabel(line.fromCaregiver ? "Your message: \(line.text)" : "Agent: \(line.text)")
                                 }
-                                .id(line.id)
-                                .accessibilityLabel(line.fromCaregiver ? "Your message: \(line.text)" : "Agent: \(line.text)")
+                                if showsSuggestions { suggestions }
                             }
+                            .padding(.horizontal, OrbitLayout.pageMargin)
+                            .padding(.bottom, 20)
+                            // A blank conversation keeps its suggestions just above the composer; when they
+                            // outgrow the viewport (large text, keyboard up) they scroll with the messages.
+                            .frame(minHeight: showsSuggestions ? viewport.size.height : nil, alignment: .bottom)
                         }
-                        .padding(.horizontal, OrbitLayout.pageMargin)
-                        .padding(.bottom, 20)
-                    }
-                    .scrollDismissesKeyboard(.interactively)
-                    .onChange(of: lines.count) { _, _ in
-                        guard let last = lines.last else { return }
-                        withAnimation(.easeOut(duration: 0.22)) { proxy.scrollTo(last.id, anchor: .bottom) }
+                        .defaultScrollAnchor(showsSuggestions ? .bottom : nil)
+                        .scrollDismissesKeyboard(.interactively)
+                        .onChange(of: lines.count) { _, _ in
+                            guard let last = lines.last else { return }
+                            withAnimation(.easeOut(duration: 0.22)) { proxy.scrollTo(last.id, anchor: .bottom) }
+                        }
                     }
                 }
                 if let message = speech.message {
@@ -312,7 +328,42 @@ struct AgentChatPage: View {
         .onChange(of: speech.listening) { _, listening in
             if listening && !isActive { speech.stop() }
         }
+#if DEBUG
+        .onAppear {
+            testDriver?.perform = { action in
+                switch action {
+                case .tapSuggestion(let index): askSuggestion(index)
+                case .typeAndSend(let text): sessions.setDraft(text, for: sessionID); send()
+                }
+            }
         }
+#endif
+        }
+    }
+
+    /// One chip per suggested question, each on its own line from the page margin (product design
+    /// section 10). A chip asks its question exactly as typing it and pressing send would.
+    private var suggestions: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(DemoRecords.quickQuestions.enumerated()), id: \.offset) { index, question in
+                Button { askSuggestion(index) } label: {
+                    Text(question)
+                        .caregiverText()
+                        .foregroundStyle(OrbitStyle.teal)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutProbe("chat-suggestion-text-\(index)")
+                        .padding(.horizontal, 16).padding(.vertical, 12)
+                        .frame(minHeight: OrbitLayout.minimumHitSize)
+                        .background(.white, in: RoundedRectangle(cornerRadius: 20))
+                        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(OrbitStyle.teal, lineWidth: 1))
+                        .contentShape(RoundedRectangle(cornerRadius: 20))
+                }
+                .buttonStyle(.plain)
+                .layoutProbe("chat-suggestion-\(index)")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var composer: some View {
@@ -331,28 +382,18 @@ struct AgentChatPage: View {
                     .shadow(color: .black.opacity(0.2), radius: 5, y: 3)
             }
             .accessibilityLabel(speech.listening ? "Stop dictation" : "Start dictation")
+            .layoutProbe("chat-mic")
             TextField("Ask a question", text: draftBinding, axis: .vertical)
                 .lineLimit(1...4)
                 .caregiverText()
                 .padding(.horizontal, 15).padding(.vertical, 11)
                 .background(.white, in: Capsule())
+                .layoutProbe("chat-field")
                 .shadow(color: .black.opacity(0.18), radius: 5, y: 3)
                 .focused($composing)
                 .submitLabel(.send)
                 .onSubmit(send)
                 .accessibilityLabel("Question")
-            Menu {
-                ForEach(DemoRecords.quickQuestions, id: \.self) { question in
-                    Button(question) { ask(question) }
-                }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 22, weight: .medium))
-                    .frame(width: 44, height: 44)
-                    .foregroundStyle(.black).background(.white, in: Circle())
-                    .shadow(color: .black.opacity(0.2), radius: 5, y: 3)
-            }
-            .accessibilityLabel("Suggested questions")
             if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Button(action: send) {
                     Image(systemName: "arrow.up")
@@ -360,6 +401,7 @@ struct AgentChatPage: View {
                         .frame(width: 44, height: 44)
                         .foregroundStyle(.white).background(OrbitStyle.teal, in: Circle())
                 }.accessibilityLabel("Send question")
+                    .layoutProbe("chat-send")
             }
         }
     }
@@ -383,4 +425,28 @@ struct AgentChatPage: View {
         stopInput()
         sessions.send(question, in: sessionID, allowTripHistory: settings.data.allowAITripHistory)
     }
+
+    private func askSuggestion(_ index: Int) {
+        ask(DemoRecords.quickQuestions[index])
+    }
 }
+
+#if DEBUG
+// Internal render-test entry: runs the same functions as a suggestion chip and the send button.
+// This does not substitute for a physical touch or a device acceptance test.
+enum AgentChatTestAction {
+    case tapSuggestion(Int), typeAndSend(String)
+}
+final class AgentChatTestDriver {
+    var perform: ((AgentChatTestAction) -> Void)?
+}
+private struct AgentChatTestDriverKey: EnvironmentKey {
+    static let defaultValue: AgentChatTestDriver? = nil
+}
+extension EnvironmentValues {
+    var agentChatTestDriver: AgentChatTestDriver? {
+        get { self[AgentChatTestDriverKey.self] }
+        set { self[AgentChatTestDriverKey.self] = newValue }
+    }
+}
+#endif

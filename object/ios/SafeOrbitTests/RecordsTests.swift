@@ -842,6 +842,57 @@ final class AgentSessionTests: XCTestCase {
         XCTAssertEqual(AgentConversationTitle.make(from: chinese), String(chinese.prefix(18)) + "…")
         XCTAssertEqual(AgentConversationTitle.make(from: "最近出行。其他问题"), "最近出行")
     }
+    @MainActor func testSuggestionsBelongOnlyToBlankConversations() throws {
+        let defaults = isolatedDefaults()
+        let store = AgentSessionStore(defaults: defaults)
+        XCTAssertFalse(store.showsSuggestions(in: UUID()), "No conversation, no suggestions")
+        let typed = try XCTUnwrap(store.newConversation())
+        XCTAssertTrue(store.showsSuggestions(in: typed), "A new conversation is blank")
+        store.setDraft("Is she home?", for: typed)
+        XCTAssertFalse(store.send(" \n ", in: typed, allowTripHistory: true))
+        store.showList(); store.open(typed)
+        XCTAssertTrue(store.showsSuggestions(in: typed), "A draft or a blank send is not a message")
+        XCTAssertTrue(store.send(store.draft(for: typed), in: typed, allowTripHistory: true))
+        XCTAssertFalse(store.showsSuggestions(in: typed), "Typing and sending removes them")
+        let chip = try XCTUnwrap(store.newConversation())
+        XCTAssertTrue(store.send(DemoRecords.quickQuestions[2], in: chip, allowTripHistory: false))
+        XCTAssertFalse(store.showsSuggestions(in: chip), "Any answer, even a blocked one, removes them")
+        store.setDraft("Follow up", for: chip); store.showList(); store.open(chip)
+        XCTAssertFalse(store.showsSuggestions(in: chip), "Leaving and reopening never brings them back")
+        let restored = AgentSessionStore(defaults: defaults)
+        XCTAssertEqual(Set(restored.sessions.map(\.id)), [typed, chip])
+        for session in restored.sessions {
+            restored.open(session.id)
+            XCTAssertFalse(restored.showsSuggestions(in: session.id), "Saved conversations always hold messages")
+        }
+    }
+    func testSuggestedQuestionsAreEnglishAndGetTheirDemoAnswers() {
+        let questions = DemoRecords.quickQuestions
+        XCTAssertEqual(questions, ["When was the last high-risk event?", "How many route deviations happened in August?",
+                                   "Has unusual movement increased?"])
+        for question in questions {
+            XCTAssertFalse(question.unicodeScalars.contains { (0x3400...0x9FFF).contains($0.value) }, question)
+        }
+        let answers = questions.map { DemoRecords.answer(to: $0) }
+        XCTAssertTrue(answers[0].hasPrefix("Demo answer: The latest high-risk trip was on August 24, 2026."), answers[0])
+        XCTAssertTrue(answers[1].hasPrefix("Demo answer: From August 1–31, 2026, the sample records contain 4 route deviations."),
+                      answers[1])
+        XCTAssertTrue(answers[2].hasPrefix("Demo answer: Unusual movement appears 2 times in August 2026, compared with 1 time in July 2026."),
+                      answers[2])
+        XCTAssertEqual(questions.map(AgentConversationTitle.make),
+                       ["Recent high-risk event", "August route deviations", "Unusual movement trends"])
+    }
+    func testUnverifiableAnswersPointToSuggestionsInNewConversations() {
+        let english = DemoRecords.answer(to: "What is the weather?")
+        let chinese = DemoRecords.answer(to: "明天天气如何？")
+        XCTAssertEqual(english, "I don't have a verified answer for that question in the available sample records. "
+                       + "Start a new conversation to pick a suggested question.")
+        XCTAssertEqual(chinese, "现有样例记录无法核对这个问题的答案。新建会话时可以选择常用问题。")
+        for answer in [english, chinese] + DemoRecords.quickQuestions.map({ DemoRecords.answer(to: $0) }) {
+            XCTAssertFalse(answer.contains("Try one of the suggested questions"), answer)
+            XCTAssertFalse(answer.contains("可以试试常用问题"), answer)
+        }
+    }
     @MainActor func testSessionAndRecordsLayoutsAtAllRequiredSizes() async throws {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let previous = scene.windows.first(where: \.isKeyWindow)
@@ -862,6 +913,7 @@ final class AgentSessionTests: XCTestCase {
                 let damagedDefaults = isolatedDefaults()
                 damagedDefaults.set(Data("corrupt".utf8), forKey: AgentSessionStore.storageKey)
                 let displayedSessions = screen == "session-load-error" ? AgentSessionStore(defaults: damagedDefaults) : sessions
+                if screen == "session-empty" { LayoutProbe.frames = [:] }
                 let window = UIWindow(windowScene: scene)
                 window.frame = CGRect(x: 0, y: 0, width: width, height: height)
                 let page = screen == "sessions-records" ? AnyView(RecordsPage()) : AnyView(AgentSessionPage(sessions: displayedSessions, settings: settings, keyboardVisible: false))
@@ -876,6 +928,10 @@ final class AgentSessionTests: XCTestCase {
                 try await Task.sleep(for: .milliseconds(300))
                 let image = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true) }
                 try XCTUnwrap(image.pngData()).write(to: folder.appendingPathComponent("\(screen)-\(width)x\(height).png"))
+                let label = "\(screen) \(width)x\(height) \(type)"
+                if screen == "session-empty" {
+                    try assertSuggestionChips(label + " as opened", width: CGFloat(width), in: window)
+                }
                 func scrollView(in view: UIView) -> UIScrollView? {
                     if let scroll = view as? UIScrollView { return scroll }
                     return view.subviews.lazy.compactMap { scrollView(in: $0) }.first
@@ -891,6 +947,17 @@ final class AgentSessionTests: XCTestCase {
                         }
                         try XCTUnwrap(trailing.pngData()).write(to: folder.appendingPathComponent("\(screen)-\(width)x\(height)-bottom.png"))
                     }
+                }
+                if screen == "session-empty" {
+                    // Scroll the messages to both ends: every chip stays reachable and clear of the composer.
+                    let messages = try XCTUnwrap(messageScrollView(in: window.rootViewController!.view), label)
+                    let bottom = max(0, messages.contentSize.height - messages.bounds.height + messages.adjustedContentInset.bottom)
+                    for offset in [bottom, -messages.adjustedContentInset.top] {
+                        messages.setContentOffset(CGPoint(x: 0, y: offset), animated: false)
+                        try await Task.sleep(for: .milliseconds(200))
+                        try assertSuggestionChips(label + " scrolled to \(offset)", width: CGFloat(width), in: window)
+                    }
+                    print("T27 \(label): viewport=\(messages.bounds.size) content=\(messages.contentSize)")
                 }
                 window.isHidden = true
                 previous?.makeKeyAndVisible()
@@ -1051,6 +1118,137 @@ extension AgentSessionTests {
                 XCTAssertEqual(try h.probe("agent-load-error", name).minX, h.margin, accuracy: 0.5, name)
                 XCTAssertEqual(try h.probe("agent-recent-title", name).minX, h.margin, accuracy: 0.5, name)
             }
+        }
+    }
+
+    /// T27: the composer is the dictation button and the field (plus send once there is text), and a
+    /// blank conversation shows three suggestion chips on the page margin above it.
+    @MainActor func testComposerAndSuggestionChipsAtRequiredSizes() async throws {
+        let h = LayoutLineHarness.self
+        let settings = CaregiverSettingsStore(defaults: isolatedDefaults())
+        for size in [CGSize(width: 320, height: 568), CGSize(width: 390, height: 844), CGSize(width: 402, height: 874)] {
+            let label = "\(Int(size.width))x\(Int(size.height))"
+            let sessions = AgentSessionStore(defaults: isolatedDefaults())
+            let id = try XCTUnwrap(sessions.newConversation())
+            let page = AgentSessionPage(sessions: sessions, settings: settings, keyboardVisible: false)
+            try await h.render(page, size: size) { window in
+                let name = "blank chat " + label
+                let composer = try h.probe("chat-composer", name)
+                h.assertOuterEdges(composer, width: size.width, name + " composer")
+                XCTAssertEqual(try h.probe("chat-mic", name).minX, composer.minX, accuracy: 0.5, name + " dictation leads")
+                XCTAssertEqual(try h.probe("chat-field", name).maxX, composer.maxX, accuracy: 0.5,
+                               name + " nothing sits right of the empty field")
+                XCTAssertNil(LayoutProbe.frames["chat-send"], name + " no send button without text")
+                try assertSuggestionChips(name, width: size.width, in: window)
+                for index in 0..<3 {
+                    print("T27 \(name) chip \(index): \(try h.probe("chat-suggestion-\(index)", name))")
+                }
+            }
+            sessions.setDraft("Is she home?", for: id)
+            try await h.render(page, size: size) { _ in
+                let name = "chat with a draft " + label
+                let composer = try h.probe("chat-composer", name)
+                let send = try h.probe("chat-send", name)
+                XCTAssertEqual(send.maxX, composer.maxX, accuracy: 0.5, name + " send ends the composer")
+                XCTAssertLessThanOrEqual(try h.probe("chat-field", name).maxX, send.minX + 0.5, name)
+                h.assertHitArea(send, name + " send")
+                XCTAssertEqual(suggestionChipKeys().count, 3, name + " a draft is not a message")
+            }
+        }
+    }
+
+    /// T27: a chip asks through the same path as typing and sending; either way the chips are gone,
+    /// on the same screen and after leaving and reopening the conversation.
+    @MainActor func testChipAndTypedQuestionAskAlikeAndChipsNeverReturn() async throws {
+        let h = LayoutLineHarness.self
+        let settings = CaregiverSettingsStore(defaults: isolatedDefaults())
+        let sessions = AgentSessionStore(defaults: isolatedDefaults())
+        let size = CGSize(width: 390, height: 844)
+        let chips = ["chat-suggestion-0", "chat-suggestion-1", "chat-suggestion-2"]
+        for (index, question) in DemoRecords.quickQuestions.enumerated() {
+            var asked: [UUID] = []
+            for viaChip in [true, false] {
+                let name = "\(viaChip ? "chip" : "typed") question \(index)"
+                let id = try XCTUnwrap(sessions.newConversation())
+                let driver = AgentChatTestDriver()
+                try await h.render(AgentSessionPage(sessions: sessions, settings: settings, keyboardVisible: false)
+                    .environment(\.agentChatTestDriver, driver), size: size) { _ in
+                    XCTAssertEqual(suggestionChipKeys(), chips, name + " before asking")
+                    let perform = try XCTUnwrap(driver.perform, name)
+                    perform(viaChip ? .tapSuggestion(index) : .typeAndSend(question))
+                    try await Task.sleep(for: .milliseconds(200))
+                }
+                XCTAssertEqual(sessions.activeID, id, name + " stays in the conversation")
+                XCTAssertFalse(sessions.showsSuggestions(in: id), name)
+                XCTAssertEqual(sessions.draft(for: id), "", name)
+                let messages = try XCTUnwrap(sessions.conversation(id)?.messages, name)
+                for reopened in [false, true] {
+                    if reopened { sessions.showList(); sessions.open(id) }
+                    try await h.render(AgentSessionPage(sessions: sessions, settings: settings, keyboardVisible: false),
+                                       size: size) { _ in
+                        let step = name + (reopened ? " after reopening" : " after asking")
+                        XCTAssertNotNil(LayoutProbe.frames["chat-composer"], step)
+                        XCTAssertEqual(suggestionChipKeys(), [], step)
+                        for message in messages { XCTAssertNotNil(LayoutProbe.frames["chat-bubble-\(message.id)"], step) }
+                    }
+                }
+                asked.append(id)
+            }
+            let chip = try XCTUnwrap(sessions.conversation(asked[0]))
+            let typed = try XCTUnwrap(sessions.conversation(asked[1]))
+            XCTAssertEqual(chip.messages.map(\.text), [question, DemoRecords.answer(to: question)])
+            XCTAssertEqual(chip.messages.map(\.text), typed.messages.map(\.text), "Chip and typed question get the same answer")
+            XCTAssertEqual(chip.messages.map(\.fromCaregiver), [true, false])
+            XCTAssertEqual(typed.messages.map(\.fromCaregiver), [true, false])
+            XCTAssertEqual(chip.title, AgentConversationTitle.make(from: question))
+            XCTAssertEqual(chip.title, typed.title)
+        }
+        XCTAssertEqual(sessions.recent.map(\.title), ["Unusual movement trends", "Unusual movement trends",
+                                                      "August route deviations", "August route deviations",
+                                                      "Recent high-risk event", "Recent high-risk event"])
+    }
+
+    @MainActor private func suggestionChipKeys() -> [String] {
+        LayoutProbe.frames.keys.filter { $0.hasPrefix("chat-suggestion-") && !$0.hasPrefix("chat-suggestion-text-") }.sorted()
+    }
+    @MainActor private func messageScrollView(in view: UIView) -> UIScrollView? {
+        func all(_ view: UIView) -> [UIScrollView] {
+            ((view as? UIScrollView).map { $0 is UITextView ? [] : [$0] } ?? []) + view.subviews.flatMap(all)
+        }
+        return all(view).max { $0.bounds.height < $1.bounds.height }
+    }
+    /// Three chips on the page margin lines, at least 44 pt tall, stacked without overlap, text inside
+    /// the chip, and never under the composer. The chip nearest the scroll position is fully visible.
+    @MainActor func assertSuggestionChips(_ name: String, width: CGFloat, in window: UIWindow,
+                                          file: StaticString = #filePath, line: UInt = #line) throws {
+        let h = LayoutLineHarness.self
+        XCTAssertEqual(suggestionChipKeys().count, 3, name + " chip count", file: file, line: line)
+        let composer = try h.probe("chat-composer", name, file: file, line: line)
+        let messages = try XCTUnwrap(messageScrollView(in: window.rootViewController!.view), name, file: file, line: line)
+        let viewport = messages.convert(messages.bounds, to: nil)
+        XCTAssertLessThanOrEqual(viewport.maxY, composer.minY + 0.5, name + " messages end above the composer", file: file, line: line)
+        let chips = try (0..<3).map { try h.probe("chat-suggestion-\($0)", name, file: file, line: line) }
+        for (index, chip) in chips.enumerated() {
+            let chipName = "\(name) chip \(index)"
+            XCTAssertEqual(chip.minX, h.margin, accuracy: 0.5, chipName + " leading edge", file: file, line: line)
+            XCTAssertLessThanOrEqual(chip.maxX, width - h.margin + 0.5, chipName + " trailing edge", file: file, line: line)
+            XCTAssertGreaterThanOrEqual(chip.height + 0.0001, OrbitLayout.minimumHitSize, chipName + " hit height",
+                                        file: file, line: line)
+            let text = try h.probe("chat-suggestion-text-\(index)", chipName, file: file, line: line)
+            XCTAssertTrue(chip.insetBy(dx: -0.5, dy: -0.5).contains(text), chipName + " text inside the chip",
+                          file: file, line: line)
+            let visible = chip.intersection(viewport)
+            XCTAssertTrue(visible.isNull || visible.maxY <= composer.minY + 0.5, chipName + " clear of the composer",
+                          file: file, line: line)
+        }
+        for (upper, lower) in zip(chips, chips.dropFirst()) {
+            XCTAssertLessThanOrEqual(upper.maxY, lower.minY + 0.5, name + " chips stack without overlap", file: file, line: line)
+        }
+        let atTop = messages.contentOffset.y <= -messages.adjustedContentInset.top + 0.5
+        let fits = messages.contentSize.height <= messages.bounds.height + 0.5
+        for index in fits ? [0, 1, 2] : [atTop ? 0 : 2] {
+            XCTAssertTrue(viewport.insetBy(dx: -0.5, dy: -0.5).contains(chips[index]), "\(name) chip \(index) fully visible",
+                          file: file, line: line)
         }
     }
 }

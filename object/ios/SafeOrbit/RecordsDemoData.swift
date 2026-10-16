@@ -167,6 +167,6 @@ enum DemoRecords {
             if chinese { return "演示回答：2026 年 8 月样例记录有 \(current) 次异常移动，7 月有 \(previous) 次。" }
             return "Demo answer: Unusual movement appears \(current) times in August 2026, compared with \(previous) time in July 2026."
         }
-        return chinese ? "现有样例记录无法核对这个问题的答案。可以试试常用问题。" : "I don't have a verified answer for that question in the available sample records. Try one of the suggested questions."
+        return chinese ? "现有样例记录无法核对这个问题的答案。新建会话时可以选择常用问题。" : "I don't have a verified answer for that question in the available sample records. Start a new conversation to pick a suggested question."
     }
 }
