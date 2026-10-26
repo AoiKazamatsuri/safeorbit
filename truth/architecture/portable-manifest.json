@@ -5,14 +5,14 @@
   },
   "safeorbit-containers/portable/safeorbit-containers-portable.svg": {
     "source": "safeorbit-containers/safeorbit-containers.svg",
-    "source_hash": "c1b781e93bf4d281"
+    "source_hash": "fe8ead64284fcb2f"
   },
   "safeorbit-context/portable/safeorbit-context-portable.svg": {
     "source": "safeorbit-context/safeorbit-context.svg",
-    "source_hash": "fd1d0f230181911f"
+    "source_hash": "fa9646b6cd9d5962"
   },
   "safeorbit-demo-deployment/portable/safeorbit-demo-deployment-portable.svg": {
     "source": "safeorbit-demo-deployment/safeorbit-demo-deployment.svg",
-    "source_hash": "db96f0dbae9da7f1"
+    "source_hash": "fed5abde4f9d4557"
   }
 }

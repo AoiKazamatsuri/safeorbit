@@ -13,12 +13,11 @@ graph TB
             SEED["历史灌入脚本<br/>按历史时间回放一个月模拟轨迹<br/>[Seed Script · 开发工具]"]
         end
     end
-    MAP["苹果地图<br/>[Apple Maps · 外部系统]"]
+    MAP["高德地图<br/>[AMap · 外部系统]"]
     APNS["苹果推送<br/>[APNs · 外部系统]"]
     LLM["云端大模型<br/>[Cloud LLM · 外部系统]"]
     EP -->|"业务请求"| BE
     FP -->|"请求与对话"| BE
-    BE -.->|"实时推送"| FP
     BE -->|"读写"| DB
     BE -->|"发送通知"| APNS
     APNS -.->|"投递通知"| FP
