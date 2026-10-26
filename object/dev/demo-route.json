@@ -1,0 +1,16 @@
+{
+  "note": "Home to market along Beijing West Road and Ninghai Road, Nanjing. WGS-84. Vertices of the App's sample walking route (Apple Maps, fetched 2026-10-15, task T20), converted from GCJ-02. Replace with the outdoor filming route once it is chosen.",
+  "points": [
+    { "latitude": 32.0621011, "longitude": 118.7613026 },
+    { "latitude": 32.0616628, "longitude": 118.7643015 },
+    { "latitude": 32.0615987, "longitude": 118.7648599 },
+    { "latitude": 32.0615826, "longitude": 118.7649457 },
+    { "latitude": 32.0615262, "longitude": 118.7649727 },
+    { "latitude": 32.0597052, "longitude": 118.7657778 },
+    { "latitude": 32.0588735, "longitude": 118.7661752 },
+    { "latitude": 32.0587717, "longitude": 118.7663739 },
+    { "latitude": 32.058729, "longitude": 118.7664864 },
+    { "latitude": 32.0587356, "longitude": 118.7665384 },
+    { "latitude": 32.058529, "longitude": 118.7666353 }
+  ]
+}

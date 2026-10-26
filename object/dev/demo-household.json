@@ -1,0 +1,9 @@
+{
+  "note": "Fictional demo household. Real phone numbers for recording go in object/server/.env as DEMO_ELDER_PHONE and DEMO_CAREGIVER_PHONE, never here. Zone centres are the two ends of demo-route.json.",
+  "elder": { "name": "Li Lan", "callName": "Grandma", "phone": "+12025550100", "timezone": "Asia/Shanghai" },
+  "caregiver": { "name": "Wang Min", "phone": "+12025550101" },
+  "safeZones": [
+    { "name": "Home", "center": { "latitude": 32.0621011, "longitude": 118.7613026 }, "radiusMeters": 100 },
+    { "name": "Market", "center": { "latitude": 32.058529, "longitude": 118.7666353 }, "radiusMeters": 100 }
+  ]
+}

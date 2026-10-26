@@ -1,6 +1,6 @@
 # 开发环境
 
-代码直接在 `object/` 内开发：`ios/` 是 SwiftUI App，`server/` 是 NestJS 后端与数据库，`dev/` 是开发辅助脚本。设计要求来自 truth 三份文档，UI 视觉基线保持 `reference/ui/`。工程提供编译、测试与数据库连接入口；登录、档案和绑定的前端说明见 [ios/README.md](../ios/README.md)，风险规则、历史灌入与模拟轨迹由后续开发补齐。
+代码直接在 `object/` 内开发：`ios/` 是 SwiftUI App，`server/` 是 NestJS 后端与数据库，`dev/` 是开发辅助脚本。设计要求来自 truth 三份文档，UI 视觉基线保持 `reference/ui/`。工程提供编译、测试与数据库连接入口；登录、档案和绑定的前端说明见 [ios/README.md](../ios/README.md)。位置上报、出行识别、安全区与演示数据的重置、回放由任务 T37 实现；风险规则与一个月历史灌入由后续任务补齐。
 
 ## 前置工具
 
@@ -46,7 +46,9 @@ node object/dev/check-env.mjs --running
 - 查看运行状态：`sh object/dev/compose.sh ps`。
 - 停止服务并保留数据库：`sh object/dev/compose.sh down`。不要加 `-v`，否则会删除数据库卷。
 
-后端三个模块为 `care-api`、`care-agent`、`outreach-gateway`。只有 care-api 可访问数据库；其他模块只引用其 `public` 入口。本次只预留模块，不实现照护规则或对外发送通知。
+后端三个模块为 `care-api`、`care-agent`、`outreach-gateway`。只有 care-api 可访问数据库；其他模块只引用其 `public` 入口。care-api 负责手机登记、安全区、位置存取与位置快照，存入位置后发布“位置已入库”事件；care-agent 订阅它做出行识别，并每 30 秒检查一次到家是否停稳；outreach-gateway 仍是预留模块。数据库表由后端启动时建立。
+
+Demo 不做账号：手机选身份后 `POST /v1/devices`（`role`、`installationId`）换取设备凭证，之后的请求带 `Authorization: Bearer <凭证>`。其余接口：`GET /v1/household`、`GET|POST /v1/safe-zones`、`PUT|DELETE /v1/safe-zones/:id`（家属手机改）、`POST /v1/locations`（老人手机批量上报）、`GET /v1/location`（家属端位置快照）、`GET /v1/trips`。
 
 若只启动数据库、在电脑上调试后端：
 
@@ -57,6 +59,18 @@ npm --prefix object/server run start:dev
 ```
 
 `start:dev` 先编译，再监视编译后的文件；改 TypeScript 源码后另一个终端运行 `npm --prefix object/server run build` 即会重启。不要同时运行容器后端和本机后端，以免占用同一端口。
+
+## 演示数据：重置与回放
+
+```sh
+node object/dev/reset-demo.mjs
+node object/dev/replay-track.mjs
+```
+
+- 重置：清空出行与位置，恢复 `demo-household.json` 里预置的一户人家与安全区（家、市场）。已登记的手机保留；加 `--devices` 一并清除，加 `--local` 改用本机运行的后端。重置在后端程序内执行，不另开网络接口。
+- 演示时要拨通的真实号码写在 `object/server/.env` 的 `DEMO_ELDER_PHONE`、`DEMO_CAREGIVER_PHONE`，不写进仓库；没写时用虚构号码。
+- 回放：按老人手机的方式把一条轨迹分批上传，时间截止到现在，再打印家属端看到的状态与最近的出行。`--stop-after <秒>` 截断轨迹，例如 `--stop-after 1000` 停在市场。
+- 轨迹由 `tracks.mjs` 按 `demo-route.json` 生成（WGS-84，从家到市场的街道路线，约 734 米，步速 1 米/秒，每 5 秒一个点）。外景路线定下后替换这条路线与 `demo-household.json` 的安全区中心。
 
 ## iOS 工程
 
@@ -77,6 +91,6 @@ node object/dev/check-env.mjs --running
 sh object/dev/queue.sh doctor
 ```
 
-iOS 脚本自动选择已安装的 iPhone 模拟器；要选其他设备，设置 `SAFEORBIT_SIMULATOR_ID`。后端检查会构建、测试 HTTP 健康接口和数据库失败响应，检查源码依赖，并故意写入两种临时越界引用确认拒绝后删除。运行检查需要本机端口与模拟器权限；沙箱拒绝时由 Agent 按执行环境申请运行权限。
+iOS 脚本自动选择已安装的 iPhone 模拟器；要选其他设备，设置 `SAFEORBIT_SIMULATOR_ID`。后端检查会构建、运行单元测试（健康接口、出行识别、请求校验与位置快照），检查源码依赖，并故意写入两种临时越界引用确认拒绝后删除。运行检查需要本机端口与模拟器权限；沙箱拒绝时由 Agent 按执行环境申请运行权限。
 
 环境配置结果归任务 T6，前端执行输出归任务 T7，此文只维护可复用方法。产品是否满足 Demo 要求由后续真机和录屏验收决定。
