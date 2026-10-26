@@ -18,7 +18,7 @@ sh object/dev/queue.sh init
 sh object/dev/queue.sh doctor
 ```
 
-`queue.sh` 优先使用 Codex 自带 Python 3.12，再查找系统的 Python 3.12/3.13/3.10+；可设置 `SAFEORBIT_QUEUE_PYTHON` 指定完整解释器路径。init 记下的解释器路径此后必须一致，doctor 报运行环境变化时不要自行重新 init。
+`queue.sh` 选择解释器的顺序：先看 `SAFEORBIT_QUEUE_PYTHON`（完整解释器路径）；再用 init 记在 `.shell/local/install.json` 的解释器，与提交钩子保持一致；新克隆尚未 init 时，依次查找 Codex 自带 Python 3.12 与系统的 Python 3.12/3.13/3.10+。init 记下的解释器路径此后必须一致，doctor 报运行环境变化时不要自行重新 init。
 
 制图提交检查的薄接线放在本机 `.git/hooks/pre-commit` 和 `pre-merge-commit`，调用 `tool/diagram/pre-commit.sh`，队列保护会串接它们。`tool/diagram/install-hook.sh` 在本机中文区域设置下可能把变量后的中文冒号读入变量名；使用 `LC_ALL=C sh tool/diagram/install-hook.sh`，先检查已有钩子，不能覆盖其他内容。首次失败留下空钩子时由 Agent 核对后补接，本机薄钩子设置 `LC_ALL=C`，保证失败提示中的中文变量后缀也能正常解析。本环境配置没有修改制图工具源码。
 
