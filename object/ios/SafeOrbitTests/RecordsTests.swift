@@ -458,6 +458,7 @@ final class RecordsTests: XCTestCase {
              AnyView(RecordsPage(showTrendInitially: true)))
         ]
         for (name, size, type, view) in screens {
+            LayoutProbe.frames = [:]
             let window = UIWindow(windowScene: scene)
             window.frame = CGRect(origin: .zero, size: size)
             let rendered: AnyView = name == "records-detail" ? view : AnyView(ZStack {
@@ -484,15 +485,23 @@ final class RecordsTests: XCTestCase {
                     if let scroll = view as? UIScrollView, scroll.contentSize.width > scroll.bounds.width + 1 { return scroll }
                     return view.subviews.lazy.compactMap { horizontalScroll(in: $0) }.first
                 }
-                let chartScroll = try XCTUnwrap(horizontalScroll(in: window.rootViewController!.view))
-                chartScroll.setContentOffset(CGPoint(x: chartScroll.contentSize.width - chartScroll.bounds.width, y: 0), animated: false)
-                try await Task.sleep(for: .milliseconds(200))
-                XCTAssertGreaterThan(chartScroll.contentOffset.x, 0, "Large date labels must be reachable by horizontal scrolling")
-                let trailing = UIGraphicsImageRenderer(size: size).image { _ in
-                    window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+                if let chartScroll = horizontalScroll(in: window.rootViewController!.view) {
+                    chartScroll.setContentOffset(CGPoint(x: chartScroll.contentSize.width - chartScroll.bounds.width, y: 0), animated: false)
+                    try await Task.sleep(for: .milliseconds(200))
+                    XCTAssertGreaterThan(chartScroll.contentOffset.x, 0, "Large date labels must be reachable by horizontal scrolling")
+                    let trailing = UIGraphicsImageRenderer(size: size).image { _ in
+                        window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+                    }
+                    try XCTUnwrap(trailing.pngData()).write(to: folder.appendingPathComponent("\(name)-chart-trailing.png"))
+                    chartScroll.setContentOffset(.zero, animated: false)
+                } else {
+                    // A chart that fits its frame does not scroll (T31); then every date must be on it.
+                    let chart = try LayoutLineHarness.probe("trend-chart", name)
+                    for index in 0...7 {
+                        XCTAssertLessThanOrEqual(try LayoutLineHarness.probe("trend-date-\(index)", name).maxX, chart.maxX + 0.5,
+                                                 "\(name): date \(index) lies beyond a chart that does not scroll")
+                    }
                 }
-                try XCTUnwrap(trailing.pngData()).write(to: folder.appendingPathComponent("\(name)-chart-trailing.png"))
-                chartScroll.setContentOffset(.zero, animated: false)
             }
             if name.contains("records-") && name != "records-detail" {
                 func scrollView(in view: UIView) -> UIScrollView? {
@@ -507,9 +516,13 @@ final class RecordsTests: XCTestCase {
                     }
                     try XCTUnwrap(bottom.pngData()).write(to: folder.appendingPathComponent("\(name)-bottom.png"))
                     if name == "records-data" || name == "records-trend" {
+                        // Crop inside the Trend/Data control where it actually sits; its position
+                        // depends on the device's top safe area (iPhone SE differs from Face ID phones).
+                        let picker = try XCTUnwrap(LayoutProbe.frames["records-picker"], name)
                         let scale = image.scale
-                        let selector = CGRect(x: 40 * scale, y: 122 * scale,
-                                              width: (size.width - 80) * scale, height: 28 * scale)
+                        let selector = CGRect(x: (picker.minX + 24) * scale, y: (picker.minY + 1) * scale,
+                                              width: (picker.width - 48) * scale,
+                                              height: min(28, picker.height - 2) * scale)
                         let before = try XCTUnwrap(image.cgImage?.cropping(to: selector))
                         let after = try XCTUnwrap(bottom.cgImage?.cropping(to: selector))
                         XCTAssertEqual(UIImage(cgImage: before).pngData(), UIImage(cgImage: after).pngData(),
@@ -1023,7 +1036,8 @@ enum LayoutLineHarness {
     static let margin: CGFloat = 16
     static let textLine: CGFloat = 32
 
-    @MainActor static func render<V: View>(_ view: V, size: CGSize, waitMilliseconds: Int = 300,
+    @MainActor static func render<V: View>(_ view: V, size: CGSize, type: DynamicTypeSize = .large,
+                                           waitMilliseconds: Int = 300,
                                            inspect: (UIWindow) async throws -> Void) async throws {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let previous = scene.windows.first(where: \.isKeyWindow)
@@ -1031,7 +1045,7 @@ enum LayoutLineHarness {
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(origin: .zero, size: size)
         window.rootViewController = UIHostingController(rootView: view
-            .environment(\.dynamicTypeSize, .large).environment(\.colorScheme, .light))
+            .environment(\.dynamicTypeSize, type).environment(\.colorScheme, .light))
         window.makeKeyAndVisible()
         defer { window.isHidden = true; previous?.makeKeyAndVisible() }
         window.rootViewController?.view.frame = window.bounds
@@ -1354,6 +1368,380 @@ extension ElderFrontendTests {
                         h.assertOuterEdges(try h.probe("elder-volume-card", name), width: size.width, name + " volume card")
                         XCTAssertEqual(try h.probe("elder-volume-content", name).minX, h.textLine, accuracy: 0.5, name)
                     }
+                }
+            }
+        }
+    }
+}
+
+/// T31: the system text size floor (product design section 10, rule 8). Six screen widths; from the
+/// default size to AX1 text must not be cut off or broken mid-word, elements must not overlap,
+/// overflow must scroll into view and tap targets must be at least 44 x 44 pt. At AX5 a page must
+/// still render, scroll to its end and keep its main buttons reachable.
+enum TypeFloorHarness {
+    static let sizes = [CGSize(width: 320, height: 568), CGSize(width: 375, height: 812), CGSize(width: 390, height: 844),
+                        CGSize(width: 393, height: 852), CGSize(width: 402, height: 874), CGSize(width: 430, height: 932)]
+    /// The floor proper is checked at the default size and at AX1; AX5 gets the minimum checks.
+    static let types: [DynamicTypeSize] = [.large, .accessibility1, .accessibility5]
+
+    /// The font the app's `caregiverText`, `orbitDisplayFont`, `recordingFont` and `elderText`
+    /// helpers produce: a system font scaled like `.body`, never below 10 pt.
+    static func font(_ size: CGFloat, _ weight: UIFont.Weight = .medium, _ type: DynamicTypeSize) -> UIFont {
+        let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(type))
+        let scaled = UIFontMetrics(forTextStyle: .body).scaledValue(for: size, compatibleWith: traits)
+        return .systemFont(ofSize: max(10, scaled), weight: weight)
+    }
+    static func caregiver(_ style: CaregiverTextStyle, _ type: DynamicTypeSize) -> UIFont {
+        font(style.size, style == .secondary ? .regular : .medium, type)
+    }
+
+    /// Text drawn in `rect` with `font` shows every line (no truncation or shrinking) and breaks only
+    /// between words: the widest word fits the text's width.
+    static func assertText(_ rect: CGRect, _ text: String, font: UIFont, _ name: String,
+                           file: StaticString = #filePath, line: UInt = #line) {
+        let separators = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-–"))
+        let words = text.components(separatedBy: separators).filter { !$0.isEmpty }
+        let widest = words.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+        XCTAssertLessThanOrEqual(widest, rect.width + 1,
+                                 "\(name): a word of \"\(text)\" is split (word \(widest), text \(rect.width))", file: file, line: line)
+        let needed = (text as NSString).boundingRect(with: CGSize(width: rect.width + 1, height: .greatestFiniteMagnitude),
+                                                     options: [.usesLineFragmentOrigin, .usesFontLeading],
+                                                     attributes: [.font: font], context: nil).height
+        XCTAssertGreaterThanOrEqual(rect.height + font.lineHeight * 0.4, needed,
+                                    "\(name): \"\(text)\" is cut off (shown \(rect.height), needs \(needed))", file: file, line: line)
+    }
+    static func assertApart(_ a: CGRect, _ b: CGRect, _ name: String, file: StaticString = #filePath, line: UInt = #line) {
+        let overlap = a.intersection(b)
+        XCTAssertTrue(overlap.isNull || overlap.width < 0.5 || overlap.height < 0.5, "\(name): \(a) overlaps \(b)",
+                      file: file, line: line)
+    }
+    static func assertInside(_ inner: CGRect, _ outer: CGRect, _ name: String, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(outer.insetBy(dx: -0.5, dy: -0.5).contains(inner), "\(name): \(inner) is not inside \(outer)",
+                      file: file, line: line)
+    }
+    /// The top of the floating tab bar in window coordinates (CaregiverBottomLayout).
+    @MainActor static func tabBarTop(_ window: UIWindow) -> CGFloat {
+        window.bounds.height - CaregiverBottomLayout.gap(safeAreaBottom: window.safeAreaInsets.bottom) - CaregiverBottomLayout.barHeight
+    }
+    @MainActor static func verticalScrolls(in view: UIView) -> [UIScrollView] {
+        ((view as? UIScrollView).map { $0 is UITextView || $0.bounds.height <= 0 ? [] : [$0] } ?? [])
+            + view.subviews.flatMap { verticalScrolls(in: $0) }
+    }
+    /// The page's main scroll view: the tallest one that overflows, else the tallest one.
+    @MainActor static func mainScroll(in window: UIWindow) -> UIScrollView? {
+        let all = verticalScrolls(in: window.rootViewController!.view)
+        return all.filter { $0.contentSize.height > $0.bounds.height + 1 }.max { $0.bounds.height < $1.bounds.height }
+            ?? all.max { $0.bounds.height < $1.bounds.height }
+    }
+    @MainActor static func scrollToEnd(_ scroll: UIScrollView, _ name: String,
+                                      file: StaticString = #filePath, line: UInt = #line) async throws {
+        for _ in 0..<120 {
+            let end = max(-scroll.adjustedContentInset.top,
+                          scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom)
+            if abs(scroll.contentOffset.y - end) < 1 {
+                try await Task.sleep(for: .milliseconds(150))
+                return
+            }
+            scroll.setContentOffset(CGPoint(x: scroll.contentOffset.x,
+                                            y: min(end, scroll.contentOffset.y + scroll.bounds.height * 0.8)), animated: false)
+            try await Task.sleep(for: .milliseconds(60))
+        }
+        XCTFail(name + ": could not scroll to the end", file: file, line: line)
+    }
+    /// After scrolling to the end, the bottom of `last` (the last item, or the whole content) is in
+    /// the visible part of the scroll view, above the tab bar when the page has one. With `whole`,
+    /// an item no taller than that visible part is wholly inside it.
+    @MainActor static func assertReachesEnd(_ last: String, whole: Bool = false, in window: UIWindow, tabBar: Bool,
+                                            _ name: String, file: StaticString = #filePath, line: UInt = #line) async throws {
+        guard let scroll = mainScroll(in: window) else { XCTFail(name + ": no scroll view", file: file, line: line); return }
+        try await scrollToEnd(scroll, name, file: file, line: line)
+        let viewport = scroll.convert(scroll.bounds, to: nil)
+        let top = viewport.minY + scroll.adjustedContentInset.top
+        var bottom = viewport.maxY - scroll.adjustedContentInset.bottom
+        if tabBar { bottom = min(bottom, tabBarTop(window)) }
+        let rect = try LayoutLineHarness.probe(last, name, file: file, line: line)
+        XCTAssertLessThanOrEqual(rect.maxY, bottom + 0.5, "\(name): \(last) ends below the visible area (\(rect.maxY) > \(bottom))",
+                                 file: file, line: line)
+        XCTAssertGreaterThan(rect.maxY, top, "\(name): \(last) is scrolled out of view", file: file, line: line)
+        if whole && rect.height <= bottom - top {
+            XCTAssertGreaterThanOrEqual(rect.minY, top - 0.5, "\(name): \(last) starts above the visible area",
+                                        file: file, line: line)
+        }
+    }
+    /// A main button: on screen, with a 44 x 44 pt hit area.
+    @MainActor static func assertReachable(_ key: String, in window: UIWindow, _ name: String,
+                                           file: StaticString = #filePath, line: UInt = #line) throws {
+        let rect = try LayoutLineHarness.probe(key, name, file: file, line: line)
+        assertInside(rect, window.bounds, name + " " + key + " on screen", file: file, line: line)
+        LayoutLineHarness.assertHitArea(rect, name + " " + key, file: file, line: line)
+    }
+    @MainActor static func snapshot(_ window: UIWindow, _ name: String) throws {
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("T31Snapshots")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let image = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in
+            window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+        let file = name.replacingOccurrences(of: " ", with: "_")
+        try XCTUnwrap(image.pngData()).write(to: folder.appendingPathComponent(file + ".png"))
+    }
+    static func label(_ page: String, _ size: CGSize, _ type: DynamicTypeSize) -> String {
+        "\(page) \(Int(size.width))x\(Int(size.height)) \(type)"
+    }
+}
+
+extension RecordsTests {
+    /// T31 C12, C15: the trip detail title grows its bar instead of being cut, and the timeline
+    /// connector runs from each dot to the next at every text size.
+    @MainActor func testTripDetailMeetsTextSizeFloor() async throws {
+        let f = TypeFloorHarness.self, h = LayoutLineHarness.self
+        let trip = try XCTUnwrap(DemoRecords.trips.first { $0.month == 8 && $0.day == 24 })
+        func time(_ minute: Int) -> String {
+            let hour = (minute / 60) % 24
+            return String(format: "%d:%02d %@", hour % 12 == 0 ? 12 : hour % 12, minute % 60, hour < 12 ? "AM" : "PM")
+        }
+        let pills = ["name": trip.name, "deviations": "\(trip.deviations) \(trip.deviations == 1 ? "deviation" : "deviations")",
+                     "calls": "\(trip.calls) \(trip.calls == 1 ? "call" : "calls")"]
+        for size in f.sizes {
+            for type in f.types {
+                let name = f.label("trip detail", size, type)
+                try await h.render(TripDetailPage(trip: trip, back: {}), size: size, type: type, waitMilliseconds: 600) { window in
+                    try f.snapshot(window, name)
+                    try f.assertReachable("trip-back", in: window, name)
+                    // The bar grows with its title at every size, so the map never covers the title.
+                    let bar = try h.probe("trip-top-bar", name), title = try h.probe("trip-title", name)
+                    f.assertInside(title, bar, name + " title inside its bar")
+                    f.assertApart(title, try h.probe("trip-back", name), name + " title and back")
+                    XCTAssertLessThanOrEqual(bar.maxY, try h.probe("trip-map", name).minY + 0.5, name + " bar above the map")
+                    if type <= .accessibility1 {
+                        f.assertText(title, "\(trip.month == 8 ? "Aug" : "Jul") \(trip.day)",
+                                     font: f.font(25, .semibold, type), name + " title")
+                        let pillFrames = try pills.keys.sorted().map { try h.probe("trip-pill-" + $0, name) }
+                        for (key, text) in pills {
+                            f.assertText(try h.probe("trip-pill-text-" + key, name), text, font: f.caregiver(.secondary, type),
+                                         name + " pill " + key)
+                        }
+                        for a in pillFrames.indices {
+                            for b in pillFrames.indices where b > a { f.assertApart(pillFrames[a], pillFrames[b], name + " pills") }
+                        }
+                        for (index, event) in trip.events.enumerated() {
+                            let row = try h.probe("trip-event-\(index)", name)
+                            let dot = try h.probe("trip-dot-\(index)", name)
+                            let timeText = try h.probe("trip-event-time-\(index)", name)
+                            let titleText = try h.probe("trip-event-title-\(index)", name)
+                            f.assertText(timeText, time(event.minute), font: f.caregiver(.secondary, type), name + " time \(index)")
+                            f.assertText(titleText, event.title, font: f.caregiver(.body, type), name + " event \(index)")
+                            for text in [timeText, titleText] {
+                                f.assertInside(text, row, name + " event \(index) text inside its row")
+                                f.assertApart(text, dot, name + " event \(index) text and dot")
+                            }
+                            guard index < trip.events.count - 1 else { continue }
+                            let connector = try h.probe("trip-line-\(index)", name)
+                            let next = try h.probe("trip-dot-\(index + 1)", name)
+                            XCTAssertEqual(connector.minY, dot.maxY, accuracy: 0.5, name + " line \(index) starts at its dot")
+                            XCTAssertEqual(connector.maxY, row.maxY, accuracy: 0.5, name + " line \(index) runs the row")
+                            XCTAssertEqual(connector.maxY, next.minY, accuracy: 0.5, name + " line \(index) reaches the next dot")
+                            XCTAssertEqual(connector.midX, dot.midX, accuracy: 0.5, name + " line \(index) under its dot")
+                            if type == .large && titleText.maxY <= dot.minY + 66 {
+                                XCTAssertEqual(connector.height, 66, accuracy: 0.5, name + " default line length unchanged")
+                            }
+                        }
+                    }
+                    try await f.assertReachesEnd("trip-event-\(trip.events.count - 1)", whole: true, in: window, tabBar: false, name)
+                    try f.assertReachable("trip-back", in: window, name + " after scrolling")
+                }
+            }
+        }
+    }
+
+    /// T31: records title, month and trend titles fit, the Trend/Data control stays tappable, and the
+    /// last content clears the tab bar at every width and text size (field checks: the T15 matrix).
+    @MainActor func testRecordsMeetTextSizeFloor() async throws {
+        let f = TypeFloorHarness.self, h = LayoutLineHarness.self
+        for size in f.sizes {
+            for type in f.types {
+                for trend in [false, true] {
+                    let name = f.label(trend ? "records trend" : "records data", size, type)
+                    var frames: [String: CGRect] = [:]
+                    let page = ZStack {
+                        RecordsPage(showTrendInitially: trend, onLayout: { frames = $0 })
+                        CaregiverTabBar(selection: .constant(.records))
+                    }
+                    try await h.render(page, size: size, type: type) { window in
+                        try f.snapshot(window, name)
+                        if type <= .accessibility1 {
+                            f.assertText(try XCTUnwrap(frames["title"], name), "Recording", font: f.font(20, .medium, type), name + " title")
+                            if trend {
+                                f.assertText(try XCTUnwrap(frames["trend-title"], name), "Route Deviation Trend",
+                                             font: f.font(20, .semibold, type), name + " trend title")
+                            } else {
+                                f.assertText(try XCTUnwrap(frames["month-title"], name), "August 2026",
+                                             font: f.font(19, .medium, type), name + " month")
+                            }
+                        }
+                        let picker = try h.probe("records-picker", name)
+                        f.assertInside(picker, window.bounds, name + " picker on screen")
+                        XCTAssertGreaterThanOrEqual(picker.height + 0.0001, 44, name + " picker height")
+                        try await f.assertReachesEnd("records-content", in: window, tabBar: true, name)
+                    }
+                }
+            }
+        }
+    }
+
+    /// T31: on the records page the trend chart's visible edge never cuts a date: before scrolling,
+    /// each date is either wholly on screen or wholly beyond the edge, and when the chart fits it
+    /// does not scroll. Every width, every text size from the smallest to AX1 (the simulator
+    /// walkthrough found the last date cut at 375 pt, AX1).
+    @MainActor func testTrendChartNeverCutsItsLastDate() async throws {
+        let f = TypeFloorHarness.self, h = LayoutLineHarness.self
+        let types: [DynamicTypeSize] = [.xSmall, .small, .medium, .large, .xLarge, .xxLarge, .xxxLarge, .accessibility1]
+        for size in f.sizes {
+            for type in types {
+                let name = f.label("trend chart", size, type)
+                LayoutProbe.frames = [:]
+                let page = ZStack {
+                    RecordsPage(showTrendInitially: true)
+                    CaregiverTabBar(selection: .constant(.records))
+                }
+                try await h.render(page, size: size, type: type) { _ in
+                    let viewport = try h.probe("trend-chart", name), surface = try h.probe("trend-chart-surface", name)
+                    let dates = try (0...7).map { try h.probe("trend-date-\($0)", name) }
+                    for (index, date) in dates.enumerated() {
+                        XCTAssertTrue(date.maxX <= viewport.maxX + 0.5 || date.minX >= viewport.maxX - 0.5,
+                                      "\(name): date \(index) at \(date.minX)–\(date.maxX) is cut by the chart edge at \(viewport.maxX)")
+                    }
+                    if dates[7].maxX <= viewport.maxX + 0.5 {
+                        XCTAssertEqual(surface.width, viewport.width, accuracy: 0.5, "\(name): the chart fits but still scrolls")
+                    }
+                    for index in 0..<7 {
+                        XCTAssertLessThanOrEqual(dates[index].maxX, dates[index + 1].minX + 0.5, "\(name): dates \(index) and \(index + 1) overlap")
+                    }
+                }
+            }
+        }
+    }
+}
+
+extension AgentSessionTests {
+    /// T31: the chips show the three short topics in secondary text; tapping one asks the full
+    /// question and gets the same answer and conversation title as before.
+    @MainActor func testSuggestionChipsShowShortTopicsAndAskTheFullQuestion() async throws {
+        XCTAssertEqual(AgentSuggestion.all.map(\.topic),
+                       ["Recent high-risk event", "August route deviations", "Unusual movement trends"])
+        XCTAssertEqual(AgentSuggestion.all.map(\.question), DemoRecords.quickQuestions)
+        XCTAssertEqual(AgentSuggestion.all.map(\.topic), DemoRecords.quickQuestions.map(AgentConversationTitle.make),
+                       "Each chip shows the title its conversation gets")
+        let f = TypeFloorHarness.self, h = LayoutLineHarness.self
+        let settings = CaregiverSettingsStore(defaults: isolatedDefaults())
+        for (index, suggestion) in AgentSuggestion.all.enumerated() {
+            let sessions = AgentSessionStore(defaults: isolatedDefaults())
+            let id = try XCTUnwrap(sessions.newConversation())
+            let driver = AgentChatTestDriver()
+            try await h.render(AgentSessionPage(sessions: sessions, settings: settings, keyboardVisible: false)
+                .environment(\.agentChatTestDriver, driver), size: CGSize(width: 320, height: 568)) { _ in
+                for (chip, shown) in AgentSuggestion.all.enumerated() {
+                    let name = "320 default chip \(chip)"
+                    let text = try h.probe("chat-suggestion-text-\(chip)", name)
+                    let font = f.caregiver(.secondary, .large)
+                    XCTAssertEqual(font.pointSize, 14, name + " secondary text size")
+                    f.assertText(text, shown.topic, font: font, name)
+                    XCTAssertLessThan(text.height, font.lineHeight * 1.5, name + " fits on one line")
+                    XCTAssertEqual(text.width, (shown.topic as NSString).size(withAttributes: [.font: font]).width, accuracy: 1.5,
+                                   name + " is the topic at the secondary size")
+                }
+                try XCTUnwrap(driver.perform)(.tapSuggestion(index))
+                try await Task.sleep(for: .milliseconds(200))
+            }
+            let conversation = try XCTUnwrap(sessions.conversation(id))
+            XCTAssertEqual(conversation.messages.map(\.text), [suggestion.question, DemoRecords.answer(to: suggestion.question)],
+                           "Chip \(index) asks the full question and gets its demo answer")
+            XCTAssertEqual(conversation.title, suggestion.topic)
+            XCTAssertEqual(conversation.title, AgentConversationTitle.make(from: suggestion.question))
+        }
+        // The chip text follows the system text size.
+        XCTAssertGreaterThan(f.caregiver(.secondary, .accessibility1).pointSize, f.caregiver(.secondary, .large).pointSize)
+    }
+
+    /// T31 C14: the conversation list, a conversation with messages and a blank conversation with
+    /// its chips and a draft meet the text size floor.
+    @MainActor func testAgentPagesMeetTextSizeFloor() async throws {
+        let f = TypeFloorHarness.self, h = LayoutLineHarness.self
+        let settings = CaregiverSettingsStore(defaults: isolatedDefaults())
+        for size in f.sizes {
+            for type in f.types {
+                let sessions = AgentSessionStore(defaults: isolatedDefaults())
+                for question in DemoRecords.quickQuestions + ["How can I better understand these recent changes in outdoor movement?"] {
+                    let id = try XCTUnwrap(sessions.newConversation())
+                    sessions.send(question, in: id, allowTripHistory: true)
+                }
+                sessions.showList()
+                let list = f.label("agent list", size, type)
+                let page = AgentSessionPage(sessions: sessions, settings: settings, keyboardVisible: false)
+                try await h.render(ZStack { page; CaregiverTabBar(selection: .constant(.agent)) }, size: size, type: type) { window in
+                    try f.snapshot(window, list)
+                    try f.assertReachable("agent-new", in: window, list)
+                    if type <= .accessibility1 {
+                        let title = try h.probe("agent-title", list)
+                        f.assertText(title, "Assistant", font: f.font(20, .medium, type), list + " title")
+                        f.assertApart(title, try h.probe("agent-new", list), list + " title and new button")
+                        f.assertText(try h.probe("agent-recent-title", list), "Recent", font: f.caregiver(.secondary, type), list)
+                        for session in sessions.recent {
+                            guard let row = LayoutProbe.frames["agent-row-\(session.id)"] else { continue }
+                            f.assertText(row, session.title, font: f.caregiver(.body, type), list + " row")
+                        }
+                    }
+                    let last = try XCTUnwrap(sessions.recent.last)
+                    try await f.assertReachesEnd("agent-row-\(last.id)", whole: true, in: window, tabBar: true, list)
+                }
+                let opened = try XCTUnwrap(sessions.recent.first)
+                sessions.open(opened.id)
+                let chat = f.label("agent chat", size, type)
+                try await h.render(page, size: size, type: type) { window in
+                    try f.snapshot(window, chat)
+                    try f.assertReachable("chat-back", in: window, chat)
+                    try f.assertReachable("chat-mic", in: window, chat)
+                    if type <= .accessibility1 {
+                        for message in opened.messages {
+                            let bubble = try h.probe("chat-bubble-\(message.id)", chat)
+                            XCTAssertGreaterThanOrEqual(bubble.minX, h.margin - 0.5, chat + " bubble")
+                            XCTAssertLessThanOrEqual(bubble.maxX, size.width - h.margin + 0.5, chat + " bubble")
+                            f.assertText(bubble.insetBy(dx: 16, dy: 13), message.text, font: f.caregiver(.body, type), chat + " bubble")
+                        }
+                    }
+                    let messages = try XCTUnwrap(self.messageScrollView(in: window.rootViewController!.view), chat)
+                    try await f.scrollToEnd(messages, chat)
+                    let lastBubble = try h.probe("chat-bubble-\(try XCTUnwrap(opened.messages.last).id)", chat)
+                    XCTAssertLessThanOrEqual(lastBubble.maxY, try h.probe("chat-composer", chat).minY + 0.5,
+                                             chat + " last answer above the composer")
+                }
+                sessions.showList()
+                let blankID = try XCTUnwrap(sessions.newConversation())
+                sessions.setDraft("Is she home?", for: blankID)
+                let blank = f.label("agent blank chat", size, type)
+                try await h.render(page, size: size, type: type) { window in
+                    try f.snapshot(window, blank)
+                    for key in ["chat-back", "chat-mic", "chat-send"] { try f.assertReachable(key, in: window, blank) }
+                    let field = try h.probe("chat-field", blank)
+                    let mic = try h.probe("chat-mic", blank), send = try h.probe("chat-send", blank)
+                    f.assertApart(field, mic, blank + " field and dictation")
+                    f.assertApart(field, send, blank + " field and send")
+                    f.assertInside(field, try h.probe("chat-composer", blank), blank + " field inside the composer")
+                    if type <= .accessibility1 {
+                        let font = f.caregiver(.body, type)
+                        let placeholder = ("Ask a question" as NSString).size(withAttributes: [.font: font]).width
+                        XCTAssertGreaterThanOrEqual(field.width + 0.5, placeholder + 30, blank + " field fits its placeholder")
+                        try self.assertSuggestionChips(blank, width: size.width, in: window)
+                        for (index, suggestion) in AgentSuggestion.all.enumerated() {
+                            f.assertText(try h.probe("chat-suggestion-text-\(index)", blank), suggestion.topic,
+                                         font: f.caregiver(.secondary, type), blank + " chip \(index)")
+                        }
+                    }
+                    let messages = try XCTUnwrap(self.messageScrollView(in: window.rootViewController!.view), blank)
+                    try await f.scrollToEnd(messages, blank)
+                    let lastChip = try h.probe("chat-suggestion-2", blank)
+                    XCTAssertLessThanOrEqual(lastChip.maxY, try h.probe("chat-composer", blank).minY + 0.5,
+                                             blank + " last chip above the composer")
+                    LayoutLineHarness.assertHitArea(lastChip, blank + " last chip")
                 }
             }
         }

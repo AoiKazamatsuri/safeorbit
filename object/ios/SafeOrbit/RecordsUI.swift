@@ -43,10 +43,13 @@ struct RecordsPage: View {
                 Text("Recording")
                     .orbitDisplayFont(20)
                     .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .recordsFrame("title")
+                    .padding(.horizontal, OrbitLayout.pageMargin)
             }
             VStack(spacing: 0) {
-                sectionPicker.recordsFrame("picker")
+                sectionPicker.recordsFrame("picker").layoutProbe("records-picker")
                     .padding(.horizontal, OrbitLayout.pageMargin)
                     .padding(.top, 12)
                     .padding(.bottom, 23)
@@ -55,7 +58,7 @@ struct RecordsPage: View {
                         if section == .data { dataContent }
                         else { trendContent }
                     }
-                    .recordsFrame("content")
+                    .recordsFrame("content").layoutProbe("records-content")
                     .padding(.horizontal, OrbitLayout.pageMargin)
                     .padding(.bottom, 112)
                 }
@@ -576,16 +579,20 @@ struct TripDetailPage: View {
                     .accessibilityLabel("Back to records").layoutProbe("trip-back")
                     Text("\(trip.month == 8 ? "Aug" : "Jul") \(trip.day)")
                         .recordingFont(25, weight: .semibold)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutProbe("trip-title")
                     Spacer()
                 }
                 .foregroundStyle(.white)
                 .padding(.trailing, OrbitLayout.pageMargin)
             }
+            .layoutProbe("trip-top-bar")
             AMapConsentSurface {
                 AMapCanvas(camera: $mapCamera, markers: tripMarkers, lines: trailLines)
             }
             .onAppear { mapCamera = .region(region) }
             .frame(height: 280)
+            .layoutProbe("trip-map")
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     ViewThatFits {
@@ -595,19 +602,31 @@ struct TripDetailPage: View {
                     .layoutProbe("trip-pills")
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(trip.events.enumerated()), id: \.element.id) { index, event in
+                            let last = index == trip.events.count - 1
                             HStack(alignment: .top, spacing: 17) {
-                                VStack(spacing: 0) {
-                                    Circle().fill(OrbitStyle.teal).frame(width: 12, height: 12)
-                                    Rectangle().fill(OrbitStyle.teal)
-                                        .frame(width: 1, height: index == trip.events.count - 1 ? 0 : 66)
-                                }
+                                Circle().fill(OrbitStyle.teal).frame(width: 12, height: 12)
+                                    .layoutProbe("trip-dot-\(index)")
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(time(event.minute)).caregiverText(.secondary).foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .layoutProbe("trip-event-time-\(index)")
                                     Text(event.title).caregiverText().foregroundStyle(.black)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .layoutProbe("trip-event-title-\(index)")
                                 }.caregiverText()
                                 Spacer()
                             }
-                            .frame(minHeight: 76, alignment: .top)
+                            // 12 pt dot plus a 66 pt line at the default text size; with larger text
+                            // the row grows and the connector runs to the next dot (rule 8).
+                            .frame(minHeight: last ? 76 : 78, alignment: .top)
+                            .background(alignment: .topLeading) {
+                                if !last {
+                                    Rectangle().fill(OrbitStyle.teal).frame(width: 1)
+                                        .layoutProbe("trip-line-\(index)")
+                                        .padding(.top, 12).frame(width: 12)
+                                }
+                            }
+                            .layoutProbe("trip-event-\(index)")
                         }
                     }
                     .layoutProbe("trip-timeline")
@@ -621,14 +640,18 @@ struct TripDetailPage: View {
     }
 
     @ViewBuilder private var summaryPills: some View {
-        pill(trip.name)
-        pill("\(trip.deviations) \(trip.deviations == 1 ? "deviation" : "deviations")")
-        pill("\(trip.calls) \(trip.calls == 1 ? "call" : "calls")")
+        pill(trip.name, key: "name")
+        pill("\(trip.deviations) \(trip.deviations == 1 ? "deviation" : "deviations")", key: "deviations")
+        pill("\(trip.calls) \(trip.calls == 1 ? "call" : "calls")", key: "calls")
     }
-    private func pill(_ text: String) -> some View {
-        Text(text).caregiverText(.secondary).lineLimit(1)
+    // A pill wraps rather than truncating when its words no longer fit on one line (rule 8).
+    private func pill(_ text: String, key: String) -> some View {
+        Text(text).caregiverText(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .layoutProbe("trip-pill-text-" + key)
             .padding(.horizontal, 10).padding(.vertical, 5)
             .background(OrbitStyle.pale, in: Capsule())
+            .layoutProbe("trip-pill-" + key)
     }
     private func time(_ minute: Int) -> String {
         let hour = (minute / 60) % 24

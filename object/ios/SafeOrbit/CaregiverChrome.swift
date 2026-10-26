@@ -83,21 +83,32 @@ struct CaregiverBottomOverlay<Content: View>: View {
 }
 
 /// The teal strip used above caregiver pages that are not the full-screen location map.
+/// `height` is the bar's height when its content is shorter; with larger text the bar grows to
+/// fit its content instead of clipping it (product design section 10, rule 8). Pass
+/// `growsWithContent: false` to keep the exact height.
 struct CaregiverTopBar<Content: View>: View {
     let height: CGFloat
+    let growsWithContent: Bool
     let content: Content
 
-    init(height: CGFloat = 47, @ViewBuilder content: () -> Content) {
+    init(height: CGFloat = 47, growsWithContent: Bool = true, @ViewBuilder content: () -> Content) {
         self.height = height
+        self.growsWithContent = growsWithContent
         self.content = content()
     }
 
     var body: some View {
-        content
-            .frame(maxWidth: .infinity)
-            .frame(height: height)
+        sized
             .background(OrbitStyle.teal)
             .background(OrbitStyle.teal.ignoresSafeArea(edges: .top))
+    }
+
+    @ViewBuilder private var sized: some View {
+        if growsWithContent {
+            content.frame(maxWidth: .infinity).frame(minHeight: height)
+        } else {
+            content.frame(maxWidth: .infinity).frame(height: height)
+        }
     }
 }
 
@@ -205,36 +216,24 @@ struct SettingsSidebarPanel<Portrait: View, Entries: View>: View {
     let logout: () -> Void
     @ViewBuilder var portrait: () -> Portrait
     @ViewBuilder var entries: () -> Entries
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// At accessibility text sizes the portrait sits above the name and badge, so their words keep
+    /// the panel's full width instead of breaking mid-word (product design section 10, rule 8).
+    private var stacked: Bool { dynamicTypeSize.isAccessibilitySize }
     var body: some View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 0) {
-                    HStack(spacing: elder ? 16 : 14) {
-                        portrait().frame(width: elder ? 72 : 57, height: elder ? 72 : 57).clipShape(Circle())
-                        VStack(alignment: .leading, spacing: 5) {
-                            Group {
-                                if elder { Text(name).elderText(.heading) }
-                                else { Text(name).caregiverText() }
-                            }.fixedSize(horizontal: false, vertical: true)
-                            if let badge {
-                                Text(badge).caregiverText(.caption).foregroundStyle(.white)
-                                    .padding(.horizontal, 11).padding(.vertical, 4)
-                                    .background(OrbitStyle.teal, in: Capsule())
-                            }
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, OrbitLayout.cardPadding).padding(.vertical, 12)
-                    .frame(minHeight: elder ? 96 : 84).background(.white, in: Capsule())
-                    .layoutProbe("drawer-header")
-                    .padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 57)
+                    header
                     // Rows have no card, so their content starts on the page margin line.
                     VStack(spacing: 0) { entries() }.padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 20)
                     Spacer(minLength: 24)
                     Button(action: logout) {
                         Label {
-                            if elder { Text("Log Out").elderText() }
-                            else { Text("Log Out").caregiverText() }
+                            Group {
+                                if elder { Text("Log Out").elderText() }
+                                else { Text("Log Out").caregiverText() }
+                            }.layoutProbe("drawer-logout-title")
                         } icon: { Image(systemName: "rectangle.portrait.and.arrow.right") }
                         .foregroundStyle(.black).fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, minHeight: elder ? 56 : 51)
@@ -254,6 +253,33 @@ struct SettingsSidebarPanel<Portrait: View, Entries: View>: View {
         .shadow(color: .black.opacity(0.14), radius: 10, x: 4)
         .foregroundStyle(.black)
     }
+    private var header: some View {
+        let layout = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(spacing: elder ? 16 : 14))
+        return layout {
+            portrait().frame(width: elder ? 72 : 57, height: elder ? 72 : 57).clipShape(Circle())
+                .layoutProbe("drawer-portrait")
+            VStack(alignment: .leading, spacing: 5) {
+                Group {
+                    if elder { Text(name).elderText(.heading) }
+                    else { Text(name).caregiverText() }
+                }.fixedSize(horizontal: false, vertical: true).layoutProbe("drawer-name")
+                if let badge {
+                    Text(badge).caregiverText(.caption).foregroundStyle(.white)
+                        .fixedSize(horizontal: false, vertical: true).layoutProbe("drawer-badge")
+                        .padding(.horizontal, 11).padding(.vertical, 4)
+                        .background(OrbitStyle.teal, in: Capsule())
+                }
+            }
+            if !stacked { Spacer(minLength: 0) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, OrbitLayout.cardPadding).padding(.vertical, stacked ? 16 : 12)
+        .frame(minHeight: elder ? 96 : 84)
+        .background(.white, in: stacked ? AnyShape(RoundedRectangle(cornerRadius: 28)) : AnyShape(Capsule()))
+        .layoutProbe("drawer-header")
+        .padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 57)
+    }
 }
 struct SettingsSidebarRow: View {
     let title: String
@@ -261,9 +287,14 @@ struct SettingsSidebarRow: View {
     var familyIcon = false
     var elder = false
     let action: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var body: some View {
+        // At accessibility text sizes the icon sits above the title, so long words are not split.
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        let layout = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(spacing: 17))
         Button(action: action) {
-            HStack(spacing: 17) {
+            layout {
                 Group {
                     if familyIcon { Image("FamilyMembers").resizable().scaledToFit().frame(width: 30, height: 24) }
                     else { Image(systemName: symbol).font(.system(size: elder ? 28 : 24)) }
@@ -271,9 +302,10 @@ struct SettingsSidebarRow: View {
                 Group {
                     if elder { Text(title).elderText() }
                     else { Text(title).caregiverText() }
-                }.fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-            }.foregroundStyle(.black).padding(.vertical, 10)
+                }.fixedSize(horizontal: false, vertical: true).layoutProbe("drawer-row-title-" + title)
+                if !stacked { Spacer(minLength: 0) }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+                .foregroundStyle(.black).padding(.vertical, 10)
                 .frame(minHeight: elder ? 56 : 52).contentShape(Rectangle())
         }.buttonStyle(.plain).layoutProbe("drawer-row-" + title)
     }

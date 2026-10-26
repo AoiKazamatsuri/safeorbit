@@ -16,9 +16,10 @@ struct AgentConversation: Codable, Identifiable, Equatable {
 }
 
 enum AgentConversationTitle {
+    /// Fixed titles for the demo questions, in the order of `DemoRecords.quickQuestions`.
+    static let themes = ["Recent high-risk event", "August route deviations", "Unusual movement trends"]
     static func make(from question: String) -> String {
         let text = question.trimmingCharacters(in: .whitespacesAndNewlines)
-        let themes = ["Recent high-risk event", "August route deviations", "Unusual movement trends"]
         if let index = DemoRecords.quickQuestions.firstIndex(where: { $0.lowercased() == text.lowercased() }) {
             return themes[index]
         }
@@ -30,6 +31,15 @@ enum AgentConversationTitle {
         let words = content.split(whereSeparator: \.isWhitespace)
         return words.prefix(6).joined(separator: " ") + (words.count > 6 ? "…" : "")
     }
+}
+
+/// A suggestion chip in a blank conversation: it shows the short topic, which is also the title
+/// the conversation gets, and asks the full demo question (product design section 5.5).
+struct AgentSuggestion: Equatable {
+    let topic: String
+    let question: String
+    static let all: [AgentSuggestion] = zip(AgentConversationTitle.themes, DemoRecords.quickQuestions)
+        .map { AgentSuggestion(topic: $0, question: $1) }
 }
 
 @MainActor final class AgentSessionStore: ObservableObject {
@@ -154,7 +164,11 @@ struct AgentSessionPage: View {
         VStack(spacing: 0) {
             CaregiverTopBar(height: dynamicTypeSize.isAccessibilitySize ? 74 : 47) {
                 ZStack {
+                    // The centered title keeps clear of the new-conversation button.
                     Text("Assistant").orbitDisplayFont(20).foregroundStyle(.white)
+                        .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                        .layoutProbe("agent-title")
+                        .padding(.horizontal, 60)
                     // The button reaches the screen edge so the glyph lands on the margin line.
                     HStack {
                         Spacer()
@@ -233,6 +247,7 @@ struct AgentChatPage: View {
     private var lines: [AgentMessage] { sessions.conversation(sessionID)?.messages ?? [] }
     private var showsSuggestions: Bool { sessions.showsSuggestions(in: sessionID) }
     @FocusState private var composing: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 #if DEBUG
     @Environment(\.agentChatTestDriver) private var testDriver
 #endif
@@ -341,14 +356,15 @@ struct AgentChatPage: View {
         }
     }
 
-    /// One chip per suggested question, each on its own line from the page margin (product design
-    /// section 10). A chip asks its question exactly as typing it and pressing send would.
+    /// One chip per suggestion, each on its own line from the page margin (product design
+    /// section 10). A chip shows the short topic in secondary text and asks its full question
+    /// exactly as typing it and pressing send would (section 5.5).
     private var suggestions: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(DemoRecords.quickQuestions.enumerated()), id: \.offset) { index, question in
+            ForEach(Array(AgentSuggestion.all.enumerated()), id: \.offset) { index, suggestion in
                 Button { askSuggestion(index) } label: {
-                    Text(question)
-                        .caregiverText()
+                    Text(suggestion.topic)
+                        .caregiverText(.secondary)
                         .foregroundStyle(OrbitStyle.teal)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
@@ -360,49 +376,78 @@ struct AgentChatPage: View {
                         .contentShape(RoundedRectangle(cornerRadius: 20))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(suggestion.topic)
+                .accessibilityHint("Asks: " + suggestion.question)
                 .layoutProbe("chat-suggestion-\(index)")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Dictation, field and send in one row; at accessibility text sizes the field takes the full
+    /// width and the two buttons sit below it, so the field never becomes too narrow (rule 8).
     private var composer: some View {
-        HStack(alignment: .bottom, spacing: 7) {
-            Button {
-                composing = false
-                dictationTask?.cancel()
-                dictationTask = Task {
-                    await speech.toggle()
-                    if Task.isCancelled { speech.stop() }
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 8) {
+                    questionField
+                    HStack(spacing: 7) {
+                        dictationButton
+                        Spacer(minLength: 0)
+                        sendButton
+                    }
                 }
-            } label: {
-                Image(systemName: speech.listening ? "stop.fill" : "mic.fill")
-                    .font(.system(size: 22)).frame(width: 44, height: 44)
-                    .foregroundStyle(.black).background(.white, in: Circle())
-                    .shadow(color: .black.opacity(0.2), radius: 5, y: 3)
+            } else {
+                HStack(alignment: .bottom, spacing: 7) {
+                    dictationButton
+                    questionField
+                    sendButton
+                }
             }
-            .accessibilityLabel(speech.listening ? "Stop dictation" : "Start dictation")
-            .layoutProbe("chat-mic")
-            TextField("Ask a question", text: draftBinding, axis: .vertical)
-                .lineLimit(1...4)
-                .caregiverText()
-                .padding(.horizontal, 15).padding(.vertical, 11)
-                .background(.white, in: Capsule())
-                .layoutProbe("chat-field")
-                .shadow(color: .black.opacity(0.18), radius: 5, y: 3)
-                .focused($composing)
-                .submitLabel(.send)
-                .onSubmit(send)
-                .accessibilityLabel("Question")
-            if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Button(action: send) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 20, weight: .semibold))
-                        .frame(width: 44, height: 44)
-                        .foregroundStyle(.white).background(OrbitStyle.teal, in: Circle())
-                }.accessibilityLabel("Send question")
-                    .layoutProbe("chat-send")
+        }
+    }
+
+    private var dictationButton: some View {
+        Button {
+            composing = false
+            dictationTask?.cancel()
+            dictationTask = Task {
+                await speech.toggle()
+                if Task.isCancelled { speech.stop() }
             }
+        } label: {
+            Image(systemName: speech.listening ? "stop.fill" : "mic.fill")
+                .font(.system(size: 22)).frame(width: 44, height: 44)
+                .foregroundStyle(.black).background(.white, in: Circle())
+                .shadow(color: .black.opacity(0.2), radius: 5, y: 3)
+        }
+        .accessibilityLabel(speech.listening ? "Stop dictation" : "Start dictation")
+        .layoutProbe("chat-mic")
+    }
+
+    private var questionField: some View {
+        TextField("Ask a question", text: draftBinding, axis: .vertical)
+            .lineLimit(1...4)
+            .caregiverText()
+            .padding(.horizontal, 15).padding(.vertical, 11)
+            .background(.white, in: Capsule())
+            .layoutProbe("chat-field")
+            .shadow(color: .black.opacity(0.18), radius: 5, y: 3)
+            .focused($composing)
+            .submitLabel(.send)
+            .onSubmit(send)
+            .accessibilityLabel("Question")
+    }
+
+    @ViewBuilder private var sendButton: some View {
+        if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Button(action: send) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 20, weight: .semibold))
+                    .frame(width: 44, height: 44)
+                    .foregroundStyle(.white).background(OrbitStyle.teal, in: Circle())
+            }.accessibilityLabel("Send question")
+                .layoutProbe("chat-send")
         }
     }
 
@@ -427,7 +472,7 @@ struct AgentChatPage: View {
     }
 
     private func askSuggestion(_ index: Int) {
-        ask(DemoRecords.quickQuestions[index])
+        ask(AgentSuggestion.all[index].question)
     }
 }
 

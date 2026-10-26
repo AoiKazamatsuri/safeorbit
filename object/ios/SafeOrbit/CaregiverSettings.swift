@@ -289,7 +289,7 @@ struct SettingsAIPage: View {
             SettingsSection("Data use") {
                 SettingsCard {
                     Toggle(isOn: settings.binding(\.allowAITripHistory)) {
-                        Label("Use trip history", systemImage: "clock.arrow.circlepath")
+                        SettingsLabel("Use trip history", systemImage: "clock.arrow.circlepath")
                     }.frame(minHeight: 44)
                     SettingsNote(text: "Allow Agent to use sample trip records in answers. Turning this off clears the current chat.")
                 }
@@ -313,7 +313,7 @@ struct SettingsAIPage: View {
         return VStack(alignment: .leading, spacing: 4) {
             Toggle(isOn: Binding(get: { permissions.status(kind) == .allowed }, set: { on in
                 Task { await permissions.change(kind, to: on) }
-            })) { Label(title, systemImage: symbol) }
+            })) { SettingsLabel(verbatim: title, systemImage: symbol) }
                 .frame(minHeight: 44)
                 .disabled(permissions.busy != nil || status == .restricted || status == .unavailable)
             if status == .restricted { SettingsNote(text: "Access is restricted by iPhone settings.") }
@@ -393,29 +393,39 @@ struct SettingsPage<Content: View>: View {
     }
     var body: some View {
         VStack(spacing: 0) {
-            CaregiverTopBar(height: elder ? (dynamicTypeSize.isAccessibilitySize ? 104 : 56) : 47) {
-                ZStack {
-                    // The centered title keeps clear of the back button on both sides.
-                    Group {
-                        if elder { Text(title).elderText(.heading).fixedSize(horizontal: false, vertical: true) }
-                        else { Text(title).orbitDisplayFont(20).lineLimit(1).minimumScaleFactor(0.7) }
-                    }.padding(.horizontal, 58).accessibilityAddTraits(.isHeader)
-                    // The back button reaches the screen edge so its glyph lands on the margin line.
-                    HStack {
-                        Button(action: back) {
-                            Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold))
-                                .layoutProbe("settings-back-glyph")
-                                .iconHitArea(.leading, inset: OrbitLayout.pageMargin)
+            // The elder bar keeps its fixed height; the caregiver bar grows with its title (rule 8).
+            CaregiverTopBar(height: elder ? (dynamicTypeSize.isAccessibilitySize ? 104 : 56) : 47,
+                            growsWithContent: !elder) {
+                if elder {
+                    ZStack {
+                        // The centered title keeps clear of the back button on both sides.
+                        Text(title).elderText(.heading).fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 58).accessibilityAddTraits(.isHeader)
+                        backRow
+                    }.foregroundStyle(.white)
+                } else {
+                    // The title stays centered on one line when it fits beside the back button;
+                    // otherwise it moves below the button and wraps at whole words.
+                    ViewThatFits(in: .horizontal) {
+                        ZStack {
+                            caregiverTitle.fixedSize().padding(.horizontal, 58)
+                            backRow
                         }
-                        .accessibilityLabel("Back").layoutProbe("settings-back")
-                        Spacer()
-                    }
-                }.foregroundStyle(.white)
+                        VStack(spacing: 0) {
+                            backRow
+                            caregiverTitle.fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity)
+                                .padding(.horizontal, OrbitLayout.pageMargin).padding(.bottom, 8)
+                        }
+                    }.foregroundStyle(.white)
+                }
             }
             ScrollView {
                 VStack(spacing: 20) {
                     content
-                }.padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 22).padding(.bottom, 32)
+                }
+                .layoutProbe("settings-content")
+                .padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 22).padding(.bottom, 32)
             }
             .background(Color(uiColor: .systemGroupedBackground), in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
             .clipShape(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
@@ -428,6 +438,58 @@ struct SettingsPage<Content: View>: View {
         .caregiverText().tint(OrbitStyle.teal).preferredColorScheme(.light)
         .toolbar(.hidden, for: .navigationBar)
         .scrollDismissesKeyboard(.interactively)
+    }
+    private var caregiverTitle: some View {
+        Text(title).orbitDisplayFont(20).multilineTextAlignment(.center)
+            .layoutProbe("settings-title").accessibilityAddTraits(.isHeader)
+    }
+    // The back button reaches the screen edge so its glyph lands on the margin line.
+    private var backRow: some View {
+        HStack {
+            Button(action: back) {
+                Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold))
+                    .layoutProbe("settings-back-glyph")
+                    .iconHitArea(.leading, inset: OrbitLayout.pageMargin)
+            }
+            .accessibilityLabel("Back").layoutProbe("settings-back")
+            Spacer()
+        }
+    }
+}
+/// A settings label whose title wraps at whole words; the probe lets layout tests check it.
+/// Like `Label`, a literal title is a localized key (and lands in the string catalog);
+/// `verbatim:` shows a `String` value as is.
+struct SettingsLabel: View {
+    let title: Text
+    let probe: String
+    let symbol: String
+    init(_ key: LocalizedStringResource, systemImage symbol: String) {
+        title = Text(LocalizedStringKey(key.key)); probe = key.key; self.symbol = symbol
+    }
+    init(verbatim text: String, systemImage symbol: String) {
+        title = Text(verbatim: text); probe = text; self.symbol = symbol
+    }
+    var body: some View {
+        Label {
+            title.fixedSize(horizontal: false, vertical: true).layoutProbe("settings-label-" + probe)
+        } icon: { Image(systemName: symbol) }
+    }
+}
+/// A disclosure group whose title wraps at whole words; probed and localized like `SettingsLabel`.
+struct SettingsDisclosure<Content: View>: View {
+    let title: Text
+    let probe: String
+    @ViewBuilder let content: Content
+    init(_ key: LocalizedStringResource, @ViewBuilder content: () -> Content) {
+        title = Text(LocalizedStringKey(key.key)); probe = key.key; self.content = content()
+    }
+    var body: some View {
+        DisclosureGroup {
+            content
+        } label: {
+            title.multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                .layoutProbe("settings-label-" + probe)
+        }
     }
 }
 struct SettingsCard<Content: View>: View {
@@ -587,25 +649,35 @@ struct CaregiverSettingsDetail: View {
     private var navigation: some View {
         SettingsCard {
             Toggle(isOn: settings.binding(\.autoNavigation)) {
-                Label("Automatic voice navigation", systemImage: "arrow.triangle.turn.up.right.diamond")
+                SettingsLabel("Automatic voice navigation", systemImage: "arrow.triangle.turn.up.right.diamond")
             }.frame(minHeight: 44)
             SettingsNote(text: "Start guidance home when a low-risk situation is detected.")
         }
     }
     private var notifications: some View {
         SettingsCard {
-            Toggle(isOn: settings.binding(\.lowRiskNotifications)) { Label("Low-risk alerts", systemImage: "bell") }.frame(minHeight: 44)
+            Toggle(isOn: settings.binding(\.lowRiskNotifications)) { SettingsLabel("Low-risk alerts", systemImage: "bell") }.frame(minHeight: 44)
             Divider()
-            Toggle(isOn: settings.binding(\.recoveryNotifications)) { Label("Safe return & recovery", systemImage: "checkmark.shield") }.frame(minHeight: 44)
+            Toggle(isOn: settings.binding(\.recoveryNotifications)) { SettingsLabel("Safe return & recovery", systemImage: "checkmark.shield") }.frame(minHeight: 44)
             Divider()
-            Toggle(isOn: settings.binding(\.limitedMonitoringNotifications)) { Label("Monitoring limited", systemImage: "location.slash") }.frame(minHeight: 44)
+            Toggle(isOn: settings.binding(\.limitedMonitoringNotifications)) { SettingsLabel("Monitoring limited", systemImage: "location.slash") }.frame(minHeight: 44)
             Divider()
-            HStack(spacing: 12) {
-                Label("High-risk alerts", systemImage: "exclamationmark.shield")
-                Spacer(minLength: 8)
-                Text("Always on").caregiverText(.secondary).foregroundStyle(.secondary)
+            // "Always on" sits beside the label when both fit on one line, otherwise below it.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    SettingsLabel("High-risk alerts", systemImage: "exclamationmark.shield").fixedSize()
+                    Spacer(minLength: 8)
+                    alwaysOn.fixedSize()
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    SettingsLabel("High-risk alerts", systemImage: "exclamationmark.shield")
+                    alwaysOn.fixedSize(horizontal: false, vertical: true)
+                }.frame(maxWidth: .infinity, alignment: .leading)
             }.frame(minHeight: 44)
         }
+    }
+    private var alwaysOn: some View {
+        Text("Always on").caregiverText(.secondary).foregroundStyle(.secondary).layoutProbe("settings-always-on")
     }
     private var location: some View {
         SettingsCard {
@@ -625,7 +697,7 @@ struct CaregiverSettingsDetail: View {
                 }.accessibilityLabel("Edit " + zone.name + " safe zone")
                 Divider()
             }
-            Button { addingZone = true } label: { Label("Add safe zone", systemImage: "plus.circle").frame(minHeight: 44) }
+            Button { addingZone = true } label: { SettingsLabel("Add safe zone", systemImage: "plus.circle").frame(minHeight: 44) }
         }
     }
     @ViewBuilder private func zoneEditor(_ zone: SafeZone?) -> some View {
@@ -637,30 +709,30 @@ struct CaregiverSettingsDetail: View {
         VStack(spacing: 20) {
             SettingsSection("Getting started") {
                 SettingsCard {
-                    DisclosureGroup("Where do I find trips and guidance?") {
+                    SettingsDisclosure("Where do I find trips and guidance?") {
                         SettingsNote(text: "Location shows familiar places. Agent answers questions about trips. Records shows the calendar, trip details and trends.").padding(.top, 8)
                     }.frame(minHeight: 44)
                 }
             }
             SettingsSection("Frequently asked questions") {
                 SettingsCard {
-                    DisclosureGroup("What is a safe zone?") { SettingsNote(text: "A familiar place, such as home or the market. Leaving a safe zone alone does not mean something is wrong.").padding(.top, 8) }.frame(minHeight: 44)
+                    SettingsDisclosure("What is a safe zone?") { SettingsNote(text: "A familiar place, such as home or the market. Leaving a safe zone alone does not mean something is wrong.").padding(.top, 8) }.frame(minHeight: 44)
                     Divider()
-                    DisclosureGroup("What do the risk colors mean?") { SettingsNote(text: "Green means normal. Yellow indicates low risk. Red indicates high risk and needs family attention.").padding(.top, 8) }.frame(minHeight: 44)
+                    SettingsDisclosure("What do the risk colors mean?") { SettingsNote(text: "Green means normal. Yellow indicates low risk. Red indicates high risk and needs family attention.").padding(.top, 8) }.frame(minHeight: 44)
                     Divider()
-                    DisclosureGroup("How do I change a safe zone?") { SettingsNote(text: "Open Safe Zones, choose a place or add one, then move the pin, choose a radius and save. Changes last for this app session.").padding(.top, 8) }.frame(minHeight: 44)
+                    SettingsDisclosure("How do I change a safe zone?") { SettingsNote(text: "Open Safe Zones, choose a place or add one, then move the pin, choose a radius and save. Changes last for this app session.").padding(.top, 8) }.frame(minHeight: 44)
                 }
             }
             SettingsCard {
                 Button { showingPrivacy = true } label: {
                     HStack {
-                        Label("Privacy Policy", systemImage: "hand.raised")
+                        SettingsLabel("Privacy Policy", systemImage: "hand.raised")
                         Spacer()
                         Image(systemName: "chevron.right").caregiverText(.caption).foregroundStyle(.tertiary)
                     }.frame(minHeight: 44)
                 }.foregroundStyle(.primary)
                 Divider()
-                DisclosureGroup("About this demo") {
+                SettingsDisclosure("About this demo") {
                     SettingsNote(text: "Trips and locations use sample data. Preferences and profiles are saved on this phone. Live monitoring, voice navigation and push notifications are not connected. Emergency dispatch is unavailable.").padding(.top, 8)
                 }.frame(minHeight: 44)
             }
@@ -729,7 +801,7 @@ struct SettingsProfilesFamilyPage: View {
                     }
                     Divider()
                     Button { addingMember = true } label: {
-                        Label("Add family member", systemImage: "person.badge.plus").frame(minHeight: 44)
+                        SettingsLabel("Add family member", systemImage: "person.badge.plus").frame(minHeight: 44)
                     }
                 }
             }
@@ -786,7 +858,7 @@ struct SettingsProfileSection: View {
                     }
                     Divider()
                 }
-                Button { draft.editingContact = EmergencyContact() } label: { Label("Add emergency contact", systemImage: "plus.circle").frame(minHeight: 44) }
+                Button { draft.editingContact = EmergencyContact() } label: { SettingsLabel("Add emergency contact", systemImage: "plus.circle").frame(minHeight: 44) }
             } else {
                 SettingsField(label: "Email (optional)", value: $draft.caregiver.email)
                     .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()

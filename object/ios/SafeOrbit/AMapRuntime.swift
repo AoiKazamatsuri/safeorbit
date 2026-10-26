@@ -48,25 +48,58 @@ struct AMapConsentSurface<Content: View>: View {
     var body: some View {
         if displaysWithoutConsent || consent { content() }
         else {
-            VStack(spacing: 20) {
-                Image(systemName: "map.fill").font(.system(size: 40)).foregroundStyle(OrbitStyle.teal)
-                Text(AMapRuntime.hasKey ? "Enable map services" : "Map configuration required")
-                    .font(.system(size: 24, weight: .medium))
-                if AMapRuntime.hasKey {
-                    Text("AMap provides the map, location and walking routes. It processes location and device/network information to provide these services. Your location is used only while this app is open.")
-                        .font(.system(size: 16, weight: .medium))
-                    Link("AMap Privacy Policy", destination: URL(string: "https://lbs.amap.com/pages/privacy/")!)
-                    Button("Agree and continue") {
-                        UserDefaults.standard.set(true, forKey: AMapRuntime.consentKey)
-                        consent = true
-                    }.buttonStyle(.borderedProminent).tint(OrbitStyle.teal)
-                        .accessibilityIdentifier("amap-consent-accept")
-                } else {
-                    Text("Add the iOS SDK key to this device’s local build configuration.")
-                        .font(.system(size: 16, weight: .medium))
-                }
-            }.multilineTextAlignment(.center).padding(32).frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(OrbitStyle.pale).accessibilityIdentifier("amap-consent-surface")
+            AMapConsentPrompt(hasKey: AMapRuntime.hasKey) {
+                UserDefaults.standard.set(true, forKey: AMapRuntime.consentKey)
+                consent = true
+            }
         }
+    }
+}
+
+/// The map privacy consent shown in place of a map until the user agrees (device builds only).
+/// Its text follows the system text size, and it scrolls when it is taller than the space the map
+/// would take (product design section 10, rule 8).
+struct AMapConsentPrompt: View {
+    let hasKey: Bool
+    let accept: () -> Void
+    var body: some View {
+        GeometryReader { viewport in
+            ScrollView {
+                VStack(spacing: 20) {
+                    Image(systemName: "map.fill").orbitDisplayFont(40, weight: .regular).foregroundStyle(OrbitStyle.teal)
+                        .accessibilityHidden(true)
+                    Text(hasKey ? "Enable map services" : "Map configuration required")
+                        .orbitDisplayFont(24).fixedSize(horizontal: false, vertical: true)
+                        .layoutProbe("amap-consent-title")
+                    if hasKey {
+                        Text("AMap provides the map, location and walking routes. It processes location and device/network information to provide these services. Your location is used only while this app is open.")
+                            .caregiverText().fixedSize(horizontal: false, vertical: true)
+                            .layoutProbe("amap-consent-body")
+                        Link(destination: URL(string: "https://lbs.amap.com/pages/privacy/")!) {
+                            Text("AMap Privacy Policy").caregiverText().fixedSize(horizontal: false, vertical: true)
+                                .layoutProbe("amap-consent-link-text")
+                                .frame(minHeight: OrbitLayout.minimumHitSize).contentShape(Rectangle())
+                        }
+                        .layoutProbe("amap-consent-link")
+                        Button(action: accept) {
+                            Text("Agree and continue").caregiverText().fixedSize(horizontal: false, vertical: true)
+                                .layoutProbe("amap-consent-accept-text")
+                        }
+                        .buttonStyle(.borderedProminent).controlSize(.large).tint(OrbitStyle.teal)
+                        .accessibilityIdentifier("amap-consent-accept")
+                        .layoutProbe("amap-consent-accept")
+                    } else {
+                        Text("Add the iOS SDK key to this device’s local build configuration.")
+                            .caregiverText().fixedSize(horizontal: false, vertical: true)
+                            .layoutProbe("amap-consent-body")
+                    }
+                }
+                .multilineTextAlignment(.center).padding(OrbitLayout.centeredPageMargin)
+                .layoutProbe("amap-consent-content")
+                .frame(maxWidth: .infinity, minHeight: viewport.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+        .background(OrbitStyle.pale).accessibilityIdentifier("amap-consent-surface")
     }
 }

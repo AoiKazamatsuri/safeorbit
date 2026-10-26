@@ -478,4 +478,189 @@ extension SettingsTests {
             }
         }
     }
+
+    /// T31 C13: every settings page keeps its title whole (beside the back button when it fits,
+    /// below it otherwise), its section titles and labels unbroken, and its end reachable.
+    @MainActor func testSettingsPagesMeetTextSizeFloor() async throws {
+        let f = TypeFloorHarness.self, h = LayoutLineHarness.self
+        let suite = "org.safeorbit.settings-floor." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = CaregiverSettingsStore(defaults: defaults)
+        let onboarding = OnboardingStore(homeAccessEnabled: true)
+        let zones = SafeZoneSessionStore()
+        func group(_ value: CaregiverSettingsGroup) -> AnyView {
+            AnyView(CaregiverSettingsGroupPage(group: value, settings: store, onboarding: onboarding, zones: zones, back: {}))
+        }
+        let member = LocalFamilyMember(name: "Sample Member", phone: "+12025550102", relationship: "Daughter")
+        let contact = EmergencyContact(name: "Sample Contact", relationship: "Son", phone: "+12025550103")
+        // (page, title, section titles, labels)
+        let pages: [(AnyView, String, [String], [String])] = [
+            (group(.people), "Profiles & Family", ["Account Settings", "Senior Profile", "Family Members"],
+             ["Add family member", "Add emergency contact"]),
+            (group(.ai), "AI Settings", ["Data use", "Voice input permissions"], ["Use trip history", "Microphone", "Speech recognition"]),
+            (group(.navigation), "Navigation Settings", [], ["Automatic voice navigation"]),
+            (group(.notifications), "Notifications", [], ["Low-risk alerts", "Safe return & recovery", "Monitoring limited", "High-risk alerts"]),
+            (group(.zones), "Safe Zones", [], ["Add safe zone"]),
+            (group(.help), "Help & Privacy", ["Getting started", "Frequently asked questions"],
+             ["Where do I find trips and guidance?", "What is a safe zone?", "What do the risk colors mean?",
+              "How do I change a safe zone?", "Privacy Policy", "About this demo"]),
+            (AnyView(SettingsMemberEditor(settings: store, back: {})), "Add Family Member", [], []),
+            (AnyView(SettingsMemberDetail(member: member, isSelf: false, settings: store, back: {})), "Family Member", [], []),
+            (AnyView(SettingsMemberDetail(member: .init(id: "self", name: "Emma Liu", phone: "+12025550101"), isSelf: true,
+                                          settings: store, back: {})), "Family Member", [], []),
+            (AnyView(EmergencyContactEditor(contact: contact, save: { _ in }, back: {})), "Emergency Contact", [], []),
+            (AnyView(SettingsPrivacyPage(back: {})), "Privacy Policy", [], [])
+        ]
+        for size in f.sizes {
+            for type in f.types {
+                for (index, (page, title, sections, labels)) in pages.enumerated() {
+                    let name = f.label("settings \(index) \(title)", size, type)
+                    try await h.render(page, size: size, type: type) { window in
+                        try f.snapshot(window, name)
+                        try f.assertReachable("settings-back", in: window, name)
+                        if type <= .accessibility1 {
+                            let titleFrame = try h.probe("settings-title", name)
+                            f.assertText(titleFrame, title, font: f.font(20, .medium, type), name + " title")
+                            f.assertApart(titleFrame, try h.probe("settings-back", name), name + " title and back")
+                            f.assertInside(titleFrame, window.bounds, name + " title on screen")
+                            XCTAssertLessThanOrEqual(titleFrame.maxY, try h.probe("settings-content", name).minY + 0.5,
+                                                     name + " title above the content")
+                            for section in sections {
+                                f.assertText(try h.probe("settings-section-" + section, name), section,
+                                             font: f.caregiver(.body, type), name + " section")
+                            }
+                            for label in labels {
+                                f.assertText(try h.probe("settings-label-" + label, name), label,
+                                             font: f.caregiver(.body, type), name + " label")
+                            }
+                            if title == "Notifications" {
+                                let always = try h.probe("settings-always-on", name)
+                                f.assertText(always, "Always on", font: f.caregiver(.secondary, type), name + " always on")
+                                f.assertApart(always, try h.probe("settings-label-High-risk alerts", name), name + " always on")
+                            }
+                        }
+                        try await f.assertReachesEnd("settings-content", in: window, tabBar: false, name)
+                        try f.assertReachable("settings-back", in: window, name + " after scrolling")
+                    }
+                }
+            }
+        }
+    }
+
+    /// T31 C9, C16: the drawer shared by both roles keeps whole words, separate header parts and
+    /// 44 pt rows at every width; at AX5 it still scrolls to Log Out.
+    @MainActor func testSharedDrawerMeetsTextSizeFloor() async throws {
+        let f = TypeFloorHarness.self, h = LayoutLineHarness.self
+        let caregiverRows = CaregiverSettingsGroup.allCases.map(\.rawValue)
+        let elderRows = ["Voice volume", "Set Home"]
+        for elder in [false, true] {
+            let rows = elder ? elderRows : caregiverRows
+            let fraction: CGFloat = elder ? 0.88 : 0.765
+            // Same composition as the location page (caregiver) and the elder home page (elder).
+            let drawer = Color.white.settingsSidebar(isPresented: .constant(true), widthFraction: fraction) {
+                SettingsSidebarPanel(name: elder ? "Li Lan" : "Emma Liu", badge: elder ? nil : "Primary caregiver",
+                                     elder: elder, logout: {}) {
+                    Color.gray
+                } entries: {
+                    ForEach(rows, id: \.self) { row in
+                        SettingsSidebarRow(title: row, symbol: "gearshape", familyIcon: row == "Profiles & Family", elder: elder) {}
+                    }
+                }
+            }
+            for size in f.sizes {
+                for type in f.types {
+                    let name = f.label(elder ? "elder drawer" : "caregiver drawer", size, type)
+                    try await h.render(drawer, size: size, type: type) { window in
+                        try f.snapshot(window, name)
+                        let panel = CGRect(x: 0, y: 0, width: size.width * fraction, height: size.height)
+                        if type <= .accessibility1 {
+                            let body = elder ? f.font(20, .medium, type) : f.caregiver(.body, type)
+                            let header = try h.probe("drawer-header", name)
+                            h.assertOuterEdges(header, width: panel.width, name + " header")
+                            let portrait = try h.probe("drawer-portrait", name), person = try h.probe("drawer-name", name)
+                            f.assertText(person, elder ? "Li Lan" : "Emma Liu", font: elder ? f.font(24, .medium, type) : body, name + " name")
+                            f.assertApart(portrait, person, name + " portrait and name")
+                            var parts = [portrait, person]
+                            if !elder {
+                                let badge = try h.probe("drawer-badge", name)
+                                f.assertText(badge, "Primary caregiver", font: f.caregiver(.caption, type), name + " badge")
+                                f.assertApart(badge, person, name + " badge and name")
+                                f.assertApart(badge, portrait, name + " badge and portrait")
+                                parts.append(badge)
+                            }
+                            for part in parts { f.assertInside(part, header, name + " header part inside the header") }
+                            var previous = header
+                            for row in rows {
+                                let frame = try h.probe("drawer-row-" + row, name)
+                                h.assertOuterEdges(frame, width: panel.width, name + " row " + row)
+                                h.assertHitArea(frame, name + " row " + row)
+                                XCTAssertGreaterThanOrEqual(frame.minY, previous.maxY - 0.5, name + " row " + row + " below the previous")
+                                let text = try h.probe("drawer-row-title-" + row, name)
+                                f.assertText(text, row, font: body, name + " row " + row)
+                                f.assertInside(text, frame, name + " row title inside its row")
+                                previous = frame
+                            }
+                            let logout = try h.probe("drawer-logout", name)
+                            f.assertText(try h.probe("drawer-logout-title", name), "Log Out", font: body, name + " log out")
+                            h.assertOuterEdges(logout, width: panel.width, name + " log out")
+                        }
+                        try await f.assertReachesEnd("drawer-logout", whole: true, in: window, tabBar: false, name)
+                        let logout = try h.probe("drawer-logout", name)
+                        f.assertInside(logout, panel, name + " log out inside the panel")
+                        h.assertHitArea(logout, name + " log out")
+                    }
+                }
+            }
+        }
+    }
+
+    /// T31 C8: the map privacy consent (shown only on a device) follows the text size and scrolls,
+    /// full screen and in the 280 pt map slot of the trip detail.
+    @MainActor func testMapConsentPromptMeetsTextSizeFloor() async throws {
+        let f = TypeFloorHarness.self, h = LayoutLineHarness.self
+        let body = "AMap provides the map, location and walking routes. It processes location and device/network information to provide these services. Your location is used only while this app is open."
+        for hasKey in [true, false] {
+            for slot in [false, true] {
+                let prompt = AMapConsentPrompt(hasKey: hasKey, accept: {})
+                let page: AnyView = slot
+                    ? AnyView(VStack(spacing: 0) { Color.teal.frame(height: 47); prompt.frame(height: 280); Spacer() })
+                    : AnyView(prompt)
+                for size in f.sizes {
+                    for type in f.types {
+                        let name = f.label("map consent \(hasKey ? "key" : "no key")\(slot ? " in map slot" : "")", size, type)
+                        try await h.render(page, size: size, type: type) { window in
+                            try f.snapshot(window, name)
+                            if type <= .accessibility1 {
+                                let title = try h.probe("amap-consent-title", name)
+                                f.assertText(title, hasKey ? "Enable map services" : "Map configuration required",
+                                             font: f.font(24, .medium, type), name + " title")
+                                let text = try h.probe("amap-consent-body", name)
+                                f.assertText(text, hasKey ? body : "Add the iOS SDK key to this device’s local build configuration.",
+                                             font: f.caregiver(.body, type), name + " body")
+                                f.assertApart(title, text, name + " title and body")
+                                let content = try h.probe("amap-consent-content", name)
+                                for part in [title, text] {
+                                    XCTAssertGreaterThanOrEqual(part.minX, content.minX + 32 - 0.5, name + " left margin")
+                                    XCTAssertLessThanOrEqual(part.maxX, content.maxX - 32 + 0.5, name + " right margin")
+                                }
+                                if hasKey {
+                                    let link = try h.probe("amap-consent-link", name), accept = try h.probe("amap-consent-accept", name)
+                                    f.assertText(try h.probe("amap-consent-link-text", name), "AMap Privacy Policy",
+                                                 font: f.caregiver(.body, type), name + " link")
+                                    f.assertText(try h.probe("amap-consent-accept-text", name), "Agree and continue",
+                                                 font: f.caregiver(.body, type), name + " accept")
+                                    h.assertHitArea(link, name + " link")
+                                    for (a, b) in [(text, link), (link, accept), (title, accept)] { f.assertApart(a, b, name) }
+                                }
+                            }
+                            let last = hasKey ? "amap-consent-accept" : "amap-consent-body"
+                            try await f.assertReachesEnd(last, whole: hasKey, in: window, tabBar: false, name)
+                            if hasKey { h.assertHitArea(try h.probe("amap-consent-accept", name), name + " accept") }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
