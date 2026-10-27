@@ -1,6 +1,7 @@
 import XCTest
 import SwiftUI
 import CoreLocation
+import MapKit
 @testable import SafeOrbit
 
 // Risk and alerts (task T38): elder auto-navigation, caregiver snapshot, settings sync, reference
@@ -573,6 +574,84 @@ final class RiskAlertsTests: XCTestCase {
         let offline = RiskEventStore(id: "15", client: nil)
         await offline.load()
         XCTAssertEqual(offline.error, "Risk details are unavailable.")
+    }
+
+    /// The map SDKs size a marker's view from its layout and only deliver touches inside it. The risk
+    /// bubble used to be offset outside that view, so tapping it did nothing (found in the T38 run).
+    @MainActor func testRiskBubbleIsInsideTheTappableMarkerAndTheDotStaysOnTheAnchor() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        for type in [DynamicTypeSize.large, .accessibility1] {
+            for risk in [CaregiverRiskState.warning, .high] {
+                var opened = 0
+                LayoutProbe.frames = [:]
+                // Hosted as NativeAMapCanvas installs a marker: sized to fit, then hit-tested by UIKit.
+                let host = UIHostingController(rootView: AnyView(
+                    SeniorMapMarker(heading: 90, headline: "Wandering for 9 minutes", riskState: risk, openRiskEvent: { opened += 1 })
+                        .environment(\.dynamicTypeSize, type)))
+                host.view.backgroundColor = .clear
+                host.safeAreaRegions = []
+                let size = host.sizeThatFits(in: CGSize(width: 360, height: 240))
+                let window = UIWindow(windowScene: scene)
+                window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+                let container = UIViewController()
+                window.rootViewController = container
+                container.addChild(host)
+                let origin = CGPoint(x: 20, y: 300)   // mid-screen, like a marker on the map
+                host.view.frame = CGRect(origin: origin, size: size)
+                container.view.addSubview(host.view)
+                host.didMove(toParent: container)
+                window.makeKeyAndVisible()
+                window.layoutIfNeeded()
+                try await Task.sleep(for: .milliseconds(300))
+                let name = "\(risk.rawValue) \(type)"
+                let bubble = try XCTUnwrap(LayoutProbe.frames["risk-bubble"], name).offsetBy(dx: -origin.x, dy: -origin.y)
+                XCTAssertTrue(host.view.bounds.insetBy(dx: -0.5, dy: -0.5).contains(bubble), "\(name): bubble \(bubble) outside marker \(host.view.bounds)")
+                XCTAssertGreaterThanOrEqual(bubble.height, OrbitLayout.minimumHitSize, name)
+                XCTAssertNotNil(host.view.hitTest(CGPoint(x: bubble.midX, y: bubble.midY), with: nil), name)
+                XCTAssertLessThan(bubble.maxY, size.height / 2 - 20, "\(name): bubble sits above the dot")
+                XCTAssertEqual(bubble.midY, size.height / 2 - SeniorMapMarker.bubbleLift, accuracy: 6, name)
+                // The dot's centre is the marker's centre, so the default centre anchor stays on her position.
+                XCTAssertEqual(SeniorMapMarker.bubbleLift, 65)
+                XCTAssertGreaterThan(size.height, 108, name)
+                window.isHidden = true
+                previous?.makeKeyAndVisible()
+                XCTAssertEqual(opened, 0)
+            }
+        }
+        // Without a reason to show, the marker is only the dot, as before.
+        let plain = UIHostingController(rootView: SeniorMapMarker(heading: nil, headline: nil))
+        XCTAssertEqual(plain.sizeThatFits(in: CGSize(width: 360, height: 240)), CGSize(width: 108, height: 108))
+    }
+
+    /// The same on the map itself (MapKit display on the simulator): a touch on the bubble, 65 pt above
+    /// the senior's dot, must land in that marker's annotation view rather than in the map underneath.
+    @MainActor func testTouchOnTheMapRiskBubbleReachesTheSeniorMarker() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        var profile = ElderProfile(); profile.name = "Li Lan"; profile.phone = "+12025550100"
+        var live = LocationPreviewData.snapshot()
+        live.riskLevel = "warning"; live.riskHeadline = "Wandering for 9 minutes"; live.riskEventId = "15"
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        window.rootViewController = UIHostingController(rootView:
+            LocationPage(profile: profile, snapshot: live, message: nil, agent: {}, navigate: {}, riskState: live.riskState,
+                         openRiskEvent: {}).environment(\.colorScheme, .light))
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; previous?.makeKeyAndVisible() }
+        try await Task.sleep(for: .milliseconds(2500))
+        func views(in view: UIView) -> [UIView] { [view] + view.subviews.flatMap(views) }
+        let map = try XCTUnwrap(views(in: window).compactMap { $0 as? MKMapView }.first)
+        let dot = map.convert(live.coordinate.appleCoordinate, toPointTo: window)
+        func marker(of view: UIView?) -> MKAnnotationView? {
+            var current = view
+            while let candidate = current { if let annotation = candidate as? MKAnnotationView { return annotation }; current = candidate.superview }
+            return nil
+        }
+        let senior = try XCTUnwrap(marker(of: window.hitTest(dot, with: nil)), "a touch on the dot reaches its marker")
+        let bubbleCentre = CGPoint(x: dot.x, y: dot.y - SeniorMapMarker.bubbleLift)
+        let hit = window.hitTest(bubbleCentre, with: nil)
+        XCTAssertTrue(marker(of: hit) === senior, "a touch on the bubble went to \(String(describing: hit)) instead of the senior marker")
     }
 
     /// Event page and live risk location page at the product design widths, default size and AX1:

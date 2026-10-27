@@ -557,25 +557,9 @@ struct LocationPage: View {
         if let snapshot, let point {
             // The care agent's reason while at risk (e.g. "Wandering for 7 minutes"), else where she is.
             let headline = riskState == .normal ? snapshot.status : (snapshot.riskHeadline ?? riskState.headline)
-            result.append(AMapMarker(id: "senior", coordinate: point, content: AnyView(ZStack {
-                CurrentLocationDot(heading: snapshot.validHeading.map { $0 - visibleHeading }, label: "Senior location")
-                if let headline, !headline.isEmpty, snapshot.isCurrent {
-                    let bubble = Text(headline).caregiverText()
-                        .foregroundStyle(riskState == .high ? .white : .black)
-                        .padding(.horizontal, 17).padding(.vertical, 9)
-                        .background(riskState == .normal ? .white : riskState.color, in: Capsule())
-                        .shadow(color: .black.opacity(0.22), radius: 5, y: 3)
-                        .fixedSize()
-                    if let openRiskEvent {
-                        Button(action: openRiskEvent) { bubble.frame(minHeight: OrbitLayout.minimumHitSize).contentShape(Capsule()) }
-                            .buttonStyle(.plain).offset(y: -65)
-                            .accessibilityLabel(headline).accessibilityHint("Opens the risk event")
-                            .accessibilityIdentifier("risk-bubble")
-                    } else {
-                        bubble.offset(y: -65).accessibilityLabel(headline)
-                    }
-                }
-            })))
+            result.append(AMapMarker(id: "senior", coordinate: point, content: AnyView(SeniorMapMarker(
+                heading: snapshot.validHeading.map { $0 - visibleHeading },
+                headline: snapshot.isCurrent ? headline : nil, riskState: riskState, openRiskEvent: openRiskEvent))))
         }
         return result
     }
@@ -601,6 +585,49 @@ struct LocationPage: View {
                                                       mapFrame: homeMapFrame, cardTop: homeCardTop)
         if let follow = mapFollow.seniorMoved(to: region) {
             camera = .region(follow)
+        }
+    }
+}
+
+/// The senior's dot with the status or risk bubble above it. Both map SDKs size the marker's view
+/// from this layout and deliver touches only inside it, so the bubble is laid out (not offset) above
+/// the dot, and an invisible twin below keeps the dot at the marker's centre, which is the anchor.
+struct SeniorMapMarker: View {
+    let heading: Double?
+    let headline: String?
+    var riskState: CaregiverRiskState = .normal
+    var openRiskEvent: (() -> Void)? = nil
+    /// The bubble's centre sits this far above the dot's centre.
+    static let bubbleLift: CGFloat = 65
+    var body: some View {
+        if let headline, !headline.isEmpty {
+            VStack(spacing: Self.bubbleLift - 54 - OrbitLayout.minimumHitSize / 2) {
+                bubble(headline)
+                CurrentLocationDot(heading: heading, label: "Senior location")
+                label(headline).hidden().accessibilityHidden(true)
+            }
+        } else {
+            CurrentLocationDot(heading: heading, label: "Senior location")
+        }
+    }
+    private func label(_ headline: String) -> some View {
+        Text(headline).caregiverText()
+            .foregroundStyle(riskState == .high ? .white : .black)
+            .padding(.horizontal, 17).padding(.vertical, 9)
+            .background(riskState == .normal ? .white : riskState.color, in: Capsule())
+            .shadow(color: .black.opacity(0.22), radius: 5, y: 3)
+            .fixedSize()
+            .frame(minHeight: OrbitLayout.minimumHitSize)
+    }
+    @ViewBuilder private func bubble(_ headline: String) -> some View {
+        if let openRiskEvent {
+            Button(action: openRiskEvent) { label(headline).contentShape(Capsule()) }
+                .buttonStyle(.plain)
+                .accessibilityLabel(headline).accessibilityHint("Opens the risk event")
+                .accessibilityIdentifier("risk-bubble")
+                .layoutProbe("risk-bubble")
+        } else {
+            label(headline).accessibilityLabel(headline)
         }
     }
 }
