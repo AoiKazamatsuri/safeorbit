@@ -1,6 +1,6 @@
 # 开发环境
 
-代码直接在 `object/` 内开发：`ios/` 是 SwiftUI App，`server/` 是 NestJS 后端与数据库，`dev/` 是开发辅助脚本。设计要求来自 truth 三份文档，UI 视觉基线保持 `reference/ui/`。工程提供编译、测试与数据库连接入口；登录、档案和绑定的前端说明见 [ios/README.md](../ios/README.md)。位置上报、出行识别、安全区与演示数据的重置、回放由任务 T37 实现；风险规则与一个月历史灌入由后续任务补齐。
+代码直接在 `object/` 内开发：`ios/` 是 SwiftUI App，`server/` 是 NestJS 后端与数据库，`dev/` 是开发辅助脚本。设计要求来自 truth 三份文档，UI 视觉基线保持 `reference/ui/`。工程提供编译、测试与数据库连接入口；登录、档案和绑定的前端说明见 [ios/README.md](../ios/README.md)。位置上报、出行识别、安全区与演示数据的重置、回放由任务 T37 实现；风险规则、出手动作与苹果推送由任务 T38 实现；一个月历史灌入由后续任务补齐。
 
 ## 前置工具
 
@@ -46,9 +46,21 @@ node object/dev/check-env.mjs --running
 - 查看运行状态：`sh object/dev/compose.sh ps`。
 - 停止服务并保留数据库：`sh object/dev/compose.sh down`。不要加 `-v`，否则会删除数据库卷。
 
-后端三个模块为 `care-api`、`care-agent`、`outreach-gateway`。只有 care-api 可访问数据库；其他模块只引用其 `public` 入口。care-api 负责手机登记、安全区、位置存取与位置快照，存入位置后发布“位置已入库”事件；care-agent 订阅它做出行识别，并每 30 秒检查一次到家是否停稳；outreach-gateway 仍是预留模块。数据库表由后端启动时建立。
+后端三个模块为 `care-api`、`care-agent`、`outreach-gateway`。只有 care-api 可访问数据库；其他模块只引用其 `public` 入口。care-api 负责手机登记、安全区、参照路线、位置存取、位置快照与全部风险记录，发布“位置已入库”“处置已提交”“状态已变化”三种事件；care-agent 订阅前两种，在同一个队列里按采样时间跑出行识别与风险规则（徘徊、偏离路线、低风险与高风险、解除），决定出手动作，并每 30 秒定时检查一次；outreach-gateway 订阅“状态已变化”，把给家属的通知经苹果推送发出，再把送达结果写回 care-api。数据库表由后端启动时建立。
 
-Demo 不做账号：手机选身份后 `POST /v1/devices`（`role`、`installationId`）换取设备凭证，之后的请求带 `Authorization: Bearer <凭证>`。其余接口：`GET /v1/household`、`GET|POST /v1/safe-zones`、`PUT|DELETE /v1/safe-zones/:id`（家属手机改）、`POST /v1/locations`（老人手机批量上报）、`GET /v1/location`（家属端位置快照）、`GET /v1/trips`。
+风险规则的 Demo 参数取工程架构第 8 节，写在 `server/src/care-agent/risk-rules.ts`，文件开头写明“异常开始、结束”的定义：徘徊从第一个满足条件的 5 分钟窗口的首个点算起，偏离从第一次离参照路线超过 80 米的点算起；在任一安全区内不判异常；数据中断超过 5 分钟即打断异常，既不升级也不解除。识别出的每段异常都记一条行为观测，不论是否升级为风险。
+
+Demo 不做账号：手机选身份后 `POST /v1/devices`（`role`、`installationId`）换取设备凭证，之后的请求带 `Authorization: Bearer <凭证>`。其余接口：`GET /v1/household`、`GET|POST /v1/safe-zones`、`PUT|DELETE /v1/safe-zones/:id`（家属手机改）、`POST /v1/locations`（老人手机批量上报，回复的 `actions` 带回待执行动作）、`GET /v1/location`（家属端位置快照，含风险等级、气泡原因与智能体状态行）、`GET /v1/trips`。任务 T38 新增：
+
+| 接口 | 身份 | 用途 |
+| --- | --- | --- |
+| `PUT /v1/safe-zones/:id/route` | 家属 | 上传“家到该安全区”的参照路线（WGS-84 点列）；移动安全区中心会清掉旧路线，删除安全区连同路线一起删 |
+| `POST /v1/actions/:id/result` | 老人 | 动作回执：`started`，或 `failed` 加原因 |
+| `GET /v1/risk-events`、`GET /v1/risk-events/:id` | 家属 | 风险事件列表与事件页详情（轨迹、已执行的帮助、经过说明、时间线） |
+| `POST /v1/risk-events/:id/met` | 家属 | 确认已会合，立即解除；已解除时 409 |
+| `POST /v1/risk-events/:id/false-alarm` | 家属 | 标为误报；未解除时 409 |
+| `POST /v1/calls` | 家属 | 记录一次“呼叫老人” |
+| `GET|PUT /v1/caregiver-settings` | 家属 | 自动导航与三类通知开关；服务器按它决定是否下发导航、发哪类通知，高风险强提醒不可关 |
 
 若只启动数据库、在电脑上调试后端：
 
@@ -60,6 +72,17 @@ npm --prefix object/server run start:dev
 
 `start:dev` 先编译，再监视编译后的文件；改 TypeScript 源码后另一个终端运行 `npm --prefix object/server run build` 即会重启。不要同时运行容器后端和本机后端，以免占用同一端口。
 
+## 苹果推送（APNs）
+
+服务器用令牌方式（`.p8` 密钥签出 ES256 令牌）经 HTTP/2 向苹果推送的开发环境发送，只用 Node 自带模块。密钥与编号只放本机，不入库、不写进文档与任务记录：
+
+1. 在苹果开发者账号的 Keys 页面建一把启用 Apple Push Notifications service 的密钥，下载 `AuthKey_<编号>.p8`（只能下载一次）。
+2. 把文件放在仓库外，例如 `~/.safeorbit/`；放在仓库内也可以，`*.p8` 已被忽略，但不要提交。
+3. 在 `object/server/.env` 写上变量（变量名见 `.env.example`）：`APNS_KEY_PATH`（密钥文件路径，建议绝对路径；相对路径按 `object/server/` 解析）、`APNS_KEY_ID`（密钥编号）、`APNS_TEAM_ID`（开发者团队编号）、`APNS_TOPIC`（App 的 Bundle ID，默认 `org.safeorbit.demo`）、`APNS_ENVIRONMENT`（默认 `development` 即沙盒；`production` 改用正式环境）。
+4. 重新 `sh object/dev/compose.sh up -d --build --wait`。容器把密钥文件只读挂到 `/run/secrets/apns-key.p8`；没写 `APNS_KEY_PATH` 时挂一个空文件。启动日志只写“APNs configured (主机)”或“APNs not configured”，不打印密钥内容。
+
+没配好时不发送，每条通知的送达记录写 `notConfigured`，风险判定、导航动作与其余流程照常。配好后，通知发给所有已登记推送设备标识（`POST /v1/devices` 的 `pushToken`）的家属手机，苹果的受理结果逐条写进送达记录，可在事件详情的 `actions[].deliveries` 查看。单元测试只用替身与本机 HTTP/2 服务，不连苹果。通知只带本地化键与参数（键与英文文案见 `server/src/outreach-gateway/push-payload.ts`），不带坐标与轨迹；高风险为时效性通知。
+
 ## 演示数据：重置与回放
 
 ```sh
@@ -67,11 +90,12 @@ node object/dev/reset-demo.mjs
 node object/dev/replay-track.mjs
 ```
 
-- 重置：清空出行与位置，恢复 `demo-household.json` 里预置的一户人家与安全区（家、市场）。已登记的手机保留；加 `--devices` 一并清除，加 `--local` 改用本机运行的后端。重置在后端程序内执行，不另开网络接口。
+- 重置：清空出行、位置与全部风险记录（参照路线、行为观测、风险事件与转移、动作与送达、处置、通话、家属设置），恢复 `demo-household.json` 里预置的一户人家与安全区（家、市场），并把 `demo-route.json` 写成“市场”的参照路线（预置安全区没经过手机新建，没有规划路线这一步）。已登记的手机保留；加 `--devices` 一并清除，加 `--local` 改用本机运行的后端。重置在后端程序内执行，不另开网络接口。
 - 演示时要拨通的真实号码写在 `object/server/.env` 的 `DEMO_ELDER_PHONE`、`DEMO_CAREGIVER_PHONE`，不写进仓库；没写时用虚构号码。
-- 回放：按老人手机的方式把一条轨迹分批上传，时间截止到现在，再打印家属端看到的状态与最近的出行。`--stop-after <秒>` 截断轨迹，例如 `--stop-after 1000` 停在市场。
+- 回放：按老人手机的方式把一条轨迹分批上传，时间截止到现在，再打印家属端看到的状态、最近的出行，以及本次回放产生的风险事件、转移、动作与送达记录。轨迹名写在命令后：`home-market-home`（默认，正常出行）、`home-wander-home`（徘徊约 17 分钟，依次低风险、高风险、到家解除）、`home-deviation-home`（偏离路线约 11 分钟，低风险、原因偏离，到家解除）。`--stop-after <秒>` 截断轨迹，例如 `--stop-after 1000` 让 `home-market-home` 停在市场，`--stop-after 1500` 让 `home-wander-home` 停在高风险；`--answer started|failed` 像 App 一样回报导航动作，不加则不回报。
+- 风险核对：`node object/dev/check-risk.mjs` 依次重置并回放徘徊、偏离、开关关闭、停在高风险后“确认已会合”与“标为误报”、正常出行五个场景，逐项打印 PASS 或 FAIL，全过时退出码 0，最后停在一次正常出行之后。已登记的手机保留。加 `--with-reissue` 多等约 2.5 分钟，看无人回报的导航动作过期后重新下发；配好推送时加 `--apns-configured`，此时会向已登记的家属手机真实发送通知。
 - 轨迹由 `tracks.mjs` 按 `demo-route.json` 生成（WGS-84，从家到市场的街道路线，约 734 米，步速 1 米/秒，每 5 秒一个点）。外景路线定下后替换这条路线与 `demo-household.json` 的安全区中心，再运行 `node object/dev/export-gpx.mjs` 重新生成 `tracks/*.gpx`。
-- Xcode 播放：老人手机经 Xcode 运行后，Debug → Simulate Location 选 `home-market-home`，App 收到的定位就沿这条路线走一趟（约 36 分钟）。
+- Xcode 播放：老人手机经 Xcode 运行后，Debug → Simulate Location 选 `home-market-home`，App 收到的定位就沿这条路线走一趟（约 36 分钟）。徘徊场景选 `home-wander-home`（约 33 分钟）：出门沿路线走 300 米，原地绕小圈 17 分钟，第 7 分钟左右进入低风险、第 15 分钟左右进入高风险，再走回家，进家 3 分钟后解除。偏离轨迹只供回放，不导出。
 
 ## iOS 工程
 
@@ -79,7 +103,7 @@ node object/dev/replay-track.mjs
 
 连接真机时，将 `object/ios/Config/Local.xcconfig.example` 复制为同目录的 `Local.xcconfig`，填电脑的 Wi-Fi IP 与实际开发者 Team；它已排除出 Git。构建地址中的 `http:/$()/` 是 xcconfig 避免双斜杠被当作注释的写法。Bundle ID 是工程的初始值 `org.safeorbit.demo`，正式签名前在 Xcode 中按实际账号调整。
 
-App 选身份后向后端登记并联机：家属首页每 3 秒取一次老人位置，老人手机申请“始终允许”定位、在后台每 5 秒上传一批；详见 [前端说明](../ios/README.md)。App 还不发送推送。后台定位、语音导航、国内坐标与真机局域网表现仍须按工程架构第 15 节验证，不能以模拟器构建代替。
+App 选身份后向后端登记并联机：家属首页每 3 秒取一次老人位置，老人手机申请“始终允许”定位、在后台每 5 秒上传一批；详见 [前端说明](../ios/README.md)。风险通知由服务器经苹果推送发出（见上文“苹果推送”），App 端的接收与跳转见前端说明。后台定位、语音导航、国内坐标与真机局域网表现仍须按工程架构第 15 节验证，不能以模拟器构建代替。
 
 工程已入库，不需要每次生成。仅明确需要重建工程时使用 `npm --prefix object/dev run ios:generate`；生成器会拒绝覆盖已有工程，显式 `--force` 才重建，重建会覆盖后来在 Xcode 做的改动。
 
@@ -92,6 +116,6 @@ node object/dev/check-env.mjs --running
 sh object/dev/queue.sh doctor
 ```
 
-iOS 脚本自动选择已安装的 iPhone 模拟器；要选其他设备，设置 `SAFEORBIT_SIMULATOR_ID`。后端检查会构建、运行单元测试（健康接口、出行识别、请求校验与位置快照），检查源码依赖，并故意写入两种临时越界引用确认拒绝后删除。运行检查需要本机端口与模拟器权限；沙箱拒绝时由 Agent 按执行环境申请运行权限。
+iOS 脚本自动选择已安装的 iPhone 模拟器；要选其他设备，设置 `SAFEORBIT_SIMULATOR_ID`。后端检查会构建、运行单元测试（健康接口、出行识别、风险规则与出手动作、推送载荷与 APNs 适配器、请求校验、位置快照与事件详情），检查源码依赖，并故意写入两种临时越界引用确认拒绝后删除。运行检查需要本机端口与模拟器权限；沙箱拒绝时由 Agent 按执行环境申请运行权限。
 
 环境配置结果归任务 T6，前端执行输出归任务 T7，此文只维护可复用方法。产品是否满足 Demo 要求由后续真机和录屏验收决定。

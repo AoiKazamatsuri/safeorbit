@@ -38,8 +38,12 @@ export type TripEvent =
 export const initialState = (): TrackerState => ({ phase: 'unknown', lastFix: null, leaving: null, trip: null, arrivingSince: null });
 
 export function acceptsFix(state: TrackerState, fix: Fix, params: TripParams): boolean {
+  return isAcceptableFix(state.lastFix, fix, params);
+}
+
+// Data quality (section 8 step 1), shared with the risk rules so both see the same fixes.
+export function isAcceptableFix(last: Fix | null, fix: Fix, params: TripParams): boolean {
   if (fix.accuracy !== null && fix.accuracy > params.maxAccuracyMeters) return false;
-  const last = state.lastFix;
   if (!last) return true;
   if (fix.t <= last.t) return false;
   return distanceMeters(last, fix) / ((fix.t - last.t) / 1000) <= params.maxSpeedMps;

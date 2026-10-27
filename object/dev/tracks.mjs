@@ -16,7 +16,30 @@ function bearing(a, b) {
 
 export const demoRoute = () => JSON.parse(readFileSync(new URL('./demo-route.json', import.meta.url), 'utf8')).points;
 
-// legs: ['walk', polyline] walks the polyline from its first point; ['dwell', seconds] stays put.
+// A point moved east and north by the given metres.
+export function offset(p, east, north) {
+  return { latitude: p.latitude + north / 111320, longitude: p.longitude + east / (111320 * Math.cos(rad(p.latitude))) };
+}
+
+// The first `meters` of a polyline, ending exactly at that distance.
+export function routePrefix(line, meters) {
+  const out = [line[0]];
+  let left = meters;
+  for (let i = 1; i < line.length; i++) {
+    const d = distance(line[i - 1], line[i]);
+    if (d >= left) {
+      const f = left / d;
+      out.push({ latitude: line[i - 1].latitude + (line[i].latitude - line[i - 1].latitude) * f,
+        longitude: line[i - 1].longitude + (line[i].longitude - line[i - 1].longitude) * f });
+      return out;
+    }
+    out.push(line[i]); left -= d;
+  }
+  return out;
+}
+
+// legs: ['walk', polyline] walks the polyline from its first point; ['dwell', seconds] stays put;
+// ['loop', { seconds, radius }] walks round a small circle that starts and ends where she stands.
 // Returns one fix every stepSeconds, offsets in seconds from the track start.
 export function buildTrack(legs, { stepSeconds = 5, speedMps = 1.0, accuracy = 8 } = {}) {
   const fixes = [];
@@ -29,6 +52,14 @@ export function buildTrack(legs, { stepSeconds = 5, speedMps = 1.0, accuracy = 8
   for (const [kind, arg] of legs) {
     if (kind === 'dwell') {
       for (let s = stepSeconds; s <= arg; s += stepSeconds) emit(at, 0, null);
+      continue;
+    }
+    if (kind === 'loop') {
+      const c = at, r = arg.radius;
+      for (let s = stepSeconds; s <= arg.seconds; s += stepSeconds) {
+        const a = (s * speedMps) / r;  // the circle's centre is r metres west of the start
+        emit(offset(c, r * (Math.cos(a) - 1), r * Math.sin(a)), speedMps, Math.round((((-a * 180) / Math.PI) % 360 + 360) % 360));
+      }
       continue;
     }
     // Evenly spaced along the polyline, so corners are walked rather than cut.
@@ -55,7 +86,25 @@ export const TRACKS = {
     const route = demoRoute();
     return buildTrack([['dwell', 120], ['walk', route], ['dwell', 300], ['walk', [...route].reverse()], ['dwell', 240]]);
   },
+  // Scenes "low risk", "high risk", "risk resolved": walk 300 m of the market route, wander in a 12 m loop
+  // for 17 minutes (low risk at 7, high at 15 minutes from the start of the wandering), walk back home and
+  // settle 240 s (resolved 180 s after she is well inside home). About 33 minutes.
+  'home-wander-home': () => {
+    const part = routePrefix(demoRoute(), 300);
+    return buildTrack([['dwell', 120], ['walk', part], ['loop', { seconds: 17 * 60, radius: 12 }], ['walk', [...part].reverse()], ['dwell', 240]]);
+  },
+  // Replay check only (not exported): leaves the market route northwards, stays more than 80 m off it for
+  // about 11 minutes (low risk, reason deviation; not long enough for high), then walks straight home.
+  'home-deviation-home': () => {
+    const route = demoRoute();
+    const a = routePrefix(route, 150).at(-1);
+    const b = offset(a, 0, 200), c = offset(b, 300, 0);
+    return buildTrack([['dwell', 120], ['walk', routePrefix(route, 150)], ['walk', [a, b, c, route[0]]], ['dwell', 240]]);
+  },
 };
+
+// Tracks written as Xcode GPX files by export-gpx.mjs; the rest are for replay-track.mjs only.
+export const GPX_TRACKS = ['home-market-home', 'home-wander-home'];
 
 // Xcode plays a GPX file at the pace of its <time> stamps; the base date is arbitrary.
 export function toGpx(name, track, base = Date.UTC(2026, 0, 1)) {

@@ -1,0 +1,273 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { DEFAULT_CAREGIVER_SETTINGS, distanceMeters, distanceToPolylineMeters, GeoPoint, SafeZone } from '../src/care-api/public';
+import { navigationReissue, planActions } from '../src/care-agent/risk-actions';
+import {
+  applyMet, DEMO_RISK_PARAMS, initialRiskState, RiskContext, RiskOutput, RiskState, riskStep, riskTick,
+} from '../src/care-agent/risk-rules';
+import { Fix } from '../src/care-agent/trip-recognition';
+
+// Local frame in metres around home; the market is 600 m due south, the reference route runs straight between.
+const ORIGIN: GeoPoint = { latitude: 32.06, longitude: 118.7665 };
+const P = (east: number, north: number): GeoPoint => ({
+  latitude: ORIGIN.latitude + north / 111_320,
+  longitude: ORIGIN.longitude + east / (111_320 * Math.cos((ORIGIN.latitude * Math.PI) / 180)),
+});
+const HOME: SafeZone = { id: 'h', name: 'Home', isHome: true, center: P(0, 0), radiusMeters: 100 };
+const MARKET: SafeZone = { id: 'm', name: 'Market', isHome: false, center: P(0, -600), radiusMeters: 100 };
+const ROUTE = [P(0, 0), P(0, -600)];
+const CTX: RiskContext = { zones: [HOME, MARKET], routes: [ROUTE], tripStartedAt: null };
+const T0 = Date.UTC(2026, 9, 27, 1, 0, 0);
+const STEP = 5;
+
+// A track builder: walks at 1.2 m/s, loops on a 12 m circle at 1 m/s, or dwells; one fix every 5 s.
+class Track {
+  fixes: Fix[] = [];
+  at: GeoPoint;
+  s = 0;
+  constructor(start: GeoPoint) { this.at = start; }
+  private emit(p: GeoPoint) { this.s += STEP; this.fixes.push({ t: T0 + this.s * 1000, accuracy: 8, latitude: p.latitude, longitude: p.longitude }); }
+  walk(to: GeoPoint, speed = 1.2): this {
+    const from = this.at;
+    const steps = Math.max(1, Math.ceil(distanceMeters(from, to) / (speed * STEP)));
+    for (let i = 1; i <= steps; i++) {
+      const f = i / steps;
+      this.emit({ latitude: from.latitude + (to.latitude - from.latitude) * f, longitude: from.longitude + (to.longitude - from.longitude) * f });
+    }
+    this.at = to;
+    return this;
+  }
+  loop(seconds: number, radius = 12): this {
+    const c = this.at;
+    const kx = 111_320 * Math.cos((c.latitude * Math.PI) / 180);
+    for (let s = STEP; s <= seconds; s += STEP) {
+      const a = (s * 1.0) / radius;  // 1 m/s along the circle
+      this.emit({ latitude: c.latitude + (radius * Math.sin(a)) / 111_320, longitude: c.longitude + (radius * (Math.cos(a) - 1)) / kx });
+    }
+    return this;
+  }
+  dwell(seconds: number): this { for (let s = STEP; s <= seconds; s += STEP) this.emit(this.at); return this; }
+  gap(seconds: number): this { this.s += seconds; return this; }
+  get now(): number { return T0 + this.s * 1000; }
+}
+
+function run(fixes: Fix[], ctx: RiskContext = CTX, state: RiskState = initialRiskState()): { state: RiskState; outputs: RiskOutput[] } {
+  const outputs: RiskOutput[] = [];
+  for (const fix of fixes) { const r = riskStep(state, fix, ctx); state = r.state; outputs.push(...r.outputs); }
+  return { state, outputs };
+}
+const transitions = (outputs: RiskOutput[]) => outputs.filter(o => o.type !== 'observation');
+const observations = (outputs: RiskOutput[]) => outputs.filter(o => o.type === 'observation') as Extract<RiskOutput, { type: 'observation' }>[];
+const ofType = <T extends RiskOutput['type']>(outputs: RiskOutput[], type: T) => outputs.filter(o => o.type === type) as Extract<RiskOutput, { type: T }>[];
+
+// Home, walk 300 m toward the market, wander in a small loop, walk home, settle.
+function wanderTrip(loopSeconds: number): { track: Track; loopStart: number; homeAt: number } {
+  const track = new Track(HOME.center).dwell(60).walk(P(0, -300));
+  const loopStart = track.now;
+  track.loop(loopSeconds).walk(P(0, 0));
+  const homeAt = track.fixes.find(f => f.t > loopStart && distanceMeters(HOME.center, f) <= 80)!.t;
+  track.dwell(240);
+  return { track, loopStart, homeAt };
+}
+
+test('point-to-route distance is perpendicular inside a segment and to the end beyond it', () => {
+  assert.ok(Math.abs(distanceToPolylineMeters(P(50, -300), ROUTE) - 50) < 0.5);
+  assert.ok(Math.abs(distanceToPolylineMeters(P(0, -700), ROUTE) - 100) < 0.5);
+});
+
+test('wandering opens low risk 7 minutes and high risk 15 minutes after it started, and settling home resolves it', () => {
+  const { track, loopStart, homeAt } = wanderTrip(17 * 60);
+  const { state, outputs } = run(track.fixes);
+  const [opened] = ofType(outputs, 'opened');
+  const [escalated] = ofType(outputs, 'escalated');
+  const [resolved] = ofType(outputs, 'resolved');
+  assert.deepEqual(transitions(outputs).map(o => o.type), ['opened', 'escalated', 'resolved']);
+  assert.equal(opened.anomaly, 'wandering');
+  // The anomaly start is when the behaviour began (first fix of the first qualifying window), close to the loop start.
+  assert.ok(opened.anomalyStartedAt >= loopStart - 30_000 && opened.anomalyStartedAt <= loopStart + 5_000, 'start near loop start');
+  assert.ok(opened.at - opened.anomalyStartedAt >= 420_000 && opened.at - opened.anomalyStartedAt < 425_000);
+  assert.equal(opened.minutes, 7);
+  assert.ok(escalated.at - opened.anomalyStartedAt >= 900_000 && escalated.at - opened.anomalyStartedAt < 905_000);
+  assert.equal(escalated.minutes, 15);
+  assert.equal(resolved.resolution, 'home');
+  assert.equal(resolved.level, 'high');
+  assert.equal(resolved.at - homeAt, 180_000);
+  assert.equal(state.risk, null);
+  // One behaviour observation, tied to the risk, opened and later closed when she walked on.
+  const obs = observations(outputs);
+  assert.ok(obs.every(o => o.key === opened.key));
+  assert.equal(obs.at(-1)!.riskKey, opened.key);
+  assert.ok(obs.at(-1)!.endedAt! > opened.at && obs.at(-1)!.endedAt! <= loopStart + 17 * 60_000 + 60_000);
+  assert.ok(obs[0].features.pathMeters > 150 && obs[0].features.netMeters < 35);
+});
+
+test('rules are timed by sample time: batching and wall-clock time do not change the result', () => {
+  const { track } = wanderTrip(17 * 60);
+  const whole = run(track.fixes).outputs;
+  let state = initialRiskState();
+  const split: RiskOutput[] = [];
+  for (let i = 0; i < track.fixes.length; i += 7) {
+    // Persisted between batches as JSON, as the runner does.
+    const r = run(track.fixes.slice(i, i + 7), CTX, JSON.parse(JSON.stringify(state)));
+    state = r.state; split.push(...r.outputs);
+  }
+  assert.deepEqual(split, whole);
+  const DAY = 86_400_000;
+  const shifted = run(track.fixes.map(f => ({ ...f, t: f.t + DAY }))).outputs;
+  assert.deepEqual(transitions(shifted).map(o => (o as { at: number }).at - DAY), transitions(whole).map(o => (o as { at: number }).at));
+});
+
+test('wandering that stops before 7 minutes is an observation only, with no risk', () => {
+  const short = new Track(HOME.center).dwell(60).walk(P(0, -300)).loop(5.5 * 60).walk(P(0, 0)).dwell(240);
+  const { outputs } = run(short.fixes);
+  assert.deepEqual(transitions(outputs), []);
+  const obs = observations(outputs);
+  assert.equal(obs.length, 2);  // opened, then closed
+  assert.equal(obs[0].endedAt, null);
+  assert.ok(obs[1].endedAt !== null && obs[1].riskKey === null);
+  assert.ok(obs[1].features.durationSeconds < 420);
+});
+
+test('walking in circles inside a safe zone is never an anomaly', () => {
+  const inMarket = new Track(HOME.center).dwell(60).walk(P(0, -600)).loop(25 * 60, 15).walk(P(0, 0)).dwell(240);
+  assert.deepEqual(run(inMarket.fixes).outputs, []);
+  const atHome = new Track(P(10, 10)).loop(25 * 60, 15);
+  assert.deepEqual(run(atHome.fixes).outputs, []);
+});
+
+test('deviation: more than 80 m off the reference route for 5 minutes, low risk 7 minutes after leaving it', () => {
+  const track = new Track(HOME.center).dwell(60).walk(P(0, -150)).walk(P(200, -150)).walk(P(200, -450)).walk(P(0, -150)).walk(P(0, 0)).dwell(240);
+  const firstOff = track.fixes.find(f => distanceToPolylineMeters(f, ROUTE) > 80)!.t;
+  const { outputs } = run(track.fixes);
+  assert.deepEqual(transitions(outputs).map(o => o.type), ['opened', 'resolved']);
+  const [opened] = ofType(outputs, 'opened');
+  assert.equal(opened.anomaly, 'deviation');
+  assert.equal(opened.anomalyStartedAt, firstOff);
+  assert.ok(opened.at - firstOff >= 420_000 && opened.at - firstOff < 425_000);
+  assert.ok(observations(outputs).every(o => o.kind === 'deviation'));
+  // Without a reference route deviation is never judged.
+  assert.deepEqual(run(track.fixes, { ...CTX, routes: [] }).outputs, []);
+});
+
+test('the clock check opens and escalates without new fixes, only while the newest fix is at most 5 minutes old', () => {
+  const six = new Track(HOME.center).dwell(60).walk(P(0, -300)).loop(6 * 60);
+  const { state, outputs } = run(six.fixes);
+  assert.equal(observations(outputs).length, 1);
+  const start = observations(outputs)[0].startedAt;
+  const last = six.fixes.at(-1)!.t;
+  assert.deepEqual(riskTick(state, start + 400_000, CTX).outputs, []);       // not yet 7 minutes
+  const low = riskTick(state, start + 421_000, CTX);
+  assert.deepEqual(transitions(low.outputs).map(o => o.type), ['opened']);
+  assert.equal((low.outputs.find(o => o.type === 'opened') as { at: number }).at, start + 421_000);
+  // A silent phone: newest fix more than 5 minutes old, the clock changes nothing.
+  assert.deepEqual(riskTick(state, last + 301_000, CTX).outputs, []);
+
+  const eleven = new Track(HOME.center).dwell(60).walk(P(0, -300)).loop(11 * 60);
+  const r = run(eleven.fixes);
+  const s = observations(r.outputs)[0].startedAt;
+  const high = riskTick(r.state, s + 900_000, CTX);
+  assert.deepEqual(transitions(high.outputs).map(o => o.type), ['escalated']);
+  assert.equal(high.state.risk!.level, 'high');
+  assert.deepEqual(riskTick(r.state, eleven.fixes.at(-1)!.t + 301_000, CTX).outputs, []);
+});
+
+test('high risk never steps down; low risk stays until resolved', () => {
+  // High, then standing still outside any zone for 20 minutes: still high, not resolved.
+  const high = new Track(HOME.center).dwell(60).walk(P(0, -300)).loop(16 * 60).walk(P(60, -300)).dwell(20 * 60);
+  const h = run(high.fixes);
+  assert.equal(h.state.risk!.level, 'high');
+  assert.deepEqual(transitions(h.outputs).map(o => o.type), ['opened', 'escalated']);
+  // Low, then the wandering stops: no escalation without an ongoing anomaly, and no resolution away from home.
+  const low = new Track(HOME.center).dwell(60).walk(P(0, -300)).loop(8 * 60).walk(P(60, -300)).dwell(20 * 60);
+  const l = run(low.fixes);
+  assert.equal(l.state.risk!.level, 'warning');
+  assert.deepEqual(transitions(l.outputs).map(o => o.type), ['opened']);
+  assert.deepEqual(riskTick(l.state, low.fixes.at(-1)!.t + 60_000, CTX).outputs, []);
+});
+
+test('home resolves only after 180 s settled inside; stepping out restarts the count', () => {
+  const t = new Track(HOME.center).dwell(60).walk(P(0, -300)).loop(8 * 60).walk(P(0, -60)).dwell(100).walk(P(0, -130));
+  const out = t.fixes.length;
+  t.walk(P(0, -60));
+  const reentry = t.fixes.slice(out).find(f => distanceMeters(HOME.center, f) <= 80)!.t;
+  t.dwell(240);
+  const { state, outputs } = run(t.fixes);
+  assert.deepEqual(transitions(outputs).map(o => o.type), ['opened', 'resolved']);
+  const [resolved] = ofType(outputs, 'resolved');
+  assert.equal(resolved.resolution, 'home');
+  assert.equal(resolved.at, reentry + 180_000);
+  assert.equal(state.risk, null);
+  // The clock resolves a settled return while her phone still reports recently.
+  const quiet = new Track(HOME.center).dwell(60).walk(P(0, -300)).loop(8 * 60).walk(P(0, 0)).dwell(30);
+  const q = run(quiet.fixes);
+  const since = q.state.risk!.homeSince!;
+  assert.deepEqual(riskTick(q.state, since + 170_000, CTX).outputs, []);
+  assert.deepEqual(ofType(riskTick(q.state, since + 180_000, CTX).outputs, 'resolved').map(o => o.resolution), ['home']);
+});
+
+test("We've Met resolves at once without fixes; the same anomaly never reopens a risk", () => {
+  const t = new Track(HOME.center).dwell(60).walk(P(0, -300)).loop(16 * 60);
+  const r = run(t.fixes);
+  const met = applyMet(r.state, t.now + 3_600_000);  // phone silent for an hour: still resolves
+  assert.deepEqual(met.outputs.map(o => o.type === 'resolved' && o.resolution), ['met']);
+  assert.equal(met.state.risk, null);
+  assert.deepEqual(applyMet(met.state, t.now).outputs, []);
+  // She keeps wandering after they met: the consumed episode raises nothing.
+  const more = new Track(t.at); more.s = t.s; more.loop(10 * 60);
+  assert.deepEqual(transitions(run(more.fixes, CTX, met.state).outputs), []);
+});
+
+test('a gap of more than 5 minutes in the data breaks the anomaly; the clock of the next one restarts', () => {
+  const t = new Track(HOME.center).dwell(60).walk(P(0, -300)).loop(6 * 60).gap(6 * 60);
+  const afterGap = t.now;
+  t.loop(10 * 60);
+  const { outputs } = run(t.fixes);
+  const obs = observations(outputs);
+  const keys = [...new Set(obs.map(o => o.key))];
+  assert.equal(keys.length, 2);
+  const [opened] = ofType(outputs, 'opened');
+  assert.ok(opened.anomalyStartedAt >= afterGap, 'the risk counts from the anomaly after the gap');
+  assert.ok(obs.find(o => o.key === keys[0] && o.endedAt !== null), 'the first run ends at the gap');
+});
+
+test('each risk transition acts once; switches off suppress navigation and notifications but not the high alert', () => {
+  const { track } = wanderTrip(17 * 60);
+  const { outputs } = run(track.fixes);
+  const on = planActions(outputs, DEFAULT_CAREGIVER_SETTINGS);
+  assert.deepEqual(on.map(a => [a.kind, a.status]), [
+    ['startNavigation', 'pending'], ['notifyLow', 'pending'], ['notifyHigh', 'pending'], ['notifyResolved', 'pending'],
+  ]);
+  assert.equal(new Set(on.map(a => a.idempotencyKey)).size, on.length);
+  assert.deepEqual(planActions(outputs, DEFAULT_CAREGIVER_SETTINGS).map(a => a.idempotencyKey), on.map(a => a.idempotencyKey));
+  assert.equal(on[0].expiresInSeconds, 120);
+  assert.equal(on[1].details.navigation, true);
+  const off = planActions(outputs, { autoNavigation: false, lowRiskNotifications: false, recoveryNotifications: false, limitedMonitoringNotifications: false });
+  assert.deepEqual(off.map(a => [a.kind, a.status, a.reason]), [
+    ['startNavigation', 'skipped', 'autoNavigationOff'], ['notifyLow', 'skipped', 'lowRiskNotificationsOff'],
+    ['notifyHigh', 'pending', null], ['notifyResolved', 'skipped', 'recoveryNotificationsOff'],
+  ]);
+  assert.equal(off[1].details.navigation, false);
+});
+
+test('navigation that lapsed unanswered is re-issued while the risk is active and her phone reports', () => {
+  const now = T0 + 1_000_000;
+  const expired = { seq: 1, status: 'delivered', expiresAt: new Date(now - 1) };
+  const live = { riskActive: true, autoNavigation: true, fixFresh: true };
+  assert.deepEqual(navigationReissue(expired, now, live), { expire: true, issueSeq: 2 });
+  assert.deepEqual(navigationReissue({ ...expired, status: 'pending' }, now, live), { expire: true, issueSeq: 2 });
+  assert.deepEqual(navigationReissue({ ...expired, expiresAt: new Date(now + 1) }, now, live), { expire: false, issueSeq: null });
+  for (const status of ['started', 'failed', 'cancelled', 'skipped']) {
+    assert.deepEqual(navigationReissue({ ...expired, status }, now, live), { expire: false, issueSeq: null }, status);
+  }
+  assert.deepEqual(navigationReissue(expired, now, { ...live, fixFresh: false }), { expire: true, issueSeq: null });
+  assert.deepEqual(navigationReissue({ ...expired, status: 'expired' }, now, live), { expire: false, issueSeq: 2 });
+  assert.deepEqual(navigationReissue(expired, now, { ...live, autoNavigation: false }), { expire: true, issueSeq: null });
+  assert.deepEqual(navigationReissue(expired, now, { ...live, riskActive: false }), { expire: false, issueSeq: null });
+  assert.deepEqual(navigationReissue(null, now, live), { expire: false, issueSeq: null });
+});
+
+test('the Demo parameters are those of engineering architecture section 8', () => {
+  const p = DEMO_RISK_PARAMS;
+  assert.deepEqual([p.windowSeconds, p.wanderMinPathMeters, p.wanderMaxNetMeters, p.deviationMeters, p.deviationSeconds,
+    p.lowAfterSeconds, p.highAfterSeconds, p.homeSettleSeconds, p.freshSeconds], [300, 150, 35, 80, 300, 420, 900, 180, 300]);
+});

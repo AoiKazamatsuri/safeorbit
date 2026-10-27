@@ -1,4 +1,6 @@
-// Demo reset: back to the seeded household with no trips or locations. Run from the repository root:
+// Demo reset: back to the seeded household with no trips, locations or risk records, and the preset
+// "Market" zone given demo-route.json as its reference route (it was never created on a phone, so no
+// route was planned for it). Run from the repository root:
 //   node object/dev/reset-demo.mjs            reset the backend running in Docker
 //   node object/dev/reset-demo.mjs --devices  also forget registered phones
 //   node object/dev/reset-demo.mjs --local    reset through a backend run with `npm run start:dev`
@@ -8,6 +10,9 @@ import { fileURLToPath } from 'node:url';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const { note, ...seed } = JSON.parse(readFileSync(new URL('./demo-household.json', import.meta.url), 'utf8'));
+const ROUTED_ZONE = 'Market';
+if (!seed.safeZones.some(z => z.name === ROUTED_ZONE)) throw new Error(`demo-household.json has no ${ROUTED_ZONE} zone for demo-route.json`);
+seed.referenceRoutes = { [ROUTED_ZONE]: JSON.parse(readFileSync(new URL('./demo-route.json', import.meta.url), 'utf8')).points };
 // Real phone numbers for recording stay in the ignored server/.env; values are never printed.
 const envFile = new URL('../server/.env', import.meta.url);
 const env = existsSync(envFile)

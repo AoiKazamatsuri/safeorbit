@@ -28,6 +28,15 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-safeorbit}
       POSTGRES_USER: ${POSTGRES_USER:-safeorbit}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run node ../dev/setup-env.mjs first}
+      # Apple push (T38): ids from server/.env; the .p8 key file is mounted read-only. Without APNS_KEY_PATH an
+      # empty /dev/null is mounted and the server records notifications as not configured.
+      APNS_KEY_PATH: ${APNS_KEY_PATH:+/run/secrets/apns-key.p8}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_TOPIC: ${APNS_TOPIC:-org.safeorbit.demo}
+      APNS_ENVIRONMENT: ${APNS_ENVIRONMENT:-development}
+    volumes:
+      - ${APNS_KEY_PATH:-/dev/null}:/run/secrets/apns-key.p8:ro
     depends_on:
       database:
         condition: service_healthy

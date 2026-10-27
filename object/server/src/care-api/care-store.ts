@@ -3,14 +3,15 @@ import { createHash, randomBytes } from 'node:crypto';
 import { PoolClient } from 'pg';
 import { DatabaseService } from './database.service';
 import { GeoPoint } from './geo';
-import { DEMO_CAREGIVER_ID, DEMO_ELDER_ID } from './schema';
+import { DEMO_CAREGIVER_ID, DEMO_ELDER_ID, RESET_TABLES } from './schema';
 import { DeviceRegistration, DeviceRole, isHomeName, LocationBatch, SafeZoneInput } from './validation';
 
 export interface Household {
   elder: { name: string; callName: string; phone: string; timezone: string };
   caregiver: { name: string; phone: string };
 }
-export interface HouseholdSeed extends Household { safeZones: SafeZoneInput[] }
+// referenceRoutes: zone name -> planned WGS-84 walking route from home, for zones seeded without a phone.
+export interface HouseholdSeed extends Household { safeZones: SafeZoneInput[]; referenceRoutes?: Record<string, GeoPoint[]> }
 export interface Device { id: string; role: DeviceRole; elderId: number }
 export interface SafeZone { id: string; name: string; isHome: boolean; center: GeoPoint; radiusMeters: number }
 export interface StoredFix {
@@ -18,7 +19,8 @@ export interface StoredFix {
   accuracy: number | null; speed: number | null; course: number | null;
 }
 export interface TripRecord { id: string; startedAt: Date; endedAt: Date | null; startKnown: boolean; stops: string[] }
-export interface TrackerRecord { phase: string; activeTripId: string | null; processedThrough: Date | null; state: unknown }
+export interface TrackerRecord { phase: string; activeTripId: string | null; processedThrough: Date | null; state: unknown; riskState: unknown }
+export interface TrackingNext { phase: string; processedThrough: Date | null; state: unknown }
 export type TripChange =
   | { type: 'started'; startedAt: Date; startKnown: boolean; stops: string[] }
   | { type: 'stops'; stops: string[] }
@@ -101,13 +103,20 @@ export class CareStore {
     const isHome = isHomeName(input.name);
     if (zone.isHome && !isHome) throw new ConflictException('The home zone must keep its home name');
     if (!zone.isHome && isHome && zones.some(z => z.isHome)) throw new ConflictException('A home zone already exists');
-    const [row] = await this.db.query(
-      `UPDATE safe_zones SET name = $3, is_home = $4, latitude = $5, longitude = $6, radius_m = $7
-       WHERE elder_id = $1 AND id = $2 RETURNING *`,
-      [elderId, id, input.name, isHome, input.center.latitude, input.center.longitude, input.radiusMeters]);
-    return zoneRow(row);
+    return this.db.transaction(async client => {
+      const { rows: [row] } = await client.query(
+        `UPDATE safe_zones SET name = $3, is_home = $4, latitude = $5, longitude = $6, radius_m = $7
+         WHERE elder_id = $1 AND id = $2 RETURNING *`,
+        [elderId, id, input.name, isHome, input.center.latitude, input.center.longitude, input.radiusMeters]);
+      // A moved zone needs a newly planned route; until the caregiver phone uploads it, deviation has no reference there.
+      if (zone.center.latitude !== input.center.latitude || zone.center.longitude !== input.center.longitude) {
+        await client.query('DELETE FROM reference_routes WHERE zone_id = $1', [id]);
+      }
+      return zoneRow(row);
+    });
   }
 
+  // Its reference route goes with it (ON DELETE CASCADE).
   async deleteSafeZone(elderId: number, id: string): Promise<void> {
     const zone = (await this.safeZones(elderId)).find(z => z.id === id);
     if (!zone) throw new NotFoundException('Safe zone not found');
@@ -169,31 +178,31 @@ export class CareStore {
     const [row] = await this.db.query<any>('SELECT * FROM tracker_state WHERE elder_id = $1', [elderId]);
     return row ? {
       phase: row.phase, activeTripId: row.active_trip_id === null ? null : String(row.active_trip_id),
-      processedThrough: row.processed_through, state: row.state,
+      processedThrough: row.processed_through, state: row.state, riskState: row.risk_state,
     } : null;
   }
 
   // Trip changes and the tracker state that produced them are written in one transaction.
-  async recordTracking(elderId: number, changes: TripChange[],
-    next: { phase: string; processedThrough: Date | null; state: unknown }): Promise<void> {
-    await this.db.transaction(async client => {
-      const current = await client.query<{ active_trip_id: string | null }>(
-        'SELECT active_trip_id FROM tracker_state WHERE elder_id = $1 FOR UPDATE', [elderId]);
-      let tripId = current.rows[0]?.active_trip_id ?? null;
-      for (const change of changes) tripId = await applyTripChange(client, elderId, tripId, change);
-      await client.query(
-        `INSERT INTO tracker_state (elder_id, phase, active_trip_id, processed_through, state, updated_at)
-         VALUES ($1, $2, $3, $4, $5, now())
-         ON CONFLICT (elder_id) DO UPDATE SET phase = EXCLUDED.phase, active_trip_id = EXCLUDED.active_trip_id,
-           processed_through = EXCLUDED.processed_through, state = EXCLUDED.state, updated_at = now()`,
-        [elderId, next.phase, tripId, next.processedThrough, JSON.stringify(next.state)]);
-    });
+  async recordTracking(elderId: number, changes: TripChange[], next: TrackingNext): Promise<void> {
+    await this.db.transaction(client => applyTracking(client, elderId, changes, next));
   }
 
   async activeTrip(elderId: number): Promise<TripRecord | null> {
     const [row] = await this.db.query(
       'SELECT t.* FROM tracker_state s JOIN trips t ON t.id = s.active_trip_id WHERE s.elder_id = $1', [elderId]);
     return row ? tripRow(row) : null;
+  }
+
+  async trip(elderId: number, id: string): Promise<TripRecord | null> {
+    const [row] = await this.db.query('SELECT * FROM trips WHERE elder_id = $1 AND id = $2', [elderId, id]);
+    return row ? tripRow(row) : null;
+  }
+
+  async pointsBetween(elderId: number, from: Date, to: Date | null, limit: number): Promise<StoredFix[]> {
+    return (await this.db.query(
+      `SELECT sampled_at, latitude, longitude, accuracy_m, speed_mps, course_deg FROM location_points
+       WHERE elder_id = $1 AND sampled_at >= $2 AND ($3::timestamptz IS NULL OR sampled_at <= $3) ORDER BY sampled_at LIMIT $4`,
+      [elderId, from, to, limit])).map(fixRow);
   }
 
   async trips(elderId: number, limit: number): Promise<TripRecord[]> {
@@ -204,7 +213,7 @@ export class CareStore {
   async reset(seed: HouseholdSeed, options: { devices: boolean }): Promise<void> {
     if (seed.safeZones.filter(z => isHomeName(z.name)).length !== 1) throw new Error('The seed needs exactly one home zone');
     await this.db.transaction(async client => {
-      await client.query(`TRUNCATE tracker_state, trips, location_points, safe_zones${options.devices ? ', devices' : ''}`);
+      await client.query(`TRUNCATE ${[...RESET_TABLES, ...(options.devices ? ['devices'] : [])].join(', ')}`);
       await client.query(
         `INSERT INTO elders (id, name, call_name, phone, timezone) VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (id) DO UPDATE SET name = $2, call_name = $3, phone = $4, timezone = $5`,
@@ -214,12 +223,35 @@ export class CareStore {
          ON CONFLICT (id) DO UPDATE SET name = $3, phone = $4, is_primary = true`,
         [DEMO_CAREGIVER_ID, DEMO_ELDER_ID, seed.caregiver.name, seed.caregiver.phone]);
       for (const z of seed.safeZones) {
-        await client.query(
-          `INSERT INTO safe_zones (elder_id, name, is_home, latitude, longitude, radius_m) VALUES ($1, $2, $3, $4, $5, $6)`,
+        const { rows: [zone] } = await client.query<{ id: string }>(
+          `INSERT INTO safe_zones (elder_id, name, is_home, latitude, longitude, radius_m) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
           [DEMO_ELDER_ID, z.name, isHomeName(z.name), z.center.latitude, z.center.longitude, z.radiusMeters]);
+        const route = seed.referenceRoutes?.[z.name];
+        if (route && !isHomeName(z.name)) {
+          await client.query(`INSERT INTO reference_routes (zone_id, elder_id, points, source) VALUES ($1, $2, $3, 'seed')`,
+            [zone.id, DEMO_ELDER_ID, JSON.stringify(route)]);
+        }
       }
     });
   }
+}
+
+// Trip changes and the tracker state that produced them, inside the caller's transaction. riskState is
+// written alongside when given, so trip and risk processing commit together.
+export async function applyTracking(client: PoolClient, elderId: number, changes: TripChange[], next: TrackingNext,
+  riskState?: unknown): Promise<void> {
+  const current = await client.query<{ active_trip_id: string | null }>(
+    'SELECT active_trip_id FROM tracker_state WHERE elder_id = $1 FOR UPDATE', [elderId]);
+  let tripId = current.rows[0]?.active_trip_id ?? null;
+  for (const change of changes) tripId = await applyTripChange(client, elderId, tripId, change);
+  await client.query(
+    `INSERT INTO tracker_state (elder_id, phase, active_trip_id, processed_through, state, risk_state, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, now())
+     ON CONFLICT (elder_id) DO UPDATE SET phase = EXCLUDED.phase, active_trip_id = EXCLUDED.active_trip_id,
+       processed_through = EXCLUDED.processed_through, state = EXCLUDED.state,
+       risk_state = COALESCE(EXCLUDED.risk_state, tracker_state.risk_state), updated_at = now()`,
+    [elderId, next.phase, tripId, next.processedThrough, JSON.stringify(next.state),
+      riskState === undefined ? null : JSON.stringify(riskState)]);
 }
 
 async function applyTripChange(client: PoolClient, elderId: number, tripId: string | null, change: TripChange): Promise<string | null> {

@@ -1,10 +1,12 @@
 import 'reflect-metadata';
 import { CareStore, HouseholdSeed } from './care-store';
+import { GeoPoint } from './geo';
 import { DatabaseService } from './database.service';
-import { InputError, parseSafeZone } from './validation';
+import { InputError, parseReferenceRoute, parseSafeZone } from './validation';
 
 // Demo reset, run inside the care API so no other process writes the database:
 //   node dist/src/care-api/reset-cli.js [--devices] < household.json
+// The seed may carry referenceRoutes: { "<zone name>": [WGS-84 points] } for preset zones (T38).
 function text(value: unknown, field: string): string {
   if (typeof value !== 'string' || !value.trim()) throw new InputError(`${field} is required`);
   return value.trim();
@@ -20,7 +22,17 @@ export function parseSeed(raw: unknown): HouseholdSeed {
     },
     caregiver: { name: text(seed.caregiver?.name, 'caregiver.name'), phone: text(seed.caregiver?.phone, 'caregiver.phone') },
     safeZones: seed.safeZones.map(parseSafeZone),
+    referenceRoutes: parseRoutes(seed.referenceRoutes, seed.safeZones.map((z: any) => String(z?.name ?? '').trim())),
   };
+}
+
+function parseRoutes(raw: unknown, zoneNames: string[]): Record<string, GeoPoint[]> {
+  if (raw === undefined || raw === null) return {};
+  if (typeof raw !== 'object' || Array.isArray(raw)) throw new InputError('referenceRoutes must map zone names to points');
+  return Object.fromEntries(Object.entries(raw).map(([name, points]) => {
+    if (!zoneNames.includes(name)) throw new InputError(`referenceRoutes names an unknown zone: ${name}`);
+    return [name, parseReferenceRoute({ points })];
+  }));
 }
 
 async function main(): Promise<void> {
@@ -31,7 +43,9 @@ async function main(): Promise<void> {
   try {
     await db.onModuleInit();
     await new CareStore(db).reset(seed, { devices: process.argv.includes('--devices') });
-    console.log(`Reset done: ${seed.safeZones.length} safe zones${process.argv.includes('--devices') ? ', phones unregistered' : ''}`);
+    const routes = Object.keys(seed.referenceRoutes ?? {});
+    console.log(`Reset done: ${seed.safeZones.length} safe zones, reference route${routes.length === 1 ? '' : 's'}: ${routes.join(', ') || 'none'}`
+      + `${process.argv.includes('--devices') ? ', phones unregistered' : ''}`);
   } finally { await db.onModuleDestroy(); }
 }
 
