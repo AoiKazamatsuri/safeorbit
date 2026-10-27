@@ -48,6 +48,10 @@ extension DemoAppRole {
     let role: DemoAppRole
     private let defaults: UserDefaults
     private(set) var token: String?
+    /// Household from the latest registration: call name for the reminder, caregiver phone for "Call Family".
+    private(set) var household: DeviceHousehold?
+    /// APNs device token (hex) once iOS hands it over; sent with every registration (task T38).
+    var pushToken: String?
 
     init(role: DemoAppRole, api: OnboardingAPI = .init(baseURL: ServerConfiguration.baseURL), defaults: UserDefaults = .standard) {
         self.role = role; self.api = api; self.defaults = defaults
@@ -63,9 +67,11 @@ extension DemoAppRole {
 
     @discardableResult
     func register() async throws -> DeviceRegistration {
-        let reply: DeviceRegistration = try await api.request("devices", method: "POST",
-            body: OnboardingAPI.body(["role": role.apiName, "installationId": installationID]))
+        var body = ["role": role.apiName, "installationId": installationID]
+        if let pushToken { body["pushToken"] = pushToken }
+        let reply: DeviceRegistration = try await api.request("devices", method: "POST", body: OnboardingAPI.body(body))
         token = reply.deviceToken
+        household = reply.household
         return reply
     }
 

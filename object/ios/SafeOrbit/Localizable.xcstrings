@@ -477,6 +477,138 @@
     },
     "Your message: %@" : {
 
+    },
+    "PUSH_RISK_HIGH_DEVIATION" : {
+      "comment" : "Caregiver push notification (task T38); the care API sends this key with its arguments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Still off her route after %@ minutes. Open to call her."
+          }
+        }
+      }
+    },
+    "PUSH_RISK_HIGH_TITLE" : {
+      "comment" : "Caregiver push notification (task T38); the care API sends this key with its arguments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "High risk: %@ needs you"
+          }
+        }
+      }
+    },
+    "PUSH_RISK_HIGH_WANDERING" : {
+      "comment" : "Caregiver push notification (task T38); the care API sends this key with its arguments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Still wandering after %@ minutes. Open to call her."
+          }
+        }
+      }
+    },
+    "PUSH_RISK_LOW_DEVIATION" : {
+      "comment" : "Caregiver push notification (task T38); the care API sends this key with its arguments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off her usual route for %@ minutes."
+          }
+        }
+      }
+    },
+    "PUSH_RISK_LOW_DEVIATION_NAV" : {
+      "comment" : "Caregiver push notification (task T38); the care API sends this key with its arguments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off her usual route for %@ minutes. Starting navigation home for her."
+          }
+        }
+      }
+    },
+    "PUSH_RISK_LOW_TITLE" : {
+      "comment" : "Caregiver push notification (task T38); the care API sends this key with its arguments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ may need help"
+          }
+        }
+      }
+    },
+    "PUSH_RISK_LOW_WANDERING" : {
+      "comment" : "Caregiver push notification (task T38); the care API sends this key with its arguments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wandering for %@ minutes."
+          }
+        }
+      }
+    },
+    "PUSH_RISK_LOW_WANDERING_NAV" : {
+      "comment" : "Caregiver push notification (task T38); the care API sends this key with its arguments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wandering for %@ minutes. Starting navigation home for her."
+          }
+        }
+      }
+    },
+    "PUSH_RISK_RESOLVED_HOME" : {
+      "comment" : "Caregiver push notification (task T38); the care API sends this key with its arguments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "She is back home. The risk is resolved."
+          }
+        }
+      }
+    },
+    "PUSH_RISK_RESOLVED_MET" : {
+      "comment" : "Caregiver push notification (task T38); the care API sends this key with its arguments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've met her. The risk is resolved."
+          }
+        }
+      }
+    },
+    "PUSH_RISK_RESOLVED_TITLE" : {
+      "comment" : "Caregiver push notification (task T38); the care API sends this key with its arguments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is safe"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

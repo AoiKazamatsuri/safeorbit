@@ -152,6 +152,27 @@ struct CaregiverSettingsData: Codable, Equatable {
     }
     func set(_ path: WritableKeyPath<CaregiverSettingsData, Bool>, _ value: Bool) {
         var next = data; next[keyPath: path] = value; commit(next)
+        if let key = Self.serverKeys.first(where: { $0.1 == path })?.0 { onServerSettingChange?([key: value]) }
+    }
+    // Task T38: the care API acts on the automatic navigation and notification switches.
+    static let serverKeys: [(String, WritableKeyPath<CaregiverSettingsData, Bool>)] = [
+        ("autoNavigation", \.autoNavigation), ("lowRiskNotifications", \.lowRiskNotifications),
+        ("recoveryNotifications", \.recoveryNotifications), ("limitedMonitoringNotifications", \.limitedMonitoringNotifications)]
+    /// Called with the changed key when one of those switches changes on this phone.
+    var onServerSettingChange: (([String: Bool]) -> Void)?
+    var serverSettings: CaregiverServerSettings {
+        CaregiverServerSettings(autoNavigation: data.autoNavigation, lowRiskNotifications: data.lowRiskNotifications,
+                                recoveryNotifications: data.recoveryNotifications,
+                                limitedMonitoringNotifications: data.limitedMonitoringNotifications)
+    }
+    /// Takes the server's values without sending them back.
+    func applyServerSettings(_ server: CaregiverServerSettings) {
+        guard server != serverSettings else { return }
+        var next = data
+        next.autoNavigation = server.autoNavigation; next.lowRiskNotifications = server.lowRiskNotifications
+        next.recoveryNotifications = server.recoveryNotifications
+        next.limitedMonitoringNotifications = server.limitedMonitoringNotifications
+        commit(next)
     }
     func binding(_ path: WritableKeyPath<CaregiverSettingsData, Bool>) -> Binding<Bool> {
         Binding(get: { self.data[keyPath: path] }, set: { self.set(path, $0) })
@@ -733,7 +754,7 @@ struct CaregiverSettingsDetail: View {
                 }.foregroundStyle(.primary)
                 Divider()
                 SettingsDisclosure("About this demo") {
-                    SettingsNote(text: "Trips and locations use sample data. Preferences and profiles are saved on this phone. Live monitoring, voice navigation and push notifications are not connected. Emergency dispatch is unavailable.").padding(.top, 8)
+                    SettingsNote(text: "The senior's location, safe zones and risk alerts come from the SafeOrbit server. Low-risk and recovery notifications and automatic voice navigation on the senior's phone follow the switches here; urgent high-risk alerts are always on. Preferences and profiles are saved on this phone. Records, trends and the Agent still use sample data. Emergency dispatch is unavailable.").padding(.top, 8)
                 }.frame(minHeight: 44)
             }
         }

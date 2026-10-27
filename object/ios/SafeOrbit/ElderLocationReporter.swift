@@ -32,6 +32,8 @@ struct LocationUploadBatch: Encodable {
 struct LocationUploadReply: Decodable {
     struct Result: Decodable { let index: Int; let status: String }
     let results: [Result]
+    /// Pending actions for this phone (task T38), e.g. startNavigation; missing in older replies.
+    let actions: [ElderAction]?
 }
 
 /// Fixes waiting for upload, kept on disk so a dropped connection or a restart only delays them.
@@ -69,6 +71,10 @@ final class PendingFixQueue {
     @Published private(set) var home: GeoPoint?
     @Published private(set) var lastUpload: Date?
     @Published private(set) var problem: String?
+    /// Preset household from registration: her call name and the caregiver's phone.
+    @Published private(set) var household: DeviceHousehold?
+    /// Receives the actions of every upload reply; the same action repeats until its result is posted.
+    var onActions: (([ElderAction]) -> Void)?
     let device: DemoDevice
     let queue: PendingFixQueue
     private let manager: CLLocationManager
@@ -153,6 +159,7 @@ final class PendingFixQueue {
                 let reply: LocationUploadReply = try await device.request("locations", method: "POST", body: OnboardingAPI.json(batch))
                 queue.drop(first: reply.results.count)
                 lastUpload = Date()
+                if let actions = reply.actions, !actions.isEmpty { onActions?(actions) }
             }
             problem = Self.permissionProblem(permission, precise: precise)
         } catch is CancellationError {
@@ -164,6 +171,7 @@ final class PendingFixQueue {
     private func refreshHome() async throws {
         let zones: [RemoteSafeZone] = try await device.request("safe-zones")
         homeCheckedAt = Date()
+        if let latest = device.household, latest != household { household = latest }
         if let zone = zones.first(where: \.isHome), zone.center != home { home = zone.center }
     }
 }

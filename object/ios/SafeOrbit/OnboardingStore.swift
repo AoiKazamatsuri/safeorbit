@@ -32,11 +32,14 @@ import CryptoKit
     let homeAccessEnabled: Bool
     /// Live Demo caregiver phone (task T37): registered with the care API instead of an account.
     let device: DemoDevice?
+    /// Plans home-to-zone walking routes for the care agent's deviation check (task T38).
+    private let routePlanner: ReferenceRoutePlanning?
     private(set) var previewSession = false
     private var challenge: AuthChallenge?
     init(api: OnboardingAPI = .init(baseURL: ServerConfiguration.baseURL), vault: SessionVault = .init(), previewAccessEnabled: Bool = false, homeAccessEnabled: Bool = false,
-         device: DemoDevice? = nil) {
+         device: DemoDevice? = nil, routePlanner: ReferenceRoutePlanning? = nil) {
         self.api = api; self.vault = vault; self.device = device
+        self.routePlanner = routePlanner ?? (device == nil ? nil : AMapReferenceRoutePlanner())
         self.homeAccessEnabled = homeAccessEnabled
 #if DEBUG
         self.previewAccessEnabled = previewAccessEnabled
@@ -258,16 +261,44 @@ import CryptoKit
     /// Saves a safe zone edit to the care API, then reloads so the map shows the stored zones.
     func persistZone(_ change: SafeZoneChange) async throws {
         guard let device else { return }
+        var needsRoute: RemoteSafeZone?
         switch change {
         case .save(let zone):
-            let stored = location?.safeZones.contains { $0.id == zone.id } ?? false
-            let _: RemoteSafeZone = try await device.request(stored ? "safe-zones/\(zone.id)" : "safe-zones",
-                method: stored ? "PUT" : "POST", body: OnboardingAPI.json(SafeZoneBody(zone)))
+            let previous = location?.safeZones.first { $0.id == zone.id }
+            let saved: RemoteSafeZone = try await device.request(previous != nil ? "safe-zones/\(zone.id)" : "safe-zones",
+                method: previous != nil ? "PUT" : "POST", body: OnboardingAPI.json(SafeZoneBody(zone)))
+            // The care API drops a moved zone's route; a new or moved zone gets a newly planned one.
+            if !saved.isHome && previous?.center != saved.center { needsRoute = saved }
         case .delete(let zone):
             let _: EmptyResponse = try await device.request("safe-zones/\(zone.id)", method: "DELETE")
         }
         while locationLoading { try? await Task.sleep(for: .milliseconds(100)) }
         await refreshLocation()
+        if let needsRoute { await uploadReferenceRoute(zoneID: needsRoute.id, to: needsRoute.center) }
+    }
+    /// Plans the walking route from home to the zone with AMap and uploads it in WGS-84. Without a route
+    /// (on the simulator AMap is compiled out, or offline) the care agent simply has no reference there,
+    /// so nothing is shown to the caregiver.
+    func uploadReferenceRoute(zoneID: String, to center: GeoPoint) async {
+        guard let device, let routePlanner,
+              let home = location?.safeZones.first(where: \.isHomeZone)?.center else { return }
+        do {
+            let points = try await routePlanner.plan(from: home, to: center)
+            guard points.count >= 2 else { return }
+            let _: ReferenceRouteReply = try await device.request("safe-zones/\(zoneID)/route", method: "PUT",
+                body: OnboardingAPI.json(ReferenceRouteBody(points: points)))
+        } catch {}
+    }
+    /// Sends this phone's APNs token with a fresh registration so the care API can push to it.
+    func registerPushToken(_ token: String) async {
+        guard let device, device.pushToken != token else { return }
+        device.pushToken = token
+        _ = try? await device.register()
+    }
+    /// Records a call from the person card before the system dialler opens (linked to the current risk).
+    func recordCall() async {
+        guard let device else { return }
+        await DeviceRiskEventClient(device: device).recordCall(riskEventID: location?.riskEventId)
     }
     private func refreshLive(_ device: DemoDevice) async {
         guard !locationLoading else { return }

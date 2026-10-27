@@ -1,6 +1,8 @@
 import SwiftUI
 
 @main struct SafeOrbitApp: App {
+    /// Push registration and notification taps (task T38).
+    @UIApplicationDelegateAdaptor(SafeOrbitAppDelegate.self) private var appDelegate
     // Role choice is available; account and binding flows remain paused.
     var body: some Scene { WindowGroup { DemoRoleRoot() } }
 }
@@ -17,16 +19,36 @@ struct DemoRoleRoot: View {
                 }
             }
         }.preferredColorScheme(.light)
+        // A notification tapped before a role was chosen (the app was closed) opens that role's page.
+        .onReceive(NotificationRouter.shared.$pending) { route in
+            if router.role == nil, let route { router.choose(route.role) }
+        }
     }
 }
 private struct ElderRoot: View {
     @StateObject private var session = ElderDemoSession(usesLiveNavigation: true)
     @StateObject private var reporter = ElderLocationReporter()
+    @StateObject private var autoNavigation = ElderAutoNavigation()
     let chooseRole: () -> Void
     var body: some View {
-        NavigationStack { ElderHomePage(session: session, chooseRole: chooseRole, serverHome: reporter.home) }
-            .onAppear { reporter.start() }
-            .onDisappear { reporter.stop() }
+        NavigationStack {
+            ElderHomePage(session: session, chooseRole: chooseRole, serverHome: reporter.home,
+                          autoNavigation: autoNavigation, familyPhone: reporter.household?.caregiver.phone)
+        }
+            .onAppear {
+                SystemElderAudioSession.shared.configure()
+                let session = session, autoNavigation = autoNavigation
+                autoNavigation.actionReporter = DeviceActionReporter(device: reporter.device)
+                autoNavigation.reminderVolume = { session.voiceOn ? session.volume : 0 }
+                reporter.onActions = { actions in Task { await autoNavigation.receive(actions) } }
+                reporter.start()
+                // The fallback "Tap to start navigation home" needs notification permission.
+                Task { await NotificationRouter.requestAuthorization(remote: false) }
+            }
+            .onChange(of: reporter.household, initial: true) { _, household in
+                autoNavigation.callName = household?.elder.callName ?? ""
+            }
+            .onDisappear { reporter.stop(); reporter.onActions = nil }
     }
 }
 struct HomeRoot: View {

@@ -49,6 +49,12 @@
 		C8A4022CBE1E451788650469 /* AMapLocationPrivacy.bundle in Resources */ = {isa = PBXBuildFile; fileRef = B56C21B7CF46415496958B36 /* AMapLocationPrivacy.bundle */; };
 		16A79CA9984E40A98F261D29 /* AMapNaviPrivacy.bundle in Resources */ = {isa = PBXBuildFile; fileRef = AEEF64628C034C8FAA82F3B9 /* AMapNaviPrivacy.bundle */; };
 		4CDB3E81BA8B461EAB6E60AA /* AMapSearchPrivacy.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 610242905229465688E0B6ED /* AMapSearchPrivacy.bundle */; };
+		19AAEE6B23932A8A244F7D5B /* SafeOrbit/RiskModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E397807D389B2F33A87A2AE1 /* SafeOrbit/RiskModels.swift */; };
+		7F1AC5EA5F11AF9A347BEA90 /* SafeOrbit/ElderAutoNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6FD39DBB010B66206556044 /* SafeOrbit/ElderAutoNavigation.swift */; };
+		8F1E04DCB8DC29948E50BA7C /* SafeOrbit/PushNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0623A5611B0FB305DE175D8E /* SafeOrbit/PushNotifications.swift */; };
+		6137CCA74619ED2123F70896 /* SafeOrbit/CaregiverRiskServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47A5F305560AC97E7AAA9A22 /* SafeOrbit/CaregiverRiskServices.swift */; };
+		F440367F72563420D3C1F5FF /* SafeOrbit/RiskEventPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94ADEA1FEE342DF4ABFFF32A /* SafeOrbit/RiskEventPage.swift */; };
+		E4528322EA09CAB22DEEE719 /* SafeOrbitTests/RiskAlertsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A677434D7289A160E527139E /* SafeOrbitTests/RiskAlertsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -111,6 +117,13 @@
 		B56C21B7CF46415496958B36 /* AMapLocationPrivacy.bundle */ = {isa = PBXFileReference; name = "AMapLocationPrivacy.bundle"; path = ".build/AMap/AMapLocationPrivacy.bundle"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = wrapper.plug-in; explicitFileType = undefined; includeInIndex = 0; };
 		AEEF64628C034C8FAA82F3B9 /* AMapNaviPrivacy.bundle */ = {isa = PBXFileReference; name = "AMapNaviPrivacy.bundle"; path = ".build/AMap/AMapNaviPrivacy.bundle"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = wrapper.plug-in; explicitFileType = undefined; includeInIndex = 0; };
 		610242905229465688E0B6ED /* AMapSearchPrivacy.bundle */ = {isa = PBXFileReference; name = "AMapSearchPrivacy.bundle"; path = ".build/AMap/AMapSearchPrivacy.bundle"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = wrapper.plug-in; explicitFileType = undefined; includeInIndex = 0; };
+		E397807D389B2F33A87A2AE1 /* SafeOrbit/RiskModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/RiskModels.swift; sourceTree = "<group>"; };
+		E6FD39DBB010B66206556044 /* SafeOrbit/ElderAutoNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/ElderAutoNavigation.swift; sourceTree = "<group>"; };
+		0623A5611B0FB305DE175D8E /* SafeOrbit/PushNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/PushNotifications.swift; sourceTree = "<group>"; };
+		47A5F305560AC97E7AAA9A22 /* SafeOrbit/CaregiverRiskServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/CaregiverRiskServices.swift; sourceTree = "<group>"; };
+		94ADEA1FEE342DF4ABFFF32A /* SafeOrbit/RiskEventPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/RiskEventPage.swift; sourceTree = "<group>"; };
+		A677434D7289A160E527139E /* SafeOrbitTests/RiskAlertsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbitTests/RiskAlertsTests.swift; sourceTree = "<group>"; };
+		6EF040A0B8B9106074AB84DD /* home-wander-home.gpx */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = "home-wander-home.gpx"; path = "../dev/tracks/home-wander-home.gpx"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -140,6 +153,13 @@
 				135676D16FD30061678CC353 /* SafeOrbit/ElderLocationReporter.swift */,
 				1CBF0A12ACFAB9102966006E /* SafeOrbitTests/DemoBackendTests.swift */,
 				41BAA0B1DD9506A460A4794C /* home-market-home.gpx */,
+				6EF040A0B8B9106074AB84DD /* home-wander-home.gpx */,
+				E397807D389B2F33A87A2AE1 /* SafeOrbit/RiskModels.swift */,
+				E6FD39DBB010B66206556044 /* SafeOrbit/ElderAutoNavigation.swift */,
+				0623A5611B0FB305DE175D8E /* SafeOrbit/PushNotifications.swift */,
+				47A5F305560AC97E7AAA9A22 /* SafeOrbit/CaregiverRiskServices.swift */,
+				94ADEA1FEE342DF4ABFFF32A /* SafeOrbit/RiskEventPage.swift */,
+				A677434D7289A160E527139E /* SafeOrbitTests/RiskAlertsTests.swift */,
 				46F327A303236EE513E7E21A /* SafeOrbit/OnboardingModels.swift */,
 				38AD48EA6F376F2130580E69 /* SafeOrbit/OnboardingAPI.swift */,
 				DB31C845D61A37607A458424 /* SafeOrbit/OnboardingStore.swift */,
@@ -251,6 +271,9 @@
 					373B9A7B0591AC3069343A3B = {
 						CreatedOnToolsVersion = 27.0;
 						SystemCapabilities = {
+							com.apple.Push = {
+								enabled = 1;
+							};
 							com.apple.SignInWithApple = {
 								enabled = 1;
 							};
@@ -339,6 +362,11 @@
 				6178703DD3974924B5EF84B7 /* AMapCanvas.swift in Sources */,
 				357285A652BD4C18BF2A667A /* AMapWalkingRouteProvider.swift in Sources */,
 				BA99B90A593A46389975600A /* ElderLiveNavigation.swift in Sources */,
+				19AAEE6B23932A8A244F7D5B /* SafeOrbit/RiskModels.swift in Sources */,
+				7F1AC5EA5F11AF9A347BEA90 /* SafeOrbit/ElderAutoNavigation.swift in Sources */,
+				8F1E04DCB8DC29948E50BA7C /* SafeOrbit/PushNotifications.swift in Sources */,
+				6137CCA74619ED2123F70896 /* SafeOrbit/CaregiverRiskServices.swift in Sources */,
+				F440367F72563420D3C1F5FF /* SafeOrbit/RiskEventPage.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -352,6 +380,7 @@
 				1BC77E0D13A1AADF9C5B5D4F /* SafeOrbitTests/DemoBackendTests.swift in Sources */,
 				D9239BCEB476D34C1EE938F2 /* SafeOrbitTests/RecordsTests.swift in Sources */,
 				10B9494FFCBA4B7771BB5340 /* SafeOrbitTests/SettingsTests.swift in Sources */,
+				E4528322EA09CAB22DEEE719 /* SafeOrbitTests/RiskAlertsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

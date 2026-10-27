@@ -157,6 +157,10 @@ struct CaregiverHomePage: View {
     @State private var keyboardVisible = false
     @State private var recordsDetailPresented = false
     @State private var zoneEditorPresented = false
+    @State private var selectedRiskEvent: RiskEventSelection?
+    @State private var settingsSync: CaregiverSettingsSync?
+    @ObservedObject private var notifications = NotificationRouter.shared
+    @Environment(\.scenePhase) private var scenePhase
     init(store: OnboardingStore, settingsInitiallyOpen: Bool = false, chooseRole: (() -> Void)? = nil) {
         self.store = store
         self.chooseRole = chooseRole
@@ -169,11 +173,33 @@ struct CaregiverHomePage: View {
         _navigation = StateObject(wrappedValue: WalkingNavigationModel())
         #endif
     }
+    /// Live: the care agent's level from the snapshot (task T38). The Debug sample keeps its launch argument.
     private var riskState: CaregiverRiskState {
 #if DEBUG
         if store.previewSession { return .preview(arguments: ProcessInfo.processInfo.arguments) }
 #endif
-        return .normal
+        return store.location?.riskState ?? .normal
+    }
+    /// The person card and the risk bubble open the event page while a risk is active or recently resolved.
+    private var openRiskEvent: (() -> Void)? {
+        guard store.device != nil, let id = store.location?.riskEventId else { return nil }
+        return { selectedRiskEvent = RiskEventSelection(id: id) }
+    }
+    private func startNavigation() {
+        Task {
+            if navigation.isDemoRoute { await store.refreshLocation() }
+            await navigation.start(to: store.location)
+        }
+    }
+    /// A tapped notification: low risk and resolved show the location page, high risk the event page.
+    /// Either way the page shows freshly fetched state, never the notification's (architecture section 12).
+    private func route(_ route: NotificationRoute) {
+        showingSettings = false; selectedSettings = nil; tab = .location
+        if case .riskEvent(let id) = route {
+            selectedRiskEvent = nil
+            selectedRiskEvent = RiskEventSelection(id: id)
+        } else { selectedRiskEvent = nil }
+        Task { await store.refreshLocation() }
     }
     private func setSettings(_ open: Bool) {
         showingSettings = open
@@ -183,11 +209,9 @@ struct CaregiverHomePage: View {
             ZStack {
                 LocationPage(profile: store.elder, snapshot: store.location,
                              message: store.locationError ?? zoneStore.syncMessage,
-                             agent: { agentSessions.showList(); tab = .agent }, navigate: { Task {
-                                 if navigation.isDemoRoute { await store.refreshLocation() }
-                                 await navigation.start(to: store.location)
-                             } },
+                             agent: { agentSessions.showList(); tab = .agent }, navigate: startNavigation,
                              settings: { setSettings(true) }, riskState: riskState,
+                             openRiskEvent: openRiskEvent, recordCall: { await store.recordCall() },
                              zoneStore: zoneStore,
                              navigation: navigation, refreshDestination: { await store.refreshLocation(); return store.location },
                              onEditorPresentationChanged: { zoneEditorPresented = $0 })
@@ -226,9 +250,29 @@ struct CaregiverHomePage: View {
         .toolbar(.hidden, for: .navigationBar)
         .task {
             if store.previewSession { store.elder = settingsStore.data.senior }
-            guard store.device != nil else { await store.refreshLocation(); return }
+            guard let device = store.device else { await store.refreshLocation(); return }
             zoneStore.persist = { [store] change in try await store.persistZone(change) }
+            let sync = CaregiverSettingsSync(device: device, settings: settingsStore)
+            settingsSync = sync
+            Task { await sync.sync() }
+            Task { await NotificationRouter.requestAuthorization(remote: true) }
             await store.followLocation()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, let settingsSync { Task { await settingsSync.sync() } }
+        }
+        .onReceive(notifications.$pushToken) { token in
+            if let token, store.device != nil { Task { await store.registerPushToken(token) } }
+        }
+        // @Published sends before the value is stored; take it on the next turn of the main queue.
+        .onReceive(notifications.$pending.receive(on: DispatchQueue.main)) { _ in
+            guard store.device != nil, let next = notifications.take(for: .caregiver) else { return }
+            route(next)
+        }
+        .settingsSlide(item: $selectedRiskEvent) { selection in
+            RiskEventPage(store: RiskEventStore(id: selection.id, client: store.device.map { DeviceRiskEventClient(device: $0) }),
+                          profile: store.elder, navigate: startNavigation, back: { selectedRiskEvent = nil })
+                .id(selection.opened)
         }
         .onChange(of: settingsStore.data.senior) { _, profile in
             if store.previewSession { store.elder = profile }
@@ -268,6 +312,10 @@ struct LocationPage: View {
     let navigate: () -> Void
     var settings: () -> Void = {}
     var riskState: CaregiverRiskState = .normal
+    /// Set while a risk event is active or recently resolved; the person card and risk bubble open it.
+    var openRiskEvent: (() -> Void)? = nil
+    /// Records "Call" with the care API before the system dialler opens.
+    var recordCall: () async -> Void = {}
     @ObservedObject var zoneStore = SafeZoneSessionStore()
     @ObservedObject var navigation = WalkingNavigationModel()
     var refreshDestination: (() async -> ElderLocationSnapshot?)? = nil
@@ -345,7 +393,8 @@ struct LocationPage: View {
                         .background(.white, in: RoundedRectangle(cornerRadius: 16))
                         .padding(.bottom, 8)
                 }
-                SeniorLocationCard(profile: profile, snapshot: snapshot, navigate: navigate, riskState: riskState)
+                SeniorLocationCard(profile: profile, snapshot: snapshot, navigate: navigate, riskState: riskState,
+                                   openRiskEvent: openRiskEvent, recordCall: recordCall)
                     .background {
                         GeometryReader { cardGeometry in
                             Color.clear.preference(key: HomeCardTopPreference.self,
@@ -506,16 +555,25 @@ struct LocationPage: View {
                 }.accessibilityLabel("Edit \(zone.name) safe zone")))
         }
         if let snapshot, let point {
-            let headline = riskState == .normal ? snapshot.status : riskState.headline
+            // The care agent's reason while at risk (e.g. "Wandering for 7 minutes"), else where she is.
+            let headline = riskState == .normal ? snapshot.status : (snapshot.riskHeadline ?? riskState.headline)
             result.append(AMapMarker(id: "senior", coordinate: point, content: AnyView(ZStack {
                 CurrentLocationDot(heading: snapshot.validHeading.map { $0 - visibleHeading }, label: "Senior location")
                 if let headline, !headline.isEmpty, snapshot.isCurrent {
-                    Text(headline).caregiverText()
+                    let bubble = Text(headline).caregiverText()
                         .foregroundStyle(riskState == .high ? .white : .black)
                         .padding(.horizontal, 17).padding(.vertical, 9)
                         .background(riskState == .normal ? .white : riskState.color, in: Capsule())
                         .shadow(color: .black.opacity(0.22), radius: 5, y: 3)
-                        .fixedSize().offset(y: -65).accessibilityLabel(headline)
+                        .fixedSize()
+                    if let openRiskEvent {
+                        Button(action: openRiskEvent) { bubble.frame(minHeight: OrbitLayout.minimumHitSize).contentShape(Capsule()) }
+                            .buttonStyle(.plain).offset(y: -65)
+                            .accessibilityLabel(headline).accessibilityHint("Opens the risk event")
+                            .accessibilityIdentifier("risk-bubble")
+                    } else {
+                        bubble.offset(y: -65).accessibilityLabel(headline)
+                    }
                 }
             })))
         }
@@ -811,14 +869,24 @@ private struct SeniorLocationCard: View {
     let snapshot: ElderLocationSnapshot?
     let navigate: () -> Void
     var riskState: CaregiverRiskState = .normal
+    var openRiskEvent: (() -> Void)? = nil
+    var recordCall: () async -> Void = {}
     @Environment(\.openURL) private var openURL
     private var canCall: Bool { PhoneNumber.isValid(profile.phone) }
+    private var agentStatus: String? { snapshot?.agentStatus.flatMap { $0.isEmpty ? nil : $0 } }
     var body: some View {
         VStack(alignment: .leading, spacing: 11) {
             HStack(spacing: 14) {
                 ProfileAvatar(photo: profile.photo, size: 60)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(profile.name).caregiverText().lineLimit(1)
+                    // The agent status line sits under her name (product design section 3.6).
+                    if let agentStatus {
+                        Label(agentStatus, systemImage: "sparkle")
+                            .caregiverText(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("agent-status")
+                    }
                     HStack(spacing: 8) {
                         if snapshot?.isCurrent == true {
                             Label(riskState.label, systemImage: riskState == .normal ? "checkmark.shield" : "exclamationmark.circle")
@@ -835,7 +903,7 @@ private struct SeniorLocationCard: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
                 Button {
                     guard canCall, let url = URL(string: "tel:\(PhoneNumber.normalized(profile.phone))") else { return }
-                    openURL(url)
+                    Task { await recordCall(); openURL(url) }
                 } label: {
                     Image(systemName: "phone.fill")
                         .font(.system(size: 22))
@@ -865,6 +933,9 @@ private struct SeniorLocationCard: View {
             RoundedRectangle(cornerRadius: 24).fill(.white)
                 .shadow(color: .black.opacity(0.168), radius: 8, y: 4)
         }
+        // Buttons inside keep their own taps; the rest of the card opens the risk event.
+        .contentShape(RoundedRectangle(cornerRadius: 24))
+        .onTapGesture { openRiskEvent?() }
     }
 }
 

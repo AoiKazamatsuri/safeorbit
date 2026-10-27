@@ -21,6 +21,12 @@ struct ElderHomePage: View {
     var volumeInitiallyOpen = false
     /// Home zone from the care API (task T37); it replaces a home set on this phone.
     var serverHome: GeoPoint? = nil
+    /// Starts navigation home when the care API asks (task T38); nil in previews and tests.
+    var autoNavigation: ElderAutoNavigation? = nil
+    /// The preset caregiver phone that "Call Family" dials after showing the call card.
+    var familyPhone: String? = nil
+    @Environment(\.openURL) private var openURL
+    @ObservedObject private var notifications = NotificationRouter.shared
 
     private func text(_ en: String, _ zh: String) -> String { ElderCopy.text(en, zh, locale: locale) }
     var body: some View {
@@ -73,6 +79,16 @@ struct ElderHomePage: View {
             if volumeInitiallyOpen { showingVolume = true }
             if let serverHome { live.home.save(serverHome) }
             if session.usesLiveNavigation { live.startLocation(); updateLiveVoice() }
+            if session.usesLiveNavigation, let autoNavigation {
+                let live = live, session = session
+                autoNavigation.isNavigatingHome = { live.navigation.isPresented && live.navigation.route != nil }
+                autoNavigation.startNavigation = { await Self.startNavigationHome(live: live, session: session) }
+            }
+        }
+        // The fallback notification "Tap to start navigation home" starts it like Go Home.
+        .onReceive(notifications.$pending.receive(on: DispatchQueue.main)) { _ in
+            guard session.usesLiveNavigation, notifications.take(for: .elder) == .elderStartNavigation else { return }
+            goHome()
         }
         .onChange(of: serverHome) { _, home in if let home { live.home.save(home) } }
         .onChange(of: mapConsent) { _, allowed in if allowed && session.usesLiveNavigation { live.startLocation() } }
@@ -88,7 +104,10 @@ struct ElderHomePage: View {
             if session.usesLiveNavigation { live.navigation.tick() }
         }
         .sheet(isPresented: $live.showingHomeSetup) { homeSetup }
-        .onDisappear { session.suspendSpeech(); if session.usesLiveNavigation { live.stop() } }
+        .onDisappear {
+            session.suspendSpeech(); if session.usesLiveNavigation { live.stop() }
+            autoNavigation?.startNavigation = nil
+        }
         .toolbar(.hidden, for: .navigationBar)
         .environment(\.locale, locale)
         .preferredColorScheme(.light)
@@ -107,7 +126,7 @@ struct ElderHomePage: View {
                     }.accessibilityLabel("Cancel navigation")
                         .accessibilityIdentifier("elder-end-navigation").elderMeasured("cancel-navigation")
                     ElderActionButton(title: "Call Family", symbol: "phone.fill", fillsRowHeight: true) {
-                        session.showCall()
+                        callFamily()
                     }.elderMeasured("call-family").accessibilityIdentifier("elder-call-family")
                 }.fixedSize(horizontal: false, vertical: true).padding(.horizontal, OrbitLayout.pageMargin)
             } else {
@@ -184,20 +203,40 @@ struct ElderHomePage: View {
     }
 
     private var goHomeButton: some View {
-        ElderActionButton(title: text("Go Home", "回家"), white: true) {
-            if session.usesLiveNavigation {
-                if live.home.point == nil { live.showingHomeSetup = true }
-                else {
-                    session.startNavigation(locale: locale)
-                    Task { await live.goHome() }
-                }
-            } else { session.startNavigation(locale: locale) }
-        }.elderMeasured("go-home").accessibilityIdentifier("elder-go-home")
+        ElderActionButton(title: text("Go Home", "回家"), white: true) { goHome() }
+            .elderMeasured("go-home").accessibilityIdentifier("elder-go-home")
+    }
+    private func goHome() {
+        if session.usesLiveNavigation {
+            if live.home.point == nil { live.showingHomeSetup = true }
+            else {
+                session.startNavigation(locale: locale)
+                Task { await live.goHome() }
+            }
+        } else { session.startNavigation(locale: locale) }
+    }
+    /// Same navigation as Go Home, for the care API's request; returns nil once a route is shown,
+    /// else the reason it could not start (reported to the care API and shown on the event page).
+    static func startNavigationHome(live: ElderLiveNavigation, session: ElderDemoSession) async -> String? {
+        guard live.home.point != nil else { return ElderAutoNavigation.reason(for: .missingHome) }
+        session.startNavigation(locale: Locale(identifier: "en"))
+        await live.goHome()
+        return live.navigation.route != nil ? nil : ElderAutoNavigation.reason(for: live.navigation.issue)
     }
     private var callButton: some View {
         ElderActionButton(title: text("Call Family", "联系家人"), symbol: "phone.fill") {
-            session.showCall()
+            callFamily()
         }.elderMeasured("call-family").accessibilityIdentifier("elder-call-family")
+    }
+    /// The call card first (product design section 4), then the system dialler, which asks her to confirm.
+    private func callFamily() {
+        session.showCall()
+        guard let phone = familyPhone, PhoneNumber.isValid(phone),
+              let url = URL(string: "tel:\(PhoneNumber.normalized(phone))") else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            if session.calling { openURL(url) }
+        }
     }
 
     private var guidanceCard: some View {

@@ -57,7 +57,10 @@ struct SafeZone: Decodable, Identifiable {
     let name: String
     let center: GeoPoint
     let radiusMeters: Double
+    /// Sent by the care API; older samples leave it out and the name decides.
+    var isHome: Bool? = nil
     var renderKey: String { "\(id):\(name):\(center.latitude):\(center.longitude):\(radiusMeters)" }
+    var isHomeZone: Bool { isHome ?? (name.trimmingCharacters(in: .whitespaces).lowercased() == "home") }
 }
 
 struct ElderLocationSnapshot: Decodable {
@@ -69,9 +72,21 @@ struct ElderLocationSnapshot: Decodable {
     let address: String?
     let trail: [GeoPoint]
     let safeZones: [SafeZone]
+    // Task T38: decided by the care agent. Optional so older replies and the fixed sample still decode.
+    var riskLevel: String? = nil
+    /// e.g. "Wandering for 7 minutes"; null while normal.
+    var riskHeadline: String? = nil
+    var riskAnomaly: String? = nil
+    var riskSince: Date? = nil
+    /// The active risk event, else one resolved within the last 30 minutes.
+    var riskEventId: String? = nil
+    var riskEventStatus: String? = nil
+    /// "Monitoring" or "Learning daily routes (n/5 trips)", shown under her name.
+    var agentStatus: String? = nil
 
     var isCurrent: Bool { coordinate.isValid && recordedAt <= Date().addingTimeInterval(60) && Date().timeIntervalSince(recordedAt) <= 300 }
     var validHeading: Double? { guard let heading, heading.isFinite, (0..<360).contains(heading) else { return nil }; return heading }
+    var riskState: CaregiverRiskState { riskLevel.flatMap(CaregiverRiskState.init(rawValue:)) ?? .normal }
 }
 
 /// Illustrative road-aligned sample near Nanjing University's Gulou Campus; never used by the live location flow.
