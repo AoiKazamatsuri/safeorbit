@@ -70,7 +70,8 @@ node object/dev/replay-track.mjs
 - 重置：清空出行与位置，恢复 `demo-household.json` 里预置的一户人家与安全区（家、市场）。已登记的手机保留；加 `--devices` 一并清除，加 `--local` 改用本机运行的后端。重置在后端程序内执行，不另开网络接口。
 - 演示时要拨通的真实号码写在 `object/server/.env` 的 `DEMO_ELDER_PHONE`、`DEMO_CAREGIVER_PHONE`，不写进仓库；没写时用虚构号码。
 - 回放：按老人手机的方式把一条轨迹分批上传，时间截止到现在，再打印家属端看到的状态与最近的出行。`--stop-after <秒>` 截断轨迹，例如 `--stop-after 1000` 停在市场。
-- 轨迹由 `tracks.mjs` 按 `demo-route.json` 生成（WGS-84，从家到市场的街道路线，约 734 米，步速 1 米/秒，每 5 秒一个点）。外景路线定下后替换这条路线与 `demo-household.json` 的安全区中心。
+- 轨迹由 `tracks.mjs` 按 `demo-route.json` 生成（WGS-84，从家到市场的街道路线，约 734 米，步速 1 米/秒，每 5 秒一个点）。外景路线定下后替换这条路线与 `demo-household.json` 的安全区中心，再运行 `node object/dev/export-gpx.mjs` 重新生成 `tracks/*.gpx`。
+- Xcode 播放：老人手机经 Xcode 运行后，Debug → Simulate Location 选 `home-market-home`，App 收到的定位就沿这条路线走一趟（约 36 分钟）。
 
 ## iOS 工程
 
@@ -78,7 +79,7 @@ node object/dev/replay-track.mjs
 
 连接真机时，将 `object/ios/Config/Local.xcconfig.example` 复制为同目录的 `Local.xcconfig`，填电脑的 Wi-Fi IP 与实际开发者 Team；它已排除出 Git。构建地址中的 `http:/$()/` 是 xcconfig 避免双斜杠被当作注释的写法。Bundle ID 是工程的初始值 `org.safeorbit.demo`，正式签名前在 Xcode 中按实际账号调整。
 
-当前 App 已有身份选择、家属登录、档案和扫码绑定前端；业务接口尚未实现，真实请求会显示失败提示。各页面可通过 Xcode Canvas 预览，详见 [前端说明](../ios/README.md)。App 不申请定位、不发送推送。后台定位、语音导航、国内坐标与真机局域网表现仍须按工程架构第 15 节验证，不能以模拟器构建代替。
+App 选身份后向后端登记并联机：家属首页每 3 秒取一次老人位置，老人手机申请“始终允许”定位、在后台每 5 秒上传一批；详见 [前端说明](../ios/README.md)。App 还不发送推送。后台定位、语音导航、国内坐标与真机局域网表现仍须按工程架构第 15 节验证，不能以模拟器构建代替。
 
 工程已入库，不需要每次生成。仅明确需要重建工程时使用 `npm --prefix object/dev run ios:generate`；生成器会拒绝覆盖已有工程，显式 `--force` 才重建，重建会覆盖后来在 Xcode 做的改动。
 

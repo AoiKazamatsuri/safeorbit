@@ -2,12 +2,13 @@ import Foundation
 import Security
 
 struct APIError: Error, LocalizedError {
-    enum Kind { case unauthorized, unavailable, invalidCode, invalidInput, network, other }
+    enum Kind { case unauthorized, unavailable, notFound, invalidCode, invalidInput, network, other }
     let kind: Kind
     var errorDescription: String? {
         switch kind {
         case .unauthorized: return "Session expired. Sign in again."
         case .unavailable: return "Service unavailable. Try again."
+        case .notFound: return "Not available yet. Try again."
         case .invalidCode: return "Code expired or used. Ask for a new code."
         case .invalidInput: return "Check your details and try again."
         case .network: return "Check your connection and try again."
@@ -37,11 +38,13 @@ struct OnboardingAPI {
             case 401: kind = .unauthorized
             case 409, 410: kind = .invalidCode
             case 400, 422: kind = .invalidInput
-            case 404, 501, 503: kind = .unavailable
+            case 404: kind = .notFound
+            case 501, 503: kind = .unavailable
             default: kind = .other
             }
             throw APIError(kind: kind)
         }
+        if T.self == EmptyResponse.self, let empty = EmptyResponse() as? T { return empty }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let s = try decoder.singleValueContainer().decode(String.self)
@@ -56,6 +59,21 @@ struct OnboardingAPI {
         catch { throw APIError(kind: .other) }
     }
     static func body(_ value: [String: String]) throws -> Data { try JSONEncoder().encode(value) }
+    /// JSON with ISO 8601 dates that keep milliseconds, so fixes within one second stay distinct.
+    static func json<T: Encodable>(_ value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            var container = encoder.singleValueContainer()
+            try container.encode(formatter.string(from: date))
+        }
+        return try encoder.encode(value)
+    }
+}
+/// Reply type for requests whose success carries no body (204).
+struct EmptyResponse: Decodable {
+    init() {}
 }
 
 struct SessionVaultError: LocalizedError {

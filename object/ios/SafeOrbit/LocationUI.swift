@@ -3,9 +3,14 @@ import MapKit
 import CoreLocation
 import UIKit
 
+enum SafeZoneChange { case save(SafeZone), delete(SafeZone) }
+
 @MainActor final class SafeZoneSessionStore: ObservableObject {
     @Published private(set) var edits: [String: SafeZone] = [:]
     @Published private(set) var removed: Set<String> = []
+    @Published private(set) var syncMessage: String?
+    /// Set on the live caregiver phone; without it edits stay on this phone (previews and tests).
+    var persist: ((SafeZoneChange) async throws -> Void)?
 
     func visibleZones(in snapshot: ElderLocationSnapshot?) -> [SafeZone] {
         let original = snapshot?.safeZones ?? []
@@ -19,11 +24,37 @@ import UIKit
     func save(_ zone: SafeZone) {
         removed.remove(zone.id)
         edits[zone.id] = zone
+        sync(.save(zone), id: zone.id)
     }
 
     func delete(_ zone: SafeZone) {
         edits.removeValue(forKey: zone.id)
         removed.insert(zone.id)
+        sync(.delete(zone), id: zone.id)
+    }
+
+    // The edit shows at once; after the care API answers, the stored zones take over again.
+    private func sync(_ change: SafeZoneChange, id: String) {
+        guard let persist else { return }
+        Task {
+            do { try await persist(change); syncMessage = nil }
+            catch {
+                let message = Self.message(for: error)
+                syncMessage = message
+                Task { try? await Task.sleep(for: .seconds(6)); if syncMessage == message { syncMessage = nil } }
+            }
+            edits.removeValue(forKey: id)
+            removed.remove(id)
+        }
+    }
+
+    static func message(for error: Error) -> String {
+        switch (error as? APIError)?.kind {
+        case .invalidCode: return "Only one Home is allowed, and Home can't be removed."
+        case .invalidInput: return "Check the safe zone name and radius."
+        case .network: return "Couldn't save the safe zone. Check the connection."
+        default: return "Couldn't save the safe zone. Try again."
+        }
     }
 }
 
@@ -151,7 +182,7 @@ struct CaregiverHomePage: View {
         ZStack {
             ZStack {
                 LocationPage(profile: store.elder, snapshot: store.location,
-                             message: store.locationError,
+                             message: store.locationError ?? zoneStore.syncMessage,
                              agent: { agentSessions.showList(); tab = .agent }, navigate: { Task {
                                  if navigation.isDemoRoute { await store.refreshLocation() }
                                  await navigation.start(to: store.location)
@@ -195,7 +226,9 @@ struct CaregiverHomePage: View {
         .toolbar(.hidden, for: .navigationBar)
         .task {
             if store.previewSession { store.elder = settingsStore.data.senior }
-            await store.refreshLocation()
+            guard store.device != nil else { await store.refreshLocation(); return }
+            zoneStore.persist = { [store] change in try await store.persistZone(change) }
+            await store.followLocation()
         }
         .onChange(of: settingsStore.data.senior) { _, profile in
             if store.previewSession { store.elder = profile }

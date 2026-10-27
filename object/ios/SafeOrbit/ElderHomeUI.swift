@@ -19,6 +19,8 @@ struct ElderHomePage: View {
     var onLayout: (([String: CGRect]) -> Void)? = nil
     /// Opens the voice volume page on appear (layout tests).
     var volumeInitiallyOpen = false
+    /// Home zone from the care API (task T37); it replaces a home set on this phone.
+    var serverHome: GeoPoint? = nil
 
     private func text(_ en: String, _ zh: String) -> String { ElderCopy.text(en, zh, locale: locale) }
     var body: some View {
@@ -69,8 +71,10 @@ struct ElderHomePage: View {
         }
         .onAppear {
             if volumeInitiallyOpen { showingVolume = true }
+            if let serverHome { live.home.save(serverHome) }
             if session.usesLiveNavigation { live.startLocation(); updateLiveVoice() }
         }
+        .onChange(of: serverHome) { _, home in if let home { live.home.save(home) } }
         .onChange(of: mapConsent) { _, allowed in if allowed && session.usesLiveNavigation { live.startLocation() } }
         .onChange(of: session.voiceOn) { _, _ in updateLiveVoice() }
         .onChange(of: session.volume) { _, _ in updateLiveVoice() }

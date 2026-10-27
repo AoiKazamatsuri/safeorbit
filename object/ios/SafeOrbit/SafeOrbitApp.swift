@@ -21,14 +21,24 @@ struct DemoRoleRoot: View {
 }
 private struct ElderRoot: View {
     @StateObject private var session = ElderDemoSession(usesLiveNavigation: true)
+    @StateObject private var reporter = ElderLocationReporter()
     let chooseRole: () -> Void
     var body: some View {
-        NavigationStack { ElderHomePage(session: session, chooseRole: chooseRole) }
+        NavigationStack { ElderHomePage(session: session, chooseRole: chooseRole, serverHome: reporter.home) }
+            .onAppear { reporter.start() }
+            .onDisappear { reporter.stop() }
     }
 }
 struct HomeRoot: View {
     var chooseRole: (() -> Void)? = nil
-    @StateObject private var store = OnboardingStore(homeAccessEnabled: true)
+    @StateObject private var store = HomeRoot.makeStore()
+    /// Live by default; the Debug launch argument -safeorbitSampleData keeps the fixed sample for screenshots.
+    static func makeStore() -> OnboardingStore {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-safeorbitSampleData") { return OnboardingStore(homeAccessEnabled: true) }
+#endif
+        return OnboardingStore(device: DemoDevice(role: .caregiver))
+    }
     var body: some View {
         NavigationStack {
             CaregiverHomePage(store: store, chooseRole: chooseRole)

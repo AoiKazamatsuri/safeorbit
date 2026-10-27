@@ -30,10 +30,13 @@ import CryptoKit
     private let vault: SessionVault
     let previewAccessEnabled: Bool
     let homeAccessEnabled: Bool
+    /// Live Demo caregiver phone (task T37): registered with the care API instead of an account.
+    let device: DemoDevice?
     private(set) var previewSession = false
     private var challenge: AuthChallenge?
-    init(api: OnboardingAPI = .init(baseURL: ServerConfiguration.baseURL), vault: SessionVault = .init(), previewAccessEnabled: Bool = false, homeAccessEnabled: Bool = false) {
-        self.api = api; self.vault = vault
+    init(api: OnboardingAPI = .init(baseURL: ServerConfiguration.baseURL), vault: SessionVault = .init(), previewAccessEnabled: Bool = false, homeAccessEnabled: Bool = false,
+         device: DemoDevice? = nil) {
+        self.api = api; self.vault = vault; self.device = device
         self.homeAccessEnabled = homeAccessEnabled
 #if DEBUG
         self.previewAccessEnabled = previewAccessEnabled
@@ -41,9 +44,10 @@ import CryptoKit
         self.previewAccessEnabled = false
 #endif
         if homeAccessEnabled { enterPreviewHome() }
+        else if device != nil { screen = .caregiverHome }
     }
     func restore() async {
-        if homeAccessEnabled || previewAccessEnabled { return }
+        if homeAccessEnabled || previewAccessEnabled || device != nil { return }
         guard let saved = vault.load() else { return }
         token = saved; tokenRole = vault.role() ?? "caregiver"; restoring = true
         await perform { self.route(try await self.api.request("session", token: saved) as AppSession) }
@@ -235,7 +239,7 @@ import CryptoKit
         }
     }
     func signOut() async {
-        guard !homeAccessEnabled else { return }
+        guard !homeAccessEnabled, device == nil else { return }
         guard let token else { reset(); return }
         guard !busy else { return }
         busy = true
@@ -243,11 +247,60 @@ import CryptoKit
         let _: [String: Bool]? = try? await api.request("session", method: "DELETE", token: token)
         reset(); busy = false
     }
+    /// Live mode keeps the location page current: one refresh every 3 s while the page is shown
+    /// (engineering architecture section 8, caregiver refresh interval).
+    func followLocation(every interval: Duration = .seconds(3)) async {
+        while !Task.isCancelled {
+            await refreshLocation()
+            try? await Task.sleep(for: interval)
+        }
+    }
+    /// Saves a safe zone edit to the care API, then reloads so the map shows the stored zones.
+    func persistZone(_ change: SafeZoneChange) async throws {
+        guard let device else { return }
+        switch change {
+        case .save(let zone):
+            let stored = location?.safeZones.contains { $0.id == zone.id } ?? false
+            let _: RemoteSafeZone = try await device.request(stored ? "safe-zones/\(zone.id)" : "safe-zones",
+                method: stored ? "PUT" : "POST", body: OnboardingAPI.json(SafeZoneBody(zone)))
+        case .delete(let zone):
+            let _: EmptyResponse = try await device.request("safe-zones/\(zone.id)", method: "DELETE")
+        }
+        while locationLoading { try? await Task.sleep(for: .milliseconds(100)) }
+        await refreshLocation()
+    }
+    private func refreshLive(_ device: DemoDevice) async {
+        guard !locationLoading else { return }
+        locationLoading = true
+        defer { locationLoading = false }
+        do {
+            if device.token == nil {
+                let household = try await device.register().household
+                elder = household.elderProfile
+                caregiverPhone = household.caregiver.phone
+            }
+            let latest: ElderLocationSnapshot = try await device.request("location")
+            guard latest.coordinate.isValid else { throw APIError(kind: .other) }
+            location = latest
+            locationError = nil
+        } catch is CancellationError {
+        } catch let error as APIError where error.kind == .notFound {
+            location = nil
+            locationError = "Waiting for the senior's phone to share its location."
+        } catch let error as APIError where error.kind == .network {
+            locationError = "Can't reach the SafeOrbit server. Check that this phone is on the same Wi-Fi as the computer."
+        } catch let error as APIError where error.kind == .unauthorized {
+            locationError = "Reconnecting to the SafeOrbit server…"  // the next refresh registers again
+        } catch {
+            locationError = (error as? APIError)?.errorDescription ?? "Location is unavailable. Try again."
+        }
+    }
     func refreshLocation() async {
         if previewSession {
             location = LocationPreviewData.snapshot()
             return
         }
+        if let device { await refreshLive(device); return }
         guard let token, screen == .caregiverHome, !locationLoading else { return }
         locationLoading = true
         defer { locationLoading = false }

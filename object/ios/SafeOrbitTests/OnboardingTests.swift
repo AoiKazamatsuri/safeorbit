@@ -309,7 +309,7 @@ final class OnboardingTests: XCTestCase {
         let value: BindingCode = try await api.request("binding", method: "POST", token: "test-token")
         XCTAssertEqual(BindingPayload.token(from: value.payload), value.token)
         XCTAssertEqual(value.expiresAt.timeIntervalSince1970, 1790935200.123, accuracy: 0.001)
-        for (status, kind) in [(401, APIError.Kind.unauthorized), (404, .unavailable), (410, .invalidCode), (400, .invalidInput), (503, .unavailable)] {
+        for (status, kind) in [(401, APIError.Kind.unauthorized), (404, .notFound), (410, .invalidCode), (400, .invalidInput), (503, .unavailable)] {
             StubURLProtocol.handler = { _ in (status, Data()) }
             do { let _: BindingCode = try await api.request("binding"); XCTFail("Expected error") }
             catch let error as APIError { XCTAssertEqual(error.kind, kind) }

@@ -56,3 +56,10 @@ export const TRACKS = {
     return buildTrack([['dwell', 120], ['walk', route], ['dwell', 300], ['walk', [...route].reverse()], ['dwell', 240]]);
   },
 };
+
+// Xcode plays a GPX file at the pace of its <time> stamps; the base date is arbitrary.
+export function toGpx(name, track, base = Date.UTC(2026, 0, 1)) {
+  const points = track.map(f =>
+    `  <wpt lat="${f.latitude}" lon="${f.longitude}"><time>${new Date(base + f.offset * 1000).toISOString().replace('.000Z', 'Z')}</time></wpt>`);
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="SafeOrbit object/dev/tracks.mjs">\n  <metadata><name>${name}</name></metadata>\n${points.join('\n')}\n</gpx>\n`;
+}
