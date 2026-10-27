@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { DEFAULT_CAREGIVER_SETTINGS, distanceMeters, distanceToPolylineMeters, GeoPoint, SafeZone } from '../src/care-api/public';
 import { navigationReissue, planActions } from '../src/care-agent/risk-actions';
 import {
-  applyMet, DEMO_RISK_PARAMS, initialRiskState, RiskContext, RiskOutput, RiskState, riskStep, riskTick,
+  applyMet, DEMO_RISK_PARAMS, walkedPathMeters, initialRiskState, RiskContext, RiskOutput, RiskState, riskStep, riskTick,
 } from '../src/care-agent/risk-rules';
 import { Fix } from '../src/care-agent/trip-recognition';
 
@@ -68,6 +71,29 @@ function wanderTrip(loopSeconds: number): { track: Track; loopStart: number; hom
   const homeAt = track.fixes.find(f => f.t > loopStart && distanceMeters(HOME.center, f) <= 80)!.t;
   track.dwell(240);
   return { track, loopStart, homeAt };
+}
+
+// Deterministic noise (mulberry32 + Box-Muller), so jitter tests never flake.
+function noise(seed: number): () => number {
+  let a = seed >>> 0;
+  const uniform = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  return () => Math.sqrt(-2 * Math.log(1 - uniform())) * Math.cos(2 * Math.PI * uniform());
+}
+// One fix a second like a real iPhone: `at(s)` is the true position (east, north metres from home), plus
+// Gaussian noise of `sd` metres per axis and a reported accuracy between 5 and 10 m.
+function noisyFixes(seconds: number, at: (s: number) => [number, number], sd: number, seed: number): Fix[] {
+  const gauss = noise(seed);
+  return Array.from({ length: seconds }, (_, i) => {
+    const [e, n] = at(i);
+    const p = P(e + gauss() * sd, n + gauss() * sd);
+    const accuracy = Math.min(10, Math.max(5, Math.round((7.5 + gauss() * 1.5) * 10) / 10));
+    return { t: T0 + (i + 1) * 1000, accuracy, ...p };
+  });
 }
 
 test('point-to-route distance is perpendicular inside a segment and to the end beyond it', () => {
@@ -270,4 +296,66 @@ test('the Demo parameters are those of engineering architecture section 8', () =
   const p = DEMO_RISK_PARAMS;
   assert.deepEqual([p.windowSeconds, p.wanderMinPathMeters, p.wanderMaxNetMeters, p.deviationMeters, p.deviationSeconds,
     p.lowAfterSeconds, p.highAfterSeconds, p.homeSettleSeconds, p.freshSeconds], [300, 150, 35, 80, 300, 420, 900, 180, 300]);
+});
+
+test('standing still with GPS jitter is not wandering', () => {
+  // 15 minutes on a bench 300 m from home, on the route (so no deviation either), one fix a second.
+  for (const [sd, seed] of [[2, 1], [3.5, 7], [5, 42]] as const) {
+    const fixes = noisyFixes(15 * 60, () => [0, -300], sd, seed);
+    const raw = fixes.slice(-300).slice(1).reduce((sum, f, i) => sum + distanceMeters(fixes[fixes.length - 300 + i], f), 0);
+    assert.ok(raw > 150, `raw jitter path over 5 minutes (${Math.round(raw)} m) would have looked like wandering`);
+    assert.ok(walkedPathMeters(fixes.slice(-300), DEMO_RISK_PARAMS.pathMinStepMeters, DEMO_RISK_PARAMS.pathSmoothingSeconds) < 150);
+    const { outputs, state } = run(fixes);
+    assert.deepEqual(outputs, [], `sd ${sd} m`);
+    assert.equal(state.risk, null);
+  }
+});
+
+test('a slow but genuine small loop still counts as wandering, also with jitter', () => {
+  // 0.7 m/s round a 14 m circle, one noisy fix a second: low at 7 and high at 15 minutes after it began.
+  const loop = (s: number): [number, number] => [14 * Math.cos((0.7 * s) / 14) - 14, -300 + 14 * Math.sin((0.7 * s) / 14)];
+  const fixes = noisyFixes(16 * 60, loop, 1.5, 3);
+  assert.ok(walkedPathMeters(fixes.slice(0, 300), DEMO_RISK_PARAMS.pathMinStepMeters, DEMO_RISK_PARAMS.pathSmoothingSeconds) > 150);
+  const { outputs, state } = run(fixes);
+  const [opened] = ofType(outputs, 'opened');
+  const [escalated] = ofType(outputs, 'escalated');
+  assert.equal(opened?.anomaly, 'wandering');
+  assert.ok(opened.anomalyStartedAt <= fixes[0].t + 5_000);
+  assert.ok(opened.at - opened.anomalyStartedAt >= 420_000 && opened.at - opened.anomalyStartedAt < 422_000);
+  assert.ok(escalated.at - opened.anomalyStartedAt >= 900_000 && escalated.at - opened.anomalyStartedAt < 902_000);
+  assert.equal(state.risk!.level, 'high');
+});
+
+test('the path ignores small moves and counts real steps', () => {
+  // One fix every 10 s, so each fix is its own smoothing bucket.
+  const at = (n: number, north: number, accuracy: number | null = 5): Fix => ({ t: T0 + n * 10_000, accuracy, ...P(0, -north) });
+  const walk = (meters: number[], accuracy: number | null = 5) => walkedPathMeters(meters.map((m, i) => at(i, m, accuracy)), 10, 10);
+  assert.equal(walkedPathMeters([], 10, 10), 0);
+  assert.ok(Math.abs(walk([0, 4, 8, 12, 20]) - 12) < 0.1);   // the last 8 m wait for the next step
+  assert.ok(Math.abs(walk([0, 12, 24]) - 24) < 0.1);
+  assert.ok(Math.abs(walk([0, 12], null) - 12) < 0.1);
+  assert.equal(walk([0, 12, 24], 30), 0);                      // coarse fixes cannot resolve 12 m steps
+  // Ten fixes a second apart, alternating 6 m either side of one spot, average to a single point.
+  const flicker = Array.from({ length: 60 }, (_, i) => ({ t: T0 + i * 1000, accuracy: 5, ...P(i % 2 ? 6 : -6, -300) }));
+  assert.equal(walkedPathMeters(flicker, 10, 10), 0);
+});
+
+test('the home-wander-home demo track reaches low at 7 and high at 15 minutes and resolves at home', async () => {
+  const dev = resolve(__dirname, '../../../dev');
+  const importEsm = new Function('url', 'return import(url)') as (url: string) => Promise<any>;
+  const { TRACKS, demoRoute } = await importEsm(pathToFileURL(resolve(dev, 'tracks.mjs')).href);
+  const household = JSON.parse(readFileSync(resolve(dev, 'demo-household.json'), 'utf8'));
+  const zones: SafeZone[] = household.safeZones.map((z: any, i: number) =>
+    ({ id: String(i), name: z.name, isHome: z.name === 'Home', center: z.center, radiusMeters: z.radiusMeters }));
+  const fixes: Fix[] = TRACKS['home-wander-home']().map((f: any) =>
+    ({ t: T0 + f.offset * 1000, accuracy: f.accuracy, latitude: f.latitude, longitude: f.longitude }));
+  const { outputs, state } = run(fixes, { zones, routes: [demoRoute()], tripStartedAt: null });
+  assert.deepEqual(transitions(outputs).map(o => o.type), ['opened', 'escalated', 'resolved']);
+  const [opened] = ofType(outputs, 'opened');
+  const [escalated] = ofType(outputs, 'escalated');
+  assert.equal(opened.anomaly, 'wandering');
+  assert.ok(opened.at - opened.anomalyStartedAt >= 420_000 && opened.at - opened.anomalyStartedAt < 425_000);
+  assert.ok(escalated.at - opened.anomalyStartedAt >= 900_000 && escalated.at - opened.anomalyStartedAt < 905_000);
+  assert.equal(ofType(outputs, 'resolved')[0].resolution, 'home');
+  assert.equal(state.risk, null);
 });

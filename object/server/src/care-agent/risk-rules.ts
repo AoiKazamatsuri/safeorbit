@@ -9,7 +9,8 @@ import { DEMO_TRIP_PARAMS, Fix, isAcceptableFix, TripParams } from './trip-recog
 //   the fix is inside any safe zone (home included): a safe zone is a familiar place, not a fence.
 //   * Wandering: over the 5-minute window ending at the fix (and covering at least windowMinSpanSeconds of
 //     it), the walked path is longer than 150 m while the net displacement from the window's first fix to
-//     this fix is under 35 m.
+//     this fix is under 35 m. The path counts real movement only (see walkedPathMeters): GPS noise of a
+//     phone standing still must not add up to a walk.
 //   * Deviation: the fix has been more than 80 m from the nearest reference route for at least 5 minutes
 //     without a break. Never judged when there is no reference route.
 // - An anomaly (episode) starts at the first abnormal fix of a run. Its start time is the time the behaviour
@@ -31,6 +32,15 @@ export interface RiskParams {
   windowMinSpanSeconds: number;      // a shorter window is not judged yet
   wanderMinPathMeters: number;
   wanderMaxNetMeters: number;
+  // Path counting (walkedPathMeters), so GPS jitter of a phone standing still adds nothing:
+  // fixes are first averaged per pathSmoothingSeconds of sample time (10 s: an iPhone reports about once a
+  // second, so ten fixes average out most white noise while a walker at 1 m/s moves only 10 m); then a step
+  // counts only once the averaged position is at least pathMinStepMeters (or the larger reported accuracy)
+  // from the last counted anchor. 10 m is above typical outdoor horizontal accuracy (5-10 m) yet well under
+  // the 35 m net-displacement bound, so a genuine small loop (radius 12-15 m) still counts. Measured on
+  // simulated white noise: standing still adds 0 m up to 5 m noise per axis; loops keep 80-90 % of their path.
+  pathSmoothingSeconds: number;
+  pathMinStepMeters: number;
   deviationMeters: number;
   deviationSeconds: number;
   anomalyEndGraceSeconds: number;
@@ -42,7 +52,7 @@ export interface RiskParams {
 }
 
 export const DEMO_RISK_PARAMS: RiskParams = {
-  windowSeconds: 300, windowMinSpanSeconds: 270, wanderMinPathMeters: 150, wanderMaxNetMeters: 35,
+  windowSeconds: 300, windowMinSpanSeconds: 270, wanderMinPathMeters: 150, wanderMaxNetMeters: 35, pathSmoothingSeconds: 10, pathMinStepMeters: 10,
   deviationMeters: 80, deviationSeconds: 300, anomalyEndGraceSeconds: 60,
   lowAfterSeconds: 420, highAfterSeconds: 900, homeMarginMeters: 20, homeSettleSeconds: 180, freshSeconds: 300,
 };
@@ -96,11 +106,34 @@ function closeEpisode(s: RiskState, kind: AnomalyKind, out: RiskOutput[]): void 
 
 interface Detection { start: number; features: Record<string, number> }
 
+// Path length that counts real movement only. Fixes are averaged per bucket of `smoothingSeconds` of sample
+// time (buckets aligned to absolute time, so the result does not depend on batching); the anchor starts at
+// the first bucket, and a later bucket adds its distance from the anchor, and becomes the anchor, only when
+// that distance is at least max(minStep, the mean reported accuracy of either bucket). Jitter around a
+// standing point stays within the threshold; walking adds a little less than its true length.
+export function walkedPathMeters(fixes: Fix[], minStepMeters: number, smoothingSeconds: number): number {
+  const buckets: Array<{ key: number; lat: number; lon: number; acc: number; n: number }> = [];
+  for (const f of fixes) {
+    const key = Math.floor(f.t / (smoothingSeconds * 1000));
+    let b = buckets[buckets.length - 1];
+    if (!b || b.key !== key) { b = { key, lat: 0, lon: 0, acc: 0, n: 0 }; buckets.push(b); }
+    b.lat += f.latitude; b.lon += f.longitude; b.acc += f.accuracy ?? 0; b.n++;
+  }
+  const points = buckets.map(b => ({ latitude: b.lat / b.n, longitude: b.lon / b.n, accuracy: b.acc / b.n }));
+  if (!points.length) return 0;
+  let anchor = points[0];
+  let path = 0;
+  for (const p of points.slice(1)) {
+    const d = distanceMeters(anchor, p);
+    if (d >= Math.max(minStepMeters, anchor.accuracy, p.accuracy)) { path += d; anchor = p; }
+  }
+  return path;
+}
+
 function wandering(s: RiskState, fix: Fix, p: RiskParams): Detection | null {
   const w = s.window;
   if (fix.t - w[0].t < p.windowMinSpanSeconds * 1000) return null;
-  let path = 0;
-  for (let i = 1; i < w.length; i++) path += distanceMeters(w[i - 1], w[i]);
+  const path = walkedPathMeters(w, p.pathMinStepMeters, p.pathSmoothingSeconds);
   const net = distanceMeters(w[0], fix);
   if (path <= p.wanderMinPathMeters || net >= p.wanderMaxNetMeters) return null;
   return { start: w[0].t, features: { pathMeters: Math.round(path), netMeters: Math.round(net), windowSeconds: Math.round((fix.t - w[0].t) / 1000) } };

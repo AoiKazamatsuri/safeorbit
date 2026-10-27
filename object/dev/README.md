@@ -48,7 +48,7 @@ node object/dev/check-env.mjs --running
 
 后端三个模块为 `care-api`、`care-agent`、`outreach-gateway`。只有 care-api 可访问数据库；其他模块只引用其 `public` 入口。care-api 负责手机登记、安全区、参照路线、位置存取、位置快照与全部风险记录，发布“位置已入库”“处置已提交”“状态已变化”三种事件；care-agent 订阅前两种，在同一个队列里按采样时间跑出行识别与风险规则（徘徊、偏离路线、低风险与高风险、解除），决定出手动作，并每 30 秒定时检查一次；outreach-gateway 订阅“状态已变化”，把给家属的通知经苹果推送发出，再把送达结果写回 care-api。数据库表由后端启动时建立。
 
-风险规则的 Demo 参数取工程架构第 8 节，写在 `server/src/care-agent/risk-rules.ts`，文件开头写明“异常开始、结束”的定义：徘徊从第一个满足条件的 5 分钟窗口的首个点算起，偏离从第一次离参照路线超过 80 米的点算起；在任一安全区内不判异常；数据中断超过 5 分钟即打断异常，既不升级也不解除。识别出的每段异常都记一条行为观测，不论是否升级为风险。
+风险规则的 Demo 参数取工程架构第 8 节，写在 `server/src/care-agent/risk-rules.ts`，文件开头写明“异常开始、结束”的定义：徘徊从第一个满足条件的 5 分钟窗口的首个点算起，偏离从第一次离参照路线超过 80 米的点算起；徘徊的路径先按 10 秒平均、每步至少 10 米才计入，站着不动时的定位抖动不累计成路程；在任一安全区内不判异常；数据中断超过 5 分钟即打断异常，既不升级也不解除。识别出的每段异常都记一条行为观测，不论是否升级为风险。
 
 Demo 不做账号：手机选身份后 `POST /v1/devices`（`role`、`installationId`）换取设备凭证，之后的请求带 `Authorization: Bearer <凭证>`。其余接口：`GET /v1/household`、`GET|POST /v1/safe-zones`、`PUT|DELETE /v1/safe-zones/:id`（家属手机改）、`POST /v1/locations`（老人手机批量上报，回复的 `actions` 带回待执行动作）、`GET /v1/location`（家属端位置快照，含风险等级、气泡原因与智能体状态行）、`GET /v1/trips`。任务 T38 新增：
 
