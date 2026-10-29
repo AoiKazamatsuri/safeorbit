@@ -91,11 +91,18 @@ export class LocationsController {
   // Elder phone upload. The care agent evaluates the stored points before the reply, so the reply already
   // carries any action decided from them (pending actions for this phone, e.g. startNavigation).
   @Post('locations') @HttpCode(200)
-  async upload(@Body() body: unknown, @Headers('authorization') authorization?: string) {
+  async upload(@Body() body: unknown, @Headers('authorization') authorization?: string, @Query('replay') replay?: string) {
     const device = await this.auth.require(authorization, 'elder');
-    const statuses = await this.store.storePoints(device, parsed(() => parseLocationBatch(body)));
-    if (statuses.includes('accepted')) await this.events.publishLocationsStored({ elderId: device.elderId });
-    return { results: statuses.map((status, index) => ({ index, status })), actions: await this.risks.elderActions(device.elderId) };
+    if (replay !== undefined && replay !== 'true' && replay !== 'false') throw new BadRequestException('replay must be true or false');
+    const historical = replay === 'true';
+    const now = Date.now();
+    const batch = parsed(() => parseLocationBatch(body, now));
+    if (historical && batch.points.some(p => p && p.sampledAt.getTime() >= now)) {
+      throw new BadRequestException('Historical points must be in the past');
+    }
+    const statuses = await this.store.storePoints(device, batch, historical);
+    if (historical || statuses.includes('accepted')) await this.events.publishLocationsStored({ elderId: device.elderId, replay: historical });
+    return { results: statuses.map((status, index) => ({ index, status })), actions: historical ? [] : await this.risks.elderActions(device.elderId) };
   }
 
   @Get('location')

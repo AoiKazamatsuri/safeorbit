@@ -1,6 +1,6 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import {
-  CareEvents, CareStore, CaregiverSettings, GeoPoint, RiskRecords, RiskWrite, SafeZone, StoredFix, TripChange,
+  CareEvents, CareStore, CaregiverSettings, GeoPoint, RiskEventRecord, RiskRecords, RiskWrite, SafeZone, StoredFix, TripChange,
 } from '../care-api/public';
 import { navigationAction, navigationReissue, planActions } from './risk-actions';
 import { explainRisk } from './risk-explanation';
@@ -32,6 +32,24 @@ const toWrite = (o: RiskOutput): RiskWrite => {
   }
 };
 
+// Historical replay records rule outcomes without performing the planned help. Describe those
+// records directly rather than using the live-event template, which narrates outreach to the family.
+function explainHistoricalRisk(event: RiskEventRecord, callName: string): string {
+  const behavior = event.anomaly === 'wandering' ? 'wandering' : 'route deviation';
+  const minutesAt = (at: Date) => Math.max(0, Math.floor((at.getTime() - event.anomalyStartedAt.getTime()) / 60_000));
+  const parts = [
+    `From the recorded locations, I detected ${behavior} for ${callName} and recorded low risk after ${minutesAt(event.openedAt)} minutes.`,
+  ];
+  if (event.escalatedAt) parts.push(`The recorded behavior continued, reaching high risk after ${minutesAt(event.escalatedAt)} minutes.`);
+  if (event.resolvedAt) {
+    parts.push(event.resolution === 'met'
+      ? 'The risk record was resolved after a caregiver confirmed they had met.'
+      : 'The recorded return home resolved the risk.');
+  } else parts.push('The recorded risk remains unresolved.');
+  parts.push('No notifications were sent and no navigation was started for this record.');
+  return parts.join(' ');
+}
+
 // The care agent's runner: trip recognition and risk rules on stored fixes in sample-time order, the
 // clock check, and "We've Met". One queue serialises every run, so trip and risk processing never race.
 @Injectable()
@@ -42,7 +60,7 @@ export class CareAgentRunner implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly store: CareStore, private readonly risks: RiskRecords, private readonly events: CareEvents) {}
 
   onModuleInit(): void {
-    this.events.onLocationsStored(({ elderId }) => this.enqueue(() => this.processFixes(elderId)));
+    this.events.onLocationsStored(({ elderId, replay }) => this.enqueue(() => this.processFixes(elderId, replay)));
     this.events.onDispositionSubmitted(e => (e.kind === 'met' ? this.enqueue(() => this.resolveMet(e.elderId, e.riskEventId)) : Promise.resolve()));
     this.timer = setInterval(() => void this.enqueue(() => this.checkClock(Date.now())).catch(() => undefined), CLOCK_CHECK_MS);
     this.timer.unref();
@@ -65,16 +83,20 @@ export class CareAgentRunner implements OnModuleInit, OnModuleDestroy {
     return { zones, routes, settings };
   }
 
-  async processFixes(elderId: number): Promise<void> {
+  async processFixes(elderId: number, replayRequest = false): Promise<void> {
     const { zones, routes, settings } = await this.context(elderId);
     const record = await this.store.tracker(elderId);
     let trip = (record?.state as TrackerState | undefined) ?? initialState();
     let risk = (record?.riskState as RiskState | null | undefined) ?? initialRiskState();
     let through = record?.processedThrough ?? null;
+    let historyReplay = record?.historyReplay ?? false;
     const touched = new Set<string>();
     for (;;) {
-      const fixes = await this.store.pointsAfter(elderId, through, CHUNK);
-      if (!fixes.length) break;
+      const pending = await this.store.pointsAfter(elderId, through, CHUNK);
+      if (!pending.length) break;
+      historyReplay = pending[0].historyReplay ?? false;
+      const boundary = pending.findIndex(p => (p.historyReplay ?? false) !== historyReplay);
+      const fixes = boundary < 0 ? pending : pending.slice(0, boundary);
       const changes: TripChange[] = [];
       const outputs: RiskOutput[] = [];
       for (const stored of fixes) {
@@ -88,19 +110,22 @@ export class CareAgentRunner implements OnModuleInit, OnModuleDestroy {
       }
       through = fixes[fixes.length - 1].sampledAt;
       const result = await this.risks.recordEvaluation(elderId, {
-        tracking: { changes, next: { phase: trip.phase, processedThrough: through, state: trip } },
-        riskState: risk, writes: outputs.map(toWrite), actions: planActions(outputs, settings),
+        tracking: { changes, next: { phase: trip.phase, processedThrough: through, state: trip, historyReplay } },
+        riskState: risk, writes: outputs.map(toWrite), actions: planActions(outputs, settings, historyReplay), historyReplay,
       });
       result.touched.forEach(id => touched.add(id));
-      if (fixes.length < CHUNK) break;
+      if (pending.length < CHUNK && boundary < 0) break;
     }
-    await this.followUp(elderId, Date.now(), risk, settings, touched);
+    // A repeated history request can arrive after live tracking resumed. Its empty replay must not
+    // trigger wall-clock navigation renewal for that live tracker.
+    if (historyReplay || replayRequest) await this.explain(elderId, touched);
+    else await this.followUp(elderId, Date.now(), risk, settings, touched);
   }
 
   async checkClock(now: number): Promise<void> {
     for (const elderId of await this.store.trackedElderIds()) {
       const record = await this.store.tracker(elderId);
-      if (!record) continue;
+      if (!record || record.historyReplay) continue;
       const { zones, routes, settings } = await this.context(elderId);
       const trip = tick(record.state as TrackerState, now, zones, DEMO_TRIP_PARAMS);
       const riskBefore = (record.riskState as RiskState | null) ?? initialRiskState();
@@ -162,7 +187,8 @@ export class CareAgentRunner implements OnModuleInit, OnModuleDestroy {
       const { elder } = await this.store.household(elderId);
       for (const id of ids) {
         const event = await this.risks.riskEvent(elderId, id);
-        const text = explainRisk(event, await this.risks.activity(id), elder.callName);
+        const text = event.historyReplay ? explainHistoricalRisk(event, elder.callName)
+          : explainRisk(event, await this.risks.activity(id), elder.callName);
         if (text !== event.explanation) await this.risks.saveExplanation(id, text);
       }
     } catch (error) { console.error('Risk explanation failed:', (error as Error).message); }

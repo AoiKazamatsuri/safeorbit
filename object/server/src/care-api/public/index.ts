@@ -7,3 +7,4 @@ export {
   ActionKind, ActionWrite, CaregiverSettings, DEFAULT_CAREGIVER_SETTINGS, PushJob, PushRecipient, RiskActivity,
   RiskEventRecord, RiskRecords, RiskWrite,
 } from '../risk-records';
+export { Records } from '../records';

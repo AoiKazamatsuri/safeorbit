@@ -17,25 +17,35 @@ struct RecordsPage: View {
     @Environment(\.recordsTestDriver) private var testDriver
 #endif
     @State private var section: RecordsSection = .data
-    @State private var month = DemoRecords.date(2026, 8, 1)
-    @State private var weekStart = RecordsPage.currentWeekStart
+    @StateObject private var store: RecordsStore
+    @Environment(\.scenePhase) private var scenePhase
+    let isActive: Bool
     @State private var expanded = false
-    @State private var selectedTrip: DemoTrip?
+    @State private var selectedTrip: RecordTrip?
     let onDetailPresentationChanged: (Bool) -> Void
 
-    init(showTrendInitially: Bool = false, onLayout: (([String: CGRect]) -> Void)? = nil, onDetailPresentationChanged: @escaping (Bool) -> Void = { _ in }) {
+    init(device: DemoDevice?, isActive: Bool = true, showTrendInitially: Bool = false,
+         onLayout: (([String: CGRect]) -> Void)? = nil, onDetailPresentationChanged: @escaping (Bool) -> Void = { _ in }) {
         self.onLayout = onLayout
         self.onDetailPresentationChanged = onDetailPresentationChanged
+        self.isActive = isActive
         _section = State(initialValue: showTrendInitially ? .trend : .data)
+        _store = StateObject(wrappedValue: RecordsStore(service: device.map { RecordsAPI(device: $0) },
+            timezone: device?.household?.elder.timezone ?? "UTC"))
     }
-
-    private let calendar = DemoRecords.calendar
-    // The demo's "today" week; the trend chart ends with the same Monday.
-    static let currentWeekStart = DemoRecords.weekStarts().last!
-    private var weekEnd: Date { calendar.date(byAdding: .day, value: 7, to: weekStart)! }
-    private var weekTrips: [DemoTrip] {
-        DemoRecords.trips.filter { $0.date >= weekStart && $0.date < weekEnd }.sorted { $0.date < $1.date }
+#if DEBUG
+    init(showTrendInitially: Bool = false, onLayout: (([String: CGRect]) -> Void)? = nil,
+         onDetailPresentationChanged: @escaping (Bool) -> Void = { _ in }) {
+        self.onLayout = onLayout; self.onDetailPresentationChanged = onDetailPresentationChanged
+        isActive = true
+        _section = State(initialValue: showTrendInitially ? .trend : .data)
+        _store = StateObject(wrappedValue: .preview())
     }
+#endif
+    private var calendar: Calendar { store.calendar }
+    private var month: Date { store.month }
+    private var weekStart: Date { store.weekStart }
+    private var weekTrips: [RecordTrip] { store.records?.trips ?? [] }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -62,6 +72,7 @@ struct RecordsPage: View {
                     .padding(.horizontal, OrbitLayout.pageMargin)
                     .padding(.bottom, 112)
                 }
+                .refreshable { await store.reload() }
             }
             .background(.white, in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
             .background(alignment: .top) { OrbitStyle.teal.frame(height: 40) }
@@ -69,6 +80,16 @@ struct RecordsPage: View {
         .background(Color.white.ignoresSafeArea(edges: .bottom))
         .coordinateSpace(name: "RecordsPage")
         .onPreferenceChange(RecordsFrames.self) { onLayout?($0) }
+        .task(id: store.queryKey + ":\(isActive):\(scenePhase == .active)") {
+            guard isActive, scenePhase == .active else { return }
+#if DEBUG
+            if store.isPreview { return }
+#endif
+            while !Task.isCancelled {
+                await store.reload()
+                do { try await Task.sleep(for: .seconds(3)) } catch { return }
+            }
+        }
 #if DEBUG
         .onChange(of: weekStart) { _, start in testDriver?.weekStart = start }
         .onAppear {
@@ -79,14 +100,24 @@ struct RecordsPage: View {
                 case .shiftMonth(let amount): shiftMonth(amount)
                 case .shiftWeek(let amount): shiftWeek(amount)
                 case .toggleExpanded: expanded.toggle()
-                case .openTrip(let trip): selectedTrip = trip
+                case .openTrip(let trip): selectedTrip = RecordTrip(preview: trip)
                 case .closeTrip: selectedTrip = nil
                 case .showTrend(let show): section = show ? .trend : .data
                 }
             }
         }
 #endif
-        .settingsSlide(item: $selectedTrip) { TripDetailPage(trip: $0) { selectedTrip = nil } }
+        .settingsSlide(item: $selectedTrip) { trip in
+#if DEBUG
+            if store.isPreview, let sample = DemoRecords.trips.first(where: { $0.id == trip.id }) {
+                TripDetailPage(trip: sample) { selectedTrip = nil }
+            } else {
+                TripDetailPage(trip: trip, timezone: store.timezone, service: store.service) { selectedTrip = nil }
+            }
+#else
+            TripDetailPage(trip: trip, timezone: store.timezone, service: store.service) { selectedTrip = nil }
+#endif
+        }
         .onChange(of: selectedTrip?.id) { _, id in onDetailPresentationChanged(id != nil) }
         .onDisappear { onDetailPresentationChanged(false) }
     }
@@ -125,7 +156,7 @@ struct RecordsPage: View {
 
     // Other weeks are named by their date range alone.
     @ViewBuilder private var weekTitle: some View {
-        if weekStart == RecordsPage.currentWeekStart {
+        if weekStart == store.currentWeekStart {
             Text("This Week")
                 .recordingFont(18, weight: .medium).fixedSize(horizontal: false, vertical: true)
                 .recordsFrame("this-week")
@@ -169,21 +200,18 @@ struct RecordsPage: View {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 3) {
                         ForEach(days.indices, id: \.self) { index in
                             if let day = days[index] {
-                                let date = DemoRecords.date(calendar.component(.year, from: month),
-                                                            calendar.component(.month, from: month), day)
-                                let risk = DemoRecords.highestRisk(on: date)
-                                let incomplete = DemoRecords.trips(on: date).contains { $0.incomplete }
+                                let date = calendar.date(bySetting: .day, value: day, of: month)!
+                                let key = RecordDates.format(date, "yyyy-MM-dd", timezone: store.timezone)
+                                let risk = store.records?.days.first { $0.date == key }?.risk
                                 Button { selectDay(date) } label: {
                                     Text("\(day)").caregiverText().fixedSize()
                                         .foregroundStyle(risk == .high ? .white : .black)
                                         .frame(maxWidth: .infinity).frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 44 : 30)
                                         .background(riskColor(risk), in: Circle())
-                                        .overlay {
-                                            if incomplete { Circle().stroke(.gray, style: StrokeStyle(lineWidth: 1.5, dash: [3, 2])) }
-                                        }
+
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityLabel("\(dayTitle(date)), \(risk?.title ?? "No trips")\(incomplete ? ", incomplete record" : "")")
+                                .accessibilityLabel("\(dayTitle(date)), \(risk?.title ?? "No trips")")
                             } else { Color.clear.frame(height: dynamicTypeSize.isAccessibilitySize ? 44 : 30) }
                         }
                     }
@@ -207,7 +235,7 @@ struct RecordsPage: View {
     }
     // A date opens its whole Monday–Sunday week, already expanded.
     private func selectDay(_ date: Date) {
-        weekStart = calendar.dateInterval(of: .weekOfYear, for: date)!.start
+        store.selectDay(date)
         expanded = true
     }
 
@@ -221,7 +249,11 @@ struct RecordsPage: View {
 
     private var weekCard: some View {
         VStack(spacing: 0) {
-            if weekTrips.isEmpty {
+            if let error = store.recordsError {
+                recordsMessage(error)
+            } else if store.records == nil {
+                ProgressView("Loading records…").caregiverText().padding(22)
+            } else if weekTrips.isEmpty {
                 Text("No trips in this period").caregiverText().foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true).recordsFrame("empty-records")
                     .frame(maxWidth: .infinity)
@@ -265,29 +297,29 @@ struct RecordsPage: View {
         .caregiverCard()
     }
 
-    private func tripDate(_ trip: DemoTrip) -> some View {
+    private func tripDate(_ trip: RecordTrip) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(shortDate(trip.date)).caregiverText().foregroundStyle(.black)
             Text(weekday(trip.date)).caregiverText(.caption).foregroundStyle(.secondary)
         }.fixedSize().recordsFrame("date-\(trip.id)")
     }
-    private func tripRisk(_ trip: DemoTrip) -> some View {
-        Text(trip.risk == .high ? "Risk" : trip.risk.title)
+    private func tripRisk(_ trip: RecordTrip) -> some View {
+        Text(trip.risk.title)
             .caregiverText(.caption).fixedSize()
             .padding(.horizontal, 8).padding(.vertical, 4)
             .foregroundStyle(trip.risk == .high ? .white : .black)
             .background(riskColor(trip.risk), in: Capsule())
             .recordsFrame("risk-\(trip.id)")
     }
-    private func tripRoute(_ trip: DemoTrip) -> some View {
+    private func tripRoute(_ trip: RecordTrip) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(trip.name).caregiverText(.caption).foregroundStyle(.black)
-            if trip.deviations > 0 {
-                Text("Route Deviation").caregiverText(.caption).foregroundStyle(.secondary)
+            if !trip.anomalies.isEmpty {
+                Text(trip.anomalyLabels).caregiverText(.caption).foregroundStyle(.secondary)
             }
         }.fixedSize(horizontal: false, vertical: true).recordsFrame("route-\(trip.id)")
     }
-    private func tripDuration(_ trip: DemoTrip) -> some View {
+    private func tripDuration(_ trip: RecordTrip) -> some View {
         HStack(spacing: 8) {
             Text("\(trip.durationMinutes) min").caregiverText(.caption)
             Image(systemName: "chevron.right").recordingFont(13, weight: .semibold)
@@ -296,25 +328,35 @@ struct RecordsPage: View {
 
     private var trendContent: some View {
         VStack(spacing: 16) {
-            trendCard
-            metricGrid
+            if let error = store.trendsError {
+                recordsMessage(error).caregiverCard()
+            } else if store.trends != nil {
+                trendCard
+                metricGrid
+                Text(store.trends?.pattern ?? "").caregiverText()
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(OrbitLayout.cardPadding).caregiverCard()
+            } else {
+                ProgressView("Loading trends…").caregiverText().padding(22)
+            }
         }
     }
 
     private var trendCard: some View {
-        let current = DemoRecords.trips.filter { $0.month == 8 }.reduce(0) { $0 + $1.deviations }
-        let previous = DemoRecords.trips.filter { $0.month == 7 }.reduce(0) { $0 + $1.deviations }
+        let current = store.trends?.deviations.current ?? 0
+        let previous = store.trends?.deviations.previous ?? 0
         return VStack(alignment: .leading, spacing: 18) {
             Text("Route Deviation Trend").orbitDisplayFont(20, weight: .semibold)
                 .fixedSize(horizontal: false, vertical: true).recordsFrame("trend-title")
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .bottom, spacing: 8) {
                     trendSummary(current, previous: previous).fixedSize(horizontal: true, vertical: false)
-                    TrendDeviationChart().frame(minWidth: 206).recordsFrame("trend-chart-viewport")
+                    TrendDeviationChart(weeks: store.trends?.weeks ?? [], timezone: store.timezone).frame(minWidth: 206).recordsFrame("trend-chart-viewport")
                 }
                 VStack(alignment: .leading, spacing: 16) {
                     trendSummary(current, previous: previous)
-                    TrendDeviationChart().recordsFrame("trend-chart-viewport")
+                    TrendDeviationChart(weeks: store.trends?.weeks ?? [], timezone: store.timezone).recordsFrame("trend-chart-viewport")
                 }
             }
         }
@@ -333,17 +375,16 @@ struct RecordsPage: View {
     }
 
     private var metricGrid: some View {
-        let current = DemoRecords.trips.filter { $0.month == 8 }
-        let previous = DemoRecords.trips.filter { $0.month == 7 }
+        let values = store.trends?.metrics
         let metrics: [(String, String, Int, Int, String)] = [
-            ("Unusual Movement", "exclamationmark.circle.fill", current.filter(\.unusualMovement).count,
-             previous.filter(\.unusualMovement).count, "events"),
-            ("Navigation Assistance", "point.topleft.down.curvedto.point.bottomright.up", current.filter(\.navigationAssisted).count,
-             previous.filter(\.navigationAssisted).count, "events"),
-            ("High-risk Events", "exclamationmark.triangle.fill", current.filter { $0.risk == .high }.count,
-             previous.filter { $0.risk == .high }.count, "events"),
-            ("Safe Return Rate", "shield.lefthalf.filled", DemoRecords.safeReturnRate(month: 8),
-             DemoRecords.safeReturnRate(month: 7), "%")
+            ("Unusual Movement", "exclamationmark.circle.fill", values?.unusualMovement.current ?? 0,
+             values?.unusualMovement.previous ?? 0, "events"),
+            ("Navigation Assistance", "point.topleft.down.curvedto.point.bottomright.up", values?.navigationAssistance.current ?? 0,
+             values?.navigationAssistance.previous ?? 0, "events"),
+            ("High-risk Events", "exclamationmark.triangle.fill", values?.highRisk.current ?? 0,
+             values?.highRisk.previous ?? 0, "events"),
+            ("Safe Return Rate", "shield.lefthalf.filled", values?.safeReturnRate.current ?? 0,
+             values?.safeReturnRate.previous ?? 0, "%")
         ]
         let columns = dynamicTypeSize > .large ? [GridItem(.flexible())]
             : [GridItem(.adaptive(minimum: 170), spacing: 18, alignment: .top)]
@@ -408,13 +449,20 @@ struct RecordsPage: View {
         }.frame(minWidth: metricBarWidth)
     }
 
+    private func recordsMessage(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Text(message).caregiverText().fixedSize(horizontal: false, vertical: true)
+            Button("Try Again") { Task { await store.reload() } }
+                .caregiverText().frame(minHeight: 44)
+        }.frame(maxWidth: .infinity).padding(OrbitLayout.cardPadding)
+    }
+
     private func shiftMonth(_ amount: Int) {
-        month = calendar.date(byAdding: .month, value: amount, to: month)!
+        store.shiftMonth(amount)
     }
     private func shiftWeek(_ amount: Int) {
-        weekStart = calendar.date(byAdding: .weekOfYear, value: amount, to: weekStart)!
+        store.shiftWeek(amount)
         expanded = false
-        month = calendar.dateInterval(of: .month, for: weekStart)!.start
     }
     private func monthTitle(_ date: Date) -> String {
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US")
@@ -540,31 +588,52 @@ extension EnvironmentValues {
 #endif
 
 struct TripDetailPage: View {
-    let trip: DemoTrip
+    let initialTrip: RecordTrip
+    let timezone: String
     let back: () -> Void
+    @StateObject private var store: RecordDetailStore
     @State private var mapCamera: MapCameraPosition = .automatic
-
-    private var route: [CLLocationCoordinate2D] { DemoRecords.route.map(\.appleCoordinate) }
-    private var region: MKCoordinateRegion {
-        MKCoordinateRegion(center: DemoRecords.route[3].appleCoordinate,
-                           span: MKCoordinateSpan(latitudeDelta: 0.006, longitudeDelta: 0.007))
+    init(trip: RecordTrip, timezone: String, service: (any RecordsServing)?, back: @escaping () -> Void) {
+        initialTrip = trip; self.timezone = timezone; self.back = back
+        _store = StateObject(wrappedValue: RecordDetailStore(service: service))
+    }
+#if DEBUG
+    init(trip: DemoTrip, back: @escaping () -> Void) {
+        initialTrip = RecordTrip(preview: trip); timezone = "Asia/Shanghai"; self.back = back
+        _store = StateObject(wrappedValue: RecordDetailStore(service: nil, detail: .preview(trip)))
+    }
+#endif
+    private var trip: RecordTrip { store.detail?.trip ?? initialTrip }
+    private var events: [RecordTripDetail.Event] { store.detail?.timeline ?? [] }
+    private var route: [CLLocationCoordinate2D] { (store.detail?.trail ?? []).filter(\.isValid).map(\.appleCoordinate) }
+    private var region: MKCoordinateRegion? {
+        let points = route + (store.detail?.anomalies ?? []).filter { $0.point.isValid }.map { $0.point.appleCoordinate }
+        guard let first = points.first else { return nil }
+        let latitudes = points.map(\.latitude), longitudes = points.map(\.longitude)
+        let south = latitudes.min() ?? first.latitude, north = latitudes.max() ?? first.latitude
+        let west = longitudes.min() ?? first.longitude, east = longitudes.max() ?? first.longitude
+        return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: (south + north) / 2, longitude: (west + east) / 2),
+            span: MKCoordinateSpan(latitudeDelta: max(0.003, (north - south) * 1.35), longitudeDelta: max(0.003, (east - west) * 1.35)))
     }
     private var tripMarkers: [AMapMarker] {
-        var markers = [
-            AMapMarker(id: "home", coordinate: route.first!, content: AnyView(
-                Image(systemName: "house.fill").recordingFont(18, weight: .regular)
-                    .foregroundStyle(.white).padding(10).background(OrbitMapStyle.blue, in: Circle()))),
-            AMapMarker(id: "market", coordinate: route.last!, content: AnyView(
-                Image(systemName: "storefront.fill").recordingFont(18, weight: .regular)
-                    .foregroundStyle(.white).padding(10).background(OrbitMapStyle.blue, in: Circle())))
-        ]
-        if trip.deviations > 0 {
-            markers.append(AMapMarker(id: "deviation", coordinate: route[3], content: AnyView(
-                Image(systemName: "exclamationmark").foregroundStyle(.white).padding(8).background(.red, in: Circle()))))
+        var markers: [AMapMarker] = []
+        if let first = route.first {
+            markers.append(marker("start", first, symbol: trip.startKnown ? "house.fill" : "mappin"))
+        }
+        if let last = route.last, route.count > 1 {
+            markers.append(marker("end", last, symbol: trip.returnedHome ? "house.fill" : "flag.fill"))
+        }
+        for (index, anomaly) in (store.detail?.anomalies ?? []).enumerated() where anomaly.point.isValid {
+            markers.append(marker("anomaly-\(index)", anomaly.point.appleCoordinate, symbol: "exclamationmark", anomaly: true))
         }
         return markers
     }
-    // Same solid trail as the location page.
+    private func marker(_ id: String, _ coordinate: CLLocationCoordinate2D, symbol: String, anomaly: Bool = false) -> AMapMarker {
+        AMapMarker(id: id, coordinate: coordinate, content: AnyView(
+            Image(systemName: symbol).recordingFont(18, weight: .regular)
+                .foregroundStyle(.white).padding(10).background(anomaly ? Color.red : OrbitMapStyle.blue, in: Circle())))
+    }
+    // The care API returns the complete WGS-84 trail; conversion happens only for map display.
     var trailLines: [AMapLine] { CaregiverTrailStyle.lines(coordinates: route) }
     var body: some View {
         VStack(spacing: 0) {
@@ -577,7 +646,7 @@ struct TripDetailPage: View {
                             .iconHitArea(.leading, inset: OrbitLayout.pageMargin)
                     }
                     .accessibilityLabel("Back to records").layoutProbe("trip-back")
-                    Text("\(trip.month == 8 ? "Aug" : "Jul") \(trip.day)")
+                    Text(RecordDates.format(trip.startedAt, "MMM d", timezone: timezone))
                         .recordingFont(25, weight: .semibold)
                         .fixedSize(horizontal: false, vertical: true)
                         .layoutProbe("trip-title")
@@ -587,27 +656,42 @@ struct TripDetailPage: View {
                 .padding(.trailing, OrbitLayout.pageMargin)
             }
             .layoutProbe("trip-top-bar")
-            AMapConsentSurface {
-                AMapCanvas(camera: $mapCamera, markers: tripMarkers, lines: trailLines)
+            Group {
+                if region != nil {
+                    AMapConsentSurface {
+                        AMapCanvas(camera: $mapCamera, markers: tripMarkers, lines: trailLines)
+                    }
+                } else {
+                    Text(store.detail == nil ? "" : "No recorded route").caregiverText().foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity).background(OrbitStyle.pale)
+                }
             }
-            .onAppear { mapCamera = .region(region) }
+            .onAppear { if let region { mapCamera = .region(region) } }
+            .onChange(of: store.detail?.trip.id) { _, _ in if let region { mapCamera = .region(region) } }
             .frame(height: 280)
             .layoutProbe("trip-map")
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
+                    if store.loading {
+                        ProgressView("Loading trip…").caregiverText()
+                    } else if let error = store.error {
+                        Text(error).caregiverText().fixedSize(horizontal: false, vertical: true)
+                        Button("Try Again") { Task { await store.reload(id: initialTrip.id) } }
+                            .caregiverText().frame(minHeight: 44)
+                    }
                     ViewThatFits {
                         HStack(spacing: 6) { summaryPills }
                         VStack(alignment: .leading, spacing: 6) { summaryPills }
                     }
                     .layoutProbe("trip-pills")
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(trip.events.enumerated()), id: \.element.id) { index, event in
-                            let last = index == trip.events.count - 1
+                        ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
+                            let last = index == events.count - 1
                             HStack(alignment: .top, spacing: 17) {
                                 Circle().fill(OrbitStyle.teal).frame(width: 12, height: 12)
                                     .layoutProbe("trip-dot-\(index)")
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(time(event.minute)).caregiverText(.secondary).foregroundStyle(.secondary)
+                                    Text(RecordDates.format(event.at, "MMM d, h:mm a", timezone: timezone)).caregiverText(.secondary).foregroundStyle(.secondary)
                                         .fixedSize(horizontal: false, vertical: true)
                                         .layoutProbe("trip-event-time-\(index)")
                                     Text(event.title).caregiverText().foregroundStyle(.black)
@@ -637,6 +721,7 @@ struct TripDetailPage: View {
             .padding(.top, -18)
         }
         .background(Color.white.ignoresSafeArea(edges: .bottom))
+        .task { await store.reload(id: initialTrip.id) }
     }
 
     @ViewBuilder private var summaryPills: some View {
@@ -652,10 +737,5 @@ struct TripDetailPage: View {
             .padding(.horizontal, 10).padding(.vertical, 5)
             .background(OrbitStyle.pale, in: Capsule())
             .layoutProbe("trip-pill-" + key)
-    }
-    private func time(_ minute: Int) -> String {
-        let hour = (minute / 60) % 24
-        return String(format: "%d:%02d %@", hour % 12 == 0 ? 12 : hour % 12,
-                      minute % 60, hour < 12 ? "AM" : "PM")
     }
 }

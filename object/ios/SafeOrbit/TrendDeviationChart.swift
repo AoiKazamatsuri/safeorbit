@@ -6,21 +6,38 @@ struct TrendAxisDate: Identifiable, Equatable {
     let month: String
     let day: String
     var fullLabel: String { "\(month) \(day)" }
-    static var samples: [TrendAxisDate] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.timeZone = DemoRecords.calendar.timeZone
-        formatter.dateFormat = "MMM"
-        return DemoRecords.weekStarts().enumerated().map { index, date in
-            TrendAxisDate(id: index, month: formatter.string(from: date),
-                          day: String(DemoRecords.calendar.component(.day, from: date)))
+    static func labels(weeks: [RecordWeek], timezone: String) -> [TrendAxisDate] {
+        weeks.enumerated().map { index, week in
+            guard let date = RecordDates.date(week.start, timezone: timezone) else {
+                return TrendAxisDate(id: index, month: week.start, day: "")
+            }
+            return TrendAxisDate(id: index, month: RecordDates.format(date, "MMM", timezone: timezone),
+                                 day: RecordDates.format(date, "d", timezone: timezone))
         }
     }
+#if DEBUG
+    static var samples: [TrendAxisDate] { labels(weeks: RecordTrends.preview.weeks, timezone: "Asia/Shanghai") }
+#endif
 }
 
 struct TrendDeviationChart: View {
+    let weeks: [RecordWeek]
+    let timezone: String
     let onLabelsLayout: ((CGSize, [Int: CGRect]) -> Void)?
-    init(onLabelsLayout: ((CGSize, [Int: CGRect]) -> Void)? = nil) { self.onLabelsLayout = onLabelsLayout }
+    init(weeks: [RecordWeek], timezone: String, onLabelsLayout: ((CGSize, [Int: CGRect]) -> Void)? = nil) {
+        self.weeks = weeks; self.timezone = timezone; self.onLabelsLayout = onLabelsLayout
+    }
+#if DEBUG
+    init(onLabelsLayout: ((CGSize, [Int: CGRect]) -> Void)? = nil) {
+        self.init(weeks: RecordTrends.preview.weeks, timezone: "Asia/Shanghai", onLabelsLayout: onLabelsLayout)
+    }
+#endif
+    private var dates: [TrendAxisDate] { TrendAxisDate.labels(weeks: weeks, timezone: timezone) }
+    private var values: [Int] { weeks.map(\.deviations) }
+    private var axisValues: [Int] {
+        let step = max(1, Int(ceil(Double(values.max() ?? 0) / 3)))
+        return (0...3).map { $0 * step }
+    }
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     // caregiverText scales relative to body, including its 10-point caption.
     @ScaledMetric(relativeTo: .body) private var captionSize: CGFloat = 10
@@ -32,12 +49,11 @@ struct TrendDeviationChart: View {
         (text as NSString).size(withAttributes: [.font: captionFont]).width
     }
     /// One date slot: the widest date line plus a 4 pt gap, so neighbouring dates never touch.
-    private var labelWidth: CGFloat { ceil(Self.dateLines.map(textWidth).max() ?? 0) + 4 }
+    private var labelWidth: CGFloat { ceil(dates.flatMap { [$0.month, $0.day] }.map(textWidth).max() ?? 0) + 4 }
     /// The 0–3 axis column: its widest digit plus the 5 pt Charts leaves before the plot.
-    private var axisWidth: CGFloat { (["0", "1", "2", "3"].map(textWidth).max() ?? 0) + 5 }
+    private var axisWidth: CGFloat { (axisValues.map { textWidth(String($0)) }.max() ?? 0) + 5 }
     private var labelPadding: CGFloat { labelWidth / 2 + 2 }
     private var chartWidth: CGFloat { axisWidth + labelWidth * 8 }
-    private static let dateLines = TrendAxisDate.samples.flatMap { [$0.month, $0.day] }
 
     /// The scrolling width for a chart `width` points wide. When all eight dates fit, the chart is
     /// exactly that wide. Otherwise the dates are spaced so the visible edge falls midway between
@@ -70,7 +86,6 @@ struct TrendDeviationChart: View {
     private var chartHeight: CGFloat { (dynamicTypeSize.isAccessibilitySize ? 180 : 108) + labelHeight + 8 }
     private var plot: some View {
         Chart {
-            let values = DemoRecords.weeklyDeviations()
             ForEach(values.indices, id: \.self) { index in
                 AreaMark(x: .value("Week", index), y: .value("Events", values[index]))
                     .foregroundStyle(LinearGradient(colors: [OrbitStyle.teal.opacity(0.38), .clear],
@@ -79,11 +94,11 @@ struct TrendDeviationChart: View {
                     .foregroundStyle(OrbitStyle.teal).lineStyle(StrokeStyle(lineWidth: 2))
                 PointMark(x: .value("Week", index), y: .value("Events", values[index]))
                     .foregroundStyle(OrbitStyle.teal)
-                    .accessibilityLabel(TrendAxisDate.samples[index].fullLabel)
+                    .accessibilityLabel(dates[index].fullLabel)
                     .accessibilityValue("\(values[index]) events")
             }
         }
-        .chartYScale(domain: 0.0...max(3.2, Double(DemoRecords.weeklyDeviations().max() ?? 0)))
+        .chartYScale(domain: 0.0...max(3.2, Double(axisValues.last ?? 3) + 0.2))
         .chartXScale(domain: 0...7, range: .plotDimension(padding: labelPadding))
         .chartXAxis {
             AxisMarks(values: Array(0...7)) { _ in
@@ -93,7 +108,7 @@ struct TrendDeviationChart: View {
             }
         }
         .chartYAxis {
-            AxisMarks(position: .leading, values: [0, 1, 2, 3]) { value in
+            AxisMarks(position: .leading, values: axisValues) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(.gray.opacity(0.2))
                 AxisValueLabel {
                     if let number = value.as(Int.self) { Text(verbatim: "\(number)").caregiverText(.caption) }
@@ -106,7 +121,7 @@ struct TrendDeviationChart: View {
             GeometryReader { geometry in
                 if let anchor = proxy.plotFrame {
                     let rect = geometry[anchor]
-                    ForEach(TrendAxisDate.samples) { date in
+                    ForEach(dates) { date in
                         if let x = proxy.position(forX: date.id) {
                             VStack(spacing: 0) {
                                 Text(verbatim: date.month)

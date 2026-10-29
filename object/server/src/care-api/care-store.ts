@@ -16,11 +16,11 @@ export interface Device { id: string; role: DeviceRole; elderId: number }
 export interface SafeZone { id: string; name: string; isHome: boolean; center: GeoPoint; radiusMeters: number }
 export interface StoredFix {
   sampledAt: Date; latitude: number; longitude: number;
-  accuracy: number | null; speed: number | null; course: number | null;
+  accuracy: number | null; speed: number | null; course: number | null; historyReplay?: boolean;
 }
 export interface TripRecord { id: string; startedAt: Date; endedAt: Date | null; startKnown: boolean; stops: string[] }
-export interface TrackerRecord { phase: string; activeTripId: string | null; processedThrough: Date | null; state: unknown; riskState: unknown }
-export interface TrackingNext { phase: string; processedThrough: Date | null; state: unknown }
+export interface TrackerRecord { phase: string; activeTripId: string | null; processedThrough: Date | null; state: unknown; riskState: unknown; historyReplay?: boolean }
+export interface TrackingNext { phase: string; processedThrough: Date | null; state: unknown; historyReplay?: boolean }
 export type TripChange =
   | { type: 'started'; startedAt: Date; startKnown: boolean; stops: string[] }
   | { type: 'stops'; stops: string[] }
@@ -34,7 +34,7 @@ const zoneRow = (r: any): SafeZone => ({
 });
 const fixRow = (r: any): StoredFix => ({
   sampledAt: r.sampled_at, latitude: r.latitude, longitude: r.longitude,
-  accuracy: r.accuracy_m, speed: r.speed_mps, course: r.course_deg,
+  accuracy: r.accuracy_m, speed: r.speed_mps, course: r.course_deg, historyReplay: r.history_replay ?? false,
 });
 const tripRow = (r: any): TripRecord => ({
   id: String(r.id), startedAt: r.started_at, endedAt: r.ended_at, startKnown: r.start_known, stops: r.stops,
@@ -125,7 +125,7 @@ export class CareStore {
   }
 
   // Stores valid points; repeated sample times are reported as duplicates, not stored twice.
-  async storePoints(device: Device, batch: LocationBatch): Promise<PointStatus[]> {
+  async storePoints(device: Device, batch: LocationBatch, replay = false): Promise<PointStatus[]> {
     const valid = batch.points.flatMap((p, index) => (p ? [{ p, index }] : []));
     const statuses: PointStatus[] = batch.points.map(p => (p ? 'duplicate' : 'invalid'));
     await this.db.transaction(async client => {
@@ -135,13 +135,13 @@ export class CareStore {
          WHERE id = $1`, [device.id, batch.batteryPercent, batch.locationPermission, batch.preciseLocation]);
       if (!valid.length) return;
       const inserted = await client.query<{ sampled_at: Date }>(
-        `INSERT INTO location_points (elder_id, sampled_at, latitude, longitude, accuracy_m, speed_mps, course_deg, geog)
-         SELECT $1, t, lat, lon, acc, spd, crs, ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography
+        `INSERT INTO location_points (elder_id, sampled_at, latitude, longitude, accuracy_m, speed_mps, course_deg, geog, history_replay)
+         SELECT $1, t, lat, lon, acc, spd, crs, ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography, $8
          FROM unnest($2::timestamptz[], $3::float8[], $4::float8[], $5::float4[], $6::float4[], $7::float4[])
            AS u(t, lat, lon, acc, spd, crs)
          ON CONFLICT (elder_id, sampled_at) DO NOTHING RETURNING sampled_at`,
         [device.elderId, valid.map(v => v.p.sampledAt), valid.map(v => v.p.latitude), valid.map(v => v.p.longitude),
-          valid.map(v => v.p.accuracy), valid.map(v => v.p.speed), valid.map(v => v.p.course)]);
+          valid.map(v => v.p.accuracy), valid.map(v => v.p.speed), valid.map(v => v.p.course), replay]);
       const fresh = new Set(inserted.rows.map(r => r.sampled_at.getTime()));
       for (const { p, index } of valid) {
         if (fresh.delete(p.sampledAt.getTime())) statuses[index] = 'accepted';
@@ -152,21 +152,21 @@ export class CareStore {
 
   async pointsAfter(elderId: number, after: Date | null, limit: number): Promise<StoredFix[]> {
     return (await this.db.query(
-      `SELECT sampled_at, latitude, longitude, accuracy_m, speed_mps, course_deg FROM location_points
+      `SELECT sampled_at, latitude, longitude, accuracy_m, speed_mps, course_deg, history_replay FROM location_points
        WHERE elder_id = $1 AND ($2::timestamptz IS NULL OR sampled_at > $2) ORDER BY sampled_at LIMIT $3`,
       [elderId, after, limit])).map(fixRow);
   }
 
   async pointsSince(elderId: number, since: Date, limit: number): Promise<StoredFix[]> {
     return (await this.db.query(
-      `SELECT * FROM (SELECT sampled_at, latitude, longitude, accuracy_m, speed_mps, course_deg FROM location_points
+      `SELECT * FROM (SELECT sampled_at, latitude, longitude, accuracy_m, speed_mps, course_deg, history_replay FROM location_points
          WHERE elder_id = $1 AND sampled_at >= $2 ORDER BY sampled_at DESC LIMIT $3) recent ORDER BY sampled_at`,
       [elderId, since, limit])).map(fixRow);
   }
 
   async latestPoints(elderId: number, count: number): Promise<StoredFix[]> {
     return (await this.db.query(
-      `SELECT sampled_at, latitude, longitude, accuracy_m, speed_mps, course_deg FROM location_points
+      `SELECT sampled_at, latitude, longitude, accuracy_m, speed_mps, course_deg, history_replay FROM location_points
        WHERE elder_id = $1 ORDER BY sampled_at DESC LIMIT $2`, [elderId, count])).map(fixRow);
   }
 
@@ -178,7 +178,7 @@ export class CareStore {
     const [row] = await this.db.query<any>('SELECT * FROM tracker_state WHERE elder_id = $1', [elderId]);
     return row ? {
       phase: row.phase, activeTripId: row.active_trip_id === null ? null : String(row.active_trip_id),
-      processedThrough: row.processed_through, state: row.state, riskState: row.risk_state,
+      processedThrough: row.processed_through, state: row.state, riskState: row.risk_state, historyReplay: row.history_replay ?? false,
     } : null;
   }
 
@@ -200,7 +200,7 @@ export class CareStore {
 
   async pointsBetween(elderId: number, from: Date, to: Date | null, limit: number): Promise<StoredFix[]> {
     return (await this.db.query(
-      `SELECT sampled_at, latitude, longitude, accuracy_m, speed_mps, course_deg FROM location_points
+      `SELECT sampled_at, latitude, longitude, accuracy_m, speed_mps, course_deg, history_replay FROM location_points
        WHERE elder_id = $1 AND sampled_at >= $2 AND ($3::timestamptz IS NULL OR sampled_at <= $3) ORDER BY sampled_at LIMIT $4`,
       [elderId, from, to, limit])).map(fixRow);
   }
@@ -245,13 +245,13 @@ export async function applyTracking(client: PoolClient, elderId: number, changes
   let tripId = current.rows[0]?.active_trip_id ?? null;
   for (const change of changes) tripId = await applyTripChange(client, elderId, tripId, change);
   await client.query(
-    `INSERT INTO tracker_state (elder_id, phase, active_trip_id, processed_through, state, risk_state, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, now())
+    `INSERT INTO tracker_state (elder_id, phase, active_trip_id, processed_through, state, risk_state, history_replay, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, now())
      ON CONFLICT (elder_id) DO UPDATE SET phase = EXCLUDED.phase, active_trip_id = EXCLUDED.active_trip_id,
        processed_through = EXCLUDED.processed_through, state = EXCLUDED.state,
-       risk_state = COALESCE(EXCLUDED.risk_state, tracker_state.risk_state), updated_at = now()`,
+       risk_state = COALESCE(EXCLUDED.risk_state, tracker_state.risk_state), history_replay = EXCLUDED.history_replay, updated_at = now()`,
     [elderId, next.phase, tripId, next.processedThrough, JSON.stringify(next.state),
-      riskState === undefined ? null : JSON.stringify(riskState)]);
+      riskState === undefined ? null : JSON.stringify(riskState), next.historyReplay ?? false]);
 }
 
 async function applyTripChange(client: PoolClient, elderId: number, tripId: string | null, change: TripChange): Promise<string | null> {

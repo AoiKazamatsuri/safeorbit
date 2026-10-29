@@ -1,6 +1,6 @@
 # 开发环境
 
-代码直接在 `object/` 内开发：`ios/` 是 SwiftUI App，`server/` 是 NestJS 后端与数据库，`dev/` 是开发辅助脚本。设计要求来自 truth 三份文档，UI 视觉基线保持 `reference/ui/`。工程提供编译、测试与数据库连接入口；登录、档案和绑定的前端说明见 [ios/README.md](../ios/README.md)。位置上报、出行识别、安全区与演示数据的重置、回放由任务 T37 实现；风险规则、出手动作与苹果推送由任务 T38 实现；一个月历史灌入由后续任务补齐。
+代码直接在 `object/` 内开发：`ios/` 是 SwiftUI App，`server/` 是 NestJS 后端与数据库，`dev/` 是开发辅助脚本。设计要求来自 truth 三份文档，UI 视觉基线保持 `reference/ui/`。工程提供编译、测试与数据库连接入口；登录、档案和绑定的前端说明见 [ios/README.md](../ios/README.md)。位置上报、出行识别、安全区与演示数据的重置、回放由任务 T37 实现；风险规则、出手动作与苹果推送由任务 T38 实现；一个月历史回放、记录与趋势接口由任务 T39 实现。
 
 ## 前置工具
 
@@ -86,11 +86,15 @@ npm --prefix object/server run start:dev
 ## 演示数据：重置与回放
 
 ```sh
-node object/dev/reset-demo.mjs
+node object/dev/reset-demo.mjs --history
 node object/dev/replay-track.mjs
 ```
 
 - 重置：清空出行、位置与全部风险记录（参照路线、行为观测、风险事件与转移、动作与送达、处置、通话、家属设置），恢复 `demo-household.json` 里预置的一户人家与安全区（家、市场），并把 `demo-route.json` 写成“市场”的参照路线（预置安全区没经过手机新建，没有规划路线这一步）。已登记的手机保留；加 `--devices` 一并清除，加 `--local` 改用本机运行的后端。重置在后端程序内执行，不另开网络接口。
+- 录制前一键重置：`node object/dev/reset-demo.mjs --history`（本机后端加 `--local`，其他端口加 `--server URL`）清空后经 `POST /v1/locations?replay=true` 灌入过去一个日历月的模拟历史，截止老人时区的昨天；不加 `--history` 仍只清空，现有风险核对工具继续使用这一语义。按日期先后回放，以正常去市场为主，穿插沿街折返徘徊与偏离路线。沿用演示路线附近的街道，偏离段为北京西路直行延伸的模拟路径，外景确定后须换成实走轨迹。风险由同一套规则按采样时间重新产生，所有历史出手动作记为 `skipped / historyReplay`，不推送、不下发导航，也不算实际导航协助。脚本失败会以非零退出，不能把部分灌入当作可录制状态。已打开的老人 App 应先停止上报，避免现场位置与回放穿插。
+- 只重放历史：`node object/dev/replay-history.mjs`；重复同一时间范围只返回重复点，不重复创建出行或风险。改变日期范围或已有较新的现场位置时应先重置，不能用历史补传倒推现有状态。
+- 历史核对：先 `npm --prefix object/server run build`，再 `node --test object/dev/history.test.mjs` 与 `node object/dev/check-history.mjs`（本机后端加 `--local`）。后者重置并灌入历史，逐点重新运行规则核对出行起止、低/高风险与解除、无送达记录，核对月历、8 周趋势、完整详情与重复灌入。所有数字来自后端，App 无数据或断线时显示空状态或错误，不回退样例。
+- 记录接口（家属身份）：`GET /v1/records?month=YYYY-MM&week=YYYY-MM-DD` 取月历和周记录；`GET /v1/trends?month=YYYY-MM` 取 8 周偏离、当月/上月指标与程序统计的规律描述；`GET /v1/trips/:id` 取完整轨迹、异常位置和时间线。月份与自然日按老人时区，周一开始；误报不计入日历与趋势，安全返回率是有风险出行中未升级到高风险就安全到家的比例；没有这类出行时显示 0%。历史跳过的导航不算实际帮助。智能对话后续任务会复用同一统计。
 - 演示时要拨通的真实号码写在 `object/server/.env` 的 `DEMO_ELDER_PHONE`、`DEMO_CAREGIVER_PHONE`，不写进仓库；没写时用虚构号码。
 - 回放：按老人手机的方式把一条轨迹分批上传，时间截止到现在，再打印家属端看到的状态、最近的出行，以及本次回放产生的风险事件、转移、动作与送达记录。轨迹名写在命令后：`home-market-home`（默认，正常出行）、`home-wander-home`（徘徊约 17 分钟，依次低风险、高风险、到家解除）、`home-deviation-home`（偏离路线约 11 分钟，低风险、原因偏离，到家解除）。`--stop-after <秒>` 截断轨迹，例如 `--stop-after 1000` 让 `home-market-home` 停在市场，`--stop-after 1500` 让 `home-wander-home` 停在高风险；`--answer started|failed` 像 App 一样回报导航动作，不加则不回报。
 - 风险核对：`node object/dev/check-risk.mjs` 依次重置并回放徘徊、偏离、开关关闭、停在高风险后“确认已会合”与“标为误报”、正常出行五个场景，逐项打印 PASS 或 FAIL，全过时退出码 0，最后停在一次正常出行之后。已登记的手机保留。加 `--with-reissue` 多等约 2.5 分钟，看无人回报的导航动作过期后重新下发；配好推送时加 `--apns-configured`，此时会向已登记的家属手机真实发送通知。

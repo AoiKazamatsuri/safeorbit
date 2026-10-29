@@ -224,7 +224,20 @@ struct CaregiverHomePage: View {
                     .allowsHitTesting(tab == .agent)
                     .accessibilityElement(children: tab == .agent ? .contain : .ignore)
                     .accessibilityHidden(tab != .agent)
-                RecordsPage(onDetailPresentationChanged: { recordsDetailPresented = $0 })
+                Group {
+#if DEBUG
+                    if store.previewSession {
+                        RecordsPage(onDetailPresentationChanged: { recordsDetailPresented = $0 })
+                    } else {
+                        RecordsPage(device: store.device, isActive: tab == .records,
+                                    onDetailPresentationChanged: { recordsDetailPresented = $0 })
+                    }
+#else
+                    RecordsPage(device: store.device, isActive: tab == .records,
+                                onDetailPresentationChanged: { recordsDetailPresented = $0 })
+#endif
+                }
+                    .id(store.device.map { ObjectIdentifier($0) })
                     .opacity(tab == .records ? 1 : 0)
                     .allowsHitTesting(tab == .records)
                     .accessibilityElement(children: tab == .records ? .contain : .ignore)

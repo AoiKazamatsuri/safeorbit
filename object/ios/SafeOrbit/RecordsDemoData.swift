@@ -170,3 +170,41 @@ enum DemoRecords {
         return chinese ? "现有样例记录无法核对这个问题的答案。新建会话时可以选择常用问题。" : "I don't have a verified answer for that question in the available sample records. Start a new conversation to pick a suggested question."
     }
 }
+
+#if DEBUG
+// Explicit fixtures for existing layout tests and previews. Live records only use RecordsAPI.
+extension RecordTrip {
+    init(preview trip: DemoTrip) {
+        self.init(id: trip.id, name: trip.name, startedAt: trip.date,
+                  endedAt: trip.date.addingTimeInterval(Double(trip.durationMinutes * 60)),
+                  startKnown: true, risk: trip.risk, anomalies: trip.deviations > 0 ? ["deviation"] : [],
+                  durationMinutes: trip.durationMinutes, deviations: trip.deviations, calls: trip.calls,
+                  returnedHome: trip.returnedHome)
+    }
+}
+extension RecordTripDetail {
+    static func preview(_ trip: DemoTrip) -> RecordTripDetail {
+        let start = DemoRecords.calendar.startOfDay(for: trip.date)
+        return .init(trip: RecordTrip(preview: trip), trail: DemoRecords.route,
+                     anomalies: trip.deviations > 0 ? [.init(kind: "deviation", at: trip.date,
+                         latitude: DemoRecords.route[3].latitude, longitude: DemoRecords.route[3].longitude)] : [],
+                     timeline: trip.events.map { .init(id: $0.id, at: start.addingTimeInterval(Double($0.minute * 60)), title: $0.title) })
+    }
+}
+extension RecordTrends {
+    static var preview: RecordTrends {
+        let current = DemoRecords.trips.filter { $0.month == 8 }
+        let previous = DemoRecords.trips.filter { $0.month == 7 }
+        return .init(timezone: "Asia/Shanghai", month: "2026-08", previousMonth: "2026-07",
+            weeks: zip(DemoRecords.weekStarts(), DemoRecords.weeklyDeviations()).map {
+                .init(start: RecordDates.format($0.0, "yyyy-MM-dd", timezone: "Asia/Shanghai"), deviations: $0.1)
+            }, deviations: .init(current: current.reduce(0) { $0 + $1.deviations }, previous: previous.reduce(0) { $0 + $1.deviations }),
+            metrics: .init(
+                unusualMovement: .init(current: current.filter(\.unusualMovement).count, previous: previous.filter(\.unusualMovement).count),
+                navigationAssistance: .init(current: current.filter(\.navigationAssisted).count, previous: previous.filter(\.navigationAssisted).count),
+                highRisk: .init(current: current.filter { $0.risk == .high }.count, previous: previous.filter { $0.risk == .high }.count),
+                safeReturnRate: .init(current: DemoRecords.safeReturnRate(month: 8), previous: DemoRecords.safeReturnRate(month: 7))),
+            pattern: "Based on recorded trips, morning visits to the market are common.")
+    }
+}
+#endif

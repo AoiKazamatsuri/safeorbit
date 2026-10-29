@@ -55,6 +55,8 @@
 		6137CCA74619ED2123F70896 /* SafeOrbit/CaregiverRiskServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47A5F305560AC97E7AAA9A22 /* SafeOrbit/CaregiverRiskServices.swift */; };
 		F440367F72563420D3C1F5FF /* SafeOrbit/RiskEventPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94ADEA1FEE342DF4ABFFF32A /* SafeOrbit/RiskEventPage.swift */; };
 		E4528322EA09CAB22DEEE719 /* SafeOrbitTests/RiskAlertsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A677434D7289A160E527139E /* SafeOrbitTests/RiskAlertsTests.swift */; };
+		9C0730426E23488122881C39 /* SafeOrbit/RecordsAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DEA7FFA864492BF25BFFF59 /* SafeOrbit/RecordsAPI.swift */; };
+		936D08BAC4A499F96118F524 /* SafeOrbitTests/RecordsAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 347429B4853E6E99A1E689C5 /* SafeOrbitTests/RecordsAPITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -124,6 +126,8 @@
 		94ADEA1FEE342DF4ABFFF32A /* SafeOrbit/RiskEventPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/RiskEventPage.swift; sourceTree = "<group>"; };
 		A677434D7289A160E527139E /* SafeOrbitTests/RiskAlertsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbitTests/RiskAlertsTests.swift; sourceTree = "<group>"; };
 		6EF040A0B8B9106074AB84DD /* home-wander-home.gpx */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = "home-wander-home.gpx"; path = "../dev/tracks/home-wander-home.gpx"; sourceTree = "<group>"; };
+		7DEA7FFA864492BF25BFFF59 /* SafeOrbit/RecordsAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SafeOrbit/RecordsAPI.swift"; sourceTree = "<group>"; };
+		347429B4853E6E99A1E689C5 /* SafeOrbitTests/RecordsAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SafeOrbitTests/RecordsAPITests.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -172,6 +176,7 @@
 				4EBAAC5DA9374795DDAA30B0 /* SafeOrbit/WalkingNavigation.swift */,
 				ACAA506A3F96B16CEF9A2AC6 /* SafeOrbit/RecordsDemoData.swift */,
 				DA53952549CDCA05340C60F9 /* SafeOrbit/RecordsUI.swift */,
+				7DEA7FFA864492BF25BFFF59 /* SafeOrbit/RecordsAPI.swift */,
 				BB4F603B5486041FEBA35ACC /* SafeOrbit/AgentChatUI.swift */,
 				0ACB9C79C3916CFE444EAF9A /* SafeOrbit/SpeechInput.swift */,
 				7BD09487CE4893D666662F67 /* SafeOrbitTests/SettingsTests.swift */,
@@ -180,6 +185,7 @@
 				2BD199390D0C58BE5786949D /* SafeOrbitTests/OnboardingTests.swift */,
 				ABE5DE34AE2E68E7FC898500 /* SafeOrbitTests/LocationTests.swift */,
 				7F8F6174CEB43AB9F458F407 /* SafeOrbitTests/RecordsTests.swift */,
+				347429B4853E6E99A1E689C5 /* SafeOrbitTests/RecordsAPITests.swift */,
 				F029AA7C22824C0748EDB4F4 /* SafeOrbit/Assets.xcassets */,
 				95BE1949FB74F1944A0D15BF /* SafeOrbit/Localizable.xcstrings */,
 				92DAF409D0B1D7FE3A8369EC /* SafeOrbit/InfoPlist.xcstrings */,
@@ -352,6 +358,7 @@
 				8776AD886BD1ED8DDD3EE294 /* SafeOrbit/WalkingNavigation.swift in Sources */,
 				F588D6903A4F478322A36064 /* SafeOrbit/RecordsDemoData.swift in Sources */,
 				BF5EE4F8FAF460EEDC28CC18 /* SafeOrbit/RecordsUI.swift in Sources */,
+				9C0730426E23488122881C39 /* SafeOrbit/RecordsAPI.swift in Sources */,
 				321A60DCBB9E709B352A2238 /* SafeOrbit/AgentChatUI.swift in Sources */,
 				28253C904530F4D2D868CCA0 /* SafeOrbit/SpeechInput.swift in Sources */,
 				EE0077FD6325A34EFB34060B /* SafeOrbit/CaregiverSettings.swift in Sources */,
@@ -379,6 +386,7 @@
 				A7280CD09F944E21FA20FD94 /* SafeOrbitTests/LocationTests.swift in Sources */,
 				1BC77E0D13A1AADF9C5B5D4F /* SafeOrbitTests/DemoBackendTests.swift in Sources */,
 				D9239BCEB476D34C1EE938F2 /* SafeOrbitTests/RecordsTests.swift in Sources */,
+				936D08BAC4A499F96118F524 /* SafeOrbitTests/RecordsAPITests.swift in Sources */,
 				10B9494FFCBA4B7771BB5340 /* SafeOrbitTests/SettingsTests.swift in Sources */,
 				E4528322EA09CAB22DEEE719 /* SafeOrbitTests/RiskAlertsTests.swift in Sources */,
 			);

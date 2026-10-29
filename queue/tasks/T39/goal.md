@@ -13,7 +13,7 @@
     - 统计只在后端算一次，供记录页、趋势页与之后的智能对话共用。
   - App：记录页的“数据”与“趋势”改为读接口，去掉写死的样例数据。
 - 不包含：月历上“记录不完整”的灰色虚线圈；大模型改写（子任务四）；记录页的排版改动；账号与绑定；双语。
-- 允许修改的位置：`object/server/`、`object/dev/` 下相关文件；`object/ios/` 下记录页、样例数据文件与对应测试、工程文件；具体文件清单在批准前补全。`RecordsUI.swift`、`RecordsTests.swift` 是 T31 的交付文件，须在 T31 通过后再改。队列记录只经工具维护。
+- 允许修改的位置：后端：`object/server/src/care-api/records.ts`、`records-view.ts`、`records-controller.ts`、`controllers.ts`、`care-api.module.ts`、`care-events.ts`、`care-store.ts`、`risk-records.ts`、`schema.ts`、`validation.ts`、`public/index.ts`；`object/server/src/care-agent/care-agent.service.ts`、`object/server/src/care-agent/risk-actions.ts`；`object/server/test/records.test.ts`、`care-api.test.ts`、`risk-rules.test.ts`。开发工具：`object/dev/history.mjs`、`replay-history.mjs`、`check-history.mjs`、`history.test.mjs`、`reset-demo.mjs`、`demo-api.mjs`、`tracks.mjs`、`README.md`（历史回放与重置相关说明，不改 T42 的验证说明）。App：`object/ios/SafeOrbit/RecordsAPI.swift`、`RecordsUI.swift`、`RecordsDemoData.swift`、`TrendDeviationChart.swift`、`LocationUI.swift`（仅记录页服务接线）；`object/ios/SafeOrbitTests/RecordsAPITests.swift`、`RecordsTests.swift`（仅记录页用例）；`object/ios/SafeOrbit.xcodeproj/project.pbxproj`、`object/dev/generate-ios.mjs`（仅新增记录源文件登记）。`RecordsUI.swift`、`RecordsTests.swift` 是 T31 的交付文件，须在 T31 通过后再改。队列记录只经工具维护。
 
 ## 验收标准与验证方法
 

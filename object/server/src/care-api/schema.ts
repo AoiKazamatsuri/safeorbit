@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS location_points (
   sampled_at timestamptz NOT NULL, latitude double precision NOT NULL, longitude double precision NOT NULL,
   accuracy_m real, speed_mps real, course_deg real, geog geography(Point, 4326) NOT NULL,
   received_at timestamptz NOT NULL DEFAULT now(), UNIQUE (elder_id, sampled_at));
+ALTER TABLE location_points ADD COLUMN IF NOT EXISTS history_replay boolean NOT NULL DEFAULT false;
 CREATE TABLE IF NOT EXISTS trips (
   id bigserial PRIMARY KEY, elder_id integer NOT NULL REFERENCES elders(id),
   started_at timestamptz NOT NULL, ended_at timestamptz, start_known boolean NOT NULL,
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS tracker_state (
   active_trip_id bigint REFERENCES trips(id), processed_through timestamptz,
   state jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());
 ALTER TABLE tracker_state ADD COLUMN IF NOT EXISTS risk_state jsonb;
+ALTER TABLE tracker_state ADD COLUMN IF NOT EXISTS history_replay boolean NOT NULL DEFAULT false;
 
 -- Planned walking route home -> zone (WGS-84), one per non-home zone; goes with its zone.
 CREATE TABLE IF NOT EXISTS reference_routes (
@@ -54,6 +56,7 @@ CREATE TABLE IF NOT EXISTS risk_events (
   version integer NOT NULL DEFAULT 1, created_at timestamptz NOT NULL DEFAULT now(),
   changed_at timestamptz NOT NULL DEFAULT now(),  -- server time of the latest write
   UNIQUE (elder_id, key));
+ALTER TABLE risk_events ADD COLUMN IF NOT EXISTS history_replay boolean NOT NULL DEFAULT false;
 -- One active risk event per elder at a time; writers also check the version (engineering architecture section 8).
 CREATE UNIQUE INDEX IF NOT EXISTS risk_events_one_active ON risk_events (elder_id) WHERE status = 'active';
 CREATE TABLE IF NOT EXISTS risk_transitions (

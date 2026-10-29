@@ -33,6 +33,7 @@ export interface ActionWrite {
   decidedAt: Date; expiresInSeconds: number | null;
 }
 export interface EvaluationWrite {
+  historyReplay?: boolean;
   tracking?: { changes: TripChange[]; next: TrackingNext };
   riskState: unknown;
   writes: RiskWrite[];
@@ -43,6 +44,7 @@ export interface RiskEventRecord {
   id: string; key: string; tripId: string | null; level: RiskLevelValue; status: 'active' | 'resolved'; anomaly: AnomalyValue;
   anomalyStartedAt: Date; openedAt: Date; escalatedAt: Date | null; resolvedAt: Date | null; resolution: 'home' | 'met' | null;
   falseAlarm: boolean; explanation: string | null; version: number; changedAt: Date;
+  historyReplay?: boolean;
 }
 export interface DeliveryRecord { channel: 'apns' | 'uploadReply'; deviceId: string | null; result: string; detail: string | null; at: Date }
 export interface ActionRecord {
@@ -64,7 +66,7 @@ const eventRow = (r: any): RiskEventRecord => ({
   id: String(r.id), key: r.key, tripId: r.trip_id === null ? null : String(r.trip_id), level: r.level, status: r.status,
   anomaly: r.anomaly, anomalyStartedAt: r.anomaly_started_at, openedAt: r.opened_at, escalatedAt: r.escalated_at,
   resolvedAt: r.resolved_at, resolution: r.resolution, falseAlarm: r.false_alarm, explanation: r.explanation,
-  version: r.version, changedAt: r.changed_at,
+  version: r.version, changedAt: r.changed_at, historyReplay: r.history_replay ?? false,
 });
 const settingsRow = (r: any): CaregiverSettings => ({
   autoNavigation: r.auto_navigation, lowRiskNotifications: r.low_risk_notifications,
@@ -141,13 +143,13 @@ export class RiskRecords {
         [elderId, JSON.stringify(input.riskState)]);
       const ids = new Set<string>();
       for (const w of input.writes) {
-        const id = await applyRiskWrite(client, elderId, w);
+        const id = await applyRiskWrite(client, elderId, w, input.historyReplay ?? false);
         if (id) { ids.add(id); changed = true; }
       }
       for (const a of input.actions) if (await insertAction(client, elderId, a)) changed = true;
       return [...ids];
     });
-    if (changed) await this.announce(elderId, 'risk');
+    if (changed && !input.historyReplay) await this.announce(elderId, 'risk');
     return { touched };
   }
 
@@ -346,7 +348,7 @@ export class RiskRecords {
   }
 }
 
-async function applyRiskWrite(client: PoolClient, elderId: number, w: RiskWrite): Promise<string | null> {
+async function applyRiskWrite(client: PoolClient, elderId: number, w: RiskWrite, historyReplay: boolean): Promise<string | null> {
   if (w.type === 'observation') {
     await client.query(
       `INSERT INTO behaviour_observations (elder_id, key, kind, started_at, ended_at, features, rule_version, risk_event_id)
@@ -358,11 +360,11 @@ async function applyRiskWrite(client: PoolClient, elderId: number, w: RiskWrite)
   }
   if (w.type === 'opened') {
     const { rows } = await client.query<{ id: string }>(
-      `INSERT INTO risk_events (elder_id, key, trip_id, level, status, anomaly, anomaly_started_at, opened_at)
+      `INSERT INTO risk_events (elder_id, key, trip_id, level, status, anomaly, anomaly_started_at, opened_at, history_replay)
        VALUES ($1, $2, (SELECT id FROM trips WHERE elder_id = $1 AND started_at = $3 ORDER BY id DESC LIMIT 1),
-         'warning', 'active', $4, $5, $6)
+         'warning', 'active', $4, $5, $6, $7)
        ON CONFLICT (elder_id, key) DO NOTHING RETURNING id`,
-      [elderId, w.key, w.tripStartedAt, w.anomaly, w.anomalyStartedAt, w.at]);
+      [elderId, w.key, w.tripStartedAt, w.anomaly, w.anomalyStartedAt, w.at, historyReplay]);
     if (!rows.length) return null;  // already written by an earlier run
     await addTransition(client, rows[0].id, 'opened', null, 'warning', w.at, { minutes: w.minutes });
     return String(rows[0].id);
@@ -402,8 +404,10 @@ async function addTransition(client: PoolClient, eventId: string, kind: string, 
 async function insertAction(client: PoolClient, elderId: number, a: ActionWrite): Promise<boolean> {
   const result = await client.query(
     `INSERT INTO actions (elder_id, risk_event_id, kind, target, idempotency_key, status, reason, details, decided_at, expires_at)
-     SELECT $1, r.id, $3, $4, $5, $6, $7, $8, $9,
-       CASE WHEN $10::float8 IS NULL THEN NULL ELSE now() + make_interval(secs => $10::float8) END
+     SELECT $1, r.id, $3, $4, $5,
+       CASE WHEN r.history_replay THEN 'skipped' WHEN r.status = 'resolved' AND $3 = 'startNavigation' AND $6 = 'pending' THEN 'cancelled' ELSE $6 END,
+       CASE WHEN r.history_replay THEN 'historyReplay' WHEN r.status = 'resolved' AND $3 = 'startNavigation' AND $6 = 'pending' THEN 'riskResolved' ELSE $7 END, $8, $9,
+       CASE WHEN r.history_replay OR $10::float8 IS NULL THEN NULL ELSE now() + make_interval(secs => $10::float8) END
      FROM risk_events r WHERE r.elder_id = $1 AND r.key = $2
      ON CONFLICT (idempotency_key) DO NOTHING`,
     [elderId, a.riskKey, a.kind, a.target, `${elderId}:${a.idempotencyKey}`, a.status, a.reason, JSON.stringify(a.details),

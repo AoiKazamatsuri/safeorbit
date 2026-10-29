@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { CareEvents } from '../src/care-api/care-events';
+import { LocationsController } from '../src/care-api/controllers';
+import { DeviceAuth } from '../src/care-api/device-auth';
 import { SafeZone, StoredFix } from '../src/care-api/care-store';
 import { agentStatusLine, buildSnapshot, riskHeadline } from '../src/care-api/location-view';
 import { parseSeed } from '../src/care-api/reset-cli';
@@ -25,6 +29,50 @@ test('a location batch keeps valid points and marks malformed ones', () => {
   assert.equal(parseLocationBatch({ points: [point(-1)], batteryPercent: 140, locationPermission: 'maybe' }, NOW).batteryPercent, null);
   assert.throws(() => parseLocationBatch({ points: [] }, NOW), InputError);
   assert.throws(() => parseLocationBatch([point(0)], NOW), InputError);
+});
+
+test('history uploads require elder identity, persist replay intent, reject future samples and never fetch live actions', async () => {
+  let replayStored: boolean | undefined;
+  let actionReads = 0;
+  let duplicate = false;
+  const events = new CareEvents();
+  const published: unknown[] = [];
+  events.onLocationsStored(async event => { published.push(event); });
+  const store = {
+    deviceByToken: async (token: string) => token === 'elder' || token === 'family'
+      ? { id: token, elderId: 1, role: token === 'elder' ? 'elder' : 'caregiver' } : null,
+    storePoints: async (_device: unknown, batch: ReturnType<typeof parseLocationBatch>, replay: boolean) => {
+      replayStored = replay;
+      return batch.points.map(p => !p ? 'invalid' : duplicate ? 'duplicate' : 'accepted');
+    },
+  };
+  const actions = [{ id: '9', type: 'startNavigation', riskEventId: '3', expiresAt: new Date(Date.now() + 120_000).toISOString() }];
+  const risks = { elderActions: async () => { actionReads++; return actions; } };
+  const controller = new LocationsController(store as any, risks as any, new DeviceAuth(store as any), events);
+  const body = { points: [point(-10)], batteryPercent: 90, locationPermission: 'always', preciseLocation: true };
+  await assert.rejects(controller.upload(body, undefined, 'true'), UnauthorizedException);
+  await assert.rejects(controller.upload(body, 'Bearer family', 'true'), ForbiddenException);
+  await assert.rejects(controller.upload(body, 'Bearer elder', 'yes'), BadRequestException);
+  await assert.rejects(controller.upload({ points: [{ ...point(-10), sampledAt: new Date(Date.now() + 60_000).toISOString() }] },
+    'Bearer elder', 'true'), BadRequestException);
+  assert.deepEqual(await controller.upload(body, 'Bearer elder', 'true'), { results: [{ index: 0, status: 'accepted' }], actions: [] });
+  assert.equal(replayStored, true);
+  assert.equal(actionReads, 0);
+  assert.deepEqual(published, [{ elderId: 1, replay: true }]);
+  duplicate = true;
+  await controller.upload(body, 'Bearer elder', 'true');
+  assert.equal(published.length, 2, 'a replay retry must re-run evaluation after a prior processing failure');
+  assert.equal(actionReads, 0);
+  duplicate = false;
+  assert.deepEqual((await controller.upload(body, 'Bearer elder')).actions, actions);
+  assert.equal(replayStored, false);
+  assert.equal(actionReads, 1);
+});
+
+test('historical evaluation failures propagate so a replay command cannot claim success', async () => {
+  const events = new CareEvents();
+  events.onLocationsStored(async () => { throw new Error('evaluation failed'); });
+  await assert.rejects(events.publishLocationsStored({ elderId: 1, replay: true }), /evaluation failed/);
 });
 
 test('safe zones need a name, a valid centre and a sensible radius; Home marks the home zone', () => {

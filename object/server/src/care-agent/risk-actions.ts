@@ -9,7 +9,7 @@ import { RiskOutput } from './risk-rules';
 // Actions switched off are still recorded, as skipped, so the event page can say what did not happen.
 export const NAVIGATION_TTL_SECONDS = 120;
 
-export function planActions(outputs: RiskOutput[], settings: CaregiverSettings): ActionWrite[] {
+export function planActions(outputs: RiskOutput[], settings: CaregiverSettings, historyReplay = false): ActionWrite[] {
   const actions: ActionWrite[] = [];
   for (const o of outputs) {
     if (o.type === 'observation') continue;
@@ -38,7 +38,7 @@ export function planActions(outputs: RiskOutput[], settings: CaregiverSettings):
       });
     }
   }
-  return actions;
+  return historyReplay ? actions.map(a => ({ ...a, status: 'skipped', reason: 'historyReplay', expiresInSeconds: null })) : actions;
 }
 
 export interface NavigationRecord { seq: number; status: string; expiresAt: Date | null }

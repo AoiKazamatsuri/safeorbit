@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 // Event port owned by the care API; consumers subscribe, so the care API never imports them (C2 edges 7, 10).
-export interface LocationsStored { elderId: number }
+export interface LocationsStored { elderId: number; replay?: boolean }
 export interface DispositionSubmitted { elderId: number; riskEventId: string; kind: 'met' | 'falseAlarm' }
 export type StateChangeType = 'snapshot' | 'risk' | 'action';
 export interface StateChanged { elderId: number; seq: number; type: StateChangeType }
@@ -20,7 +20,9 @@ export class CareEvents {
   // Awaited: the upload reply carries actions decided from the points it stored.
   // A failing subscriber must not fail the upload that stored the points.
   async publishLocationsStored(event: LocationsStored): Promise<void> {
-    await deliver(this.locations, event, 'Location');
+    if (event.replay) {
+      for (const handler of this.locations) await handler(event);
+    } else await deliver(this.locations, event, 'Location');
   }
 
   // Awaited: "We've Met" answers once the care agent has written the resolution.

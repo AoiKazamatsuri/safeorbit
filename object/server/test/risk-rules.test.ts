@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { DEFAULT_CAREGIVER_SETTINGS, distanceMeters, distanceToPolylineMeters, GeoPoint, SafeZone } from '../src/care-api/public';
+import { CareEvents, DEFAULT_CAREGIVER_SETTINGS, distanceMeters, distanceToPolylineMeters, GeoPoint, RiskEventRecord, SafeZone, StoredFix, TrackerRecord } from '../src/care-api/public';
+import { EvaluationWrite } from '../src/care-api/risk-records';
+import { CareAgentRunner } from '../src/care-agent/care-agent.service';
 import { navigationReissue, planActions } from '../src/care-agent/risk-actions';
 import {
   applyMet, DEMO_RISK_PARAMS, walkedPathMeters, initialRiskState, RiskContext, RiskOutput, RiskState, riskStep, riskTick,
@@ -273,6 +275,124 @@ test('each risk transition acts once; switches off suppress navigation and notif
     ['notifyHigh', 'pending', null], ['notifyResolved', 'skipped', 'recoveryNotificationsOff'],
   ]);
   assert.equal(off[1].details.navigation, false);
+  const historical = planActions(outputs, DEFAULT_CAREGIVER_SETTINGS, true);
+  assert.deepEqual(historical.map(a => [a.kind, a.status, a.reason, a.expiresInSeconds]), [
+    ['startNavigation', 'skipped', 'historyReplay', null], ['notifyLow', 'skipped', 'historyReplay', null],
+    ['notifyHigh', 'skipped', 'historyReplay', null], ['notifyResolved', 'skipped', 'historyReplay', null],
+  ]);
+  assert.deepEqual(historical.map(a => a.decidedAt), on.map(a => a.decidedAt));
+});
+
+function runnerHarness(points: StoredFix[]) {
+  let tracker: TrackerRecord | null = null;
+  let followUps = 0;
+  const evaluations: EvaluationWrite[] = [];
+  const store = {
+    safeZones: async () => [HOME, MARKET],
+    tracker: async () => tracker,
+    trackedElderIds: async () => [1],
+    pointsAfter: async (_id: number, after: Date | null, limit: number) => points.filter(p => !after || p.sampledAt > after).slice(0, limit),
+  };
+  const risks = {
+    referenceRoutes: async () => [ROUTE], settings: async () => DEFAULT_CAREGIVER_SETTINGS,
+    activeRiskEvent: async () => { followUps++; return null; },
+    recordEvaluation: async (_id: number, input: EvaluationWrite) => {
+      evaluations.push(input);
+      if (input.tracking) tracker = { ...input.tracking.next, activeTripId: null,
+        state: structuredClone(input.tracking.next.state), riskState: structuredClone(input.riskState) };
+      return { touched: [] };
+    },
+  };
+  const events = new CareEvents();
+  return { runner: new CareAgentRunner(store as any, risks as any, events), events, evaluations,
+    tracker: () => tracker, followUps: () => followUps };
+}
+const stored = (fixes: Fix[], historyReplay: boolean, shift = 0): StoredFix[] => fixes.map(f => ({
+  sampledAt: new Date(f.t + shift), latitude: f.latitude, longitude: f.longitude, accuracy: f.accuracy,
+  speed: null, course: null, historyReplay,
+}));
+
+test('runner replays two trips in one batch using each trip start, preserves sample times and never schedules live follow-up', async () => {
+  const first = wanderTrip(17 * 60).track, second = wanderTrip(8 * 60).track;
+  const points = [...stored(first.fixes, true), ...stored(second.fixes, true, 86_400_000)];
+  const h = runnerHarness(points);
+  await h.runner.processFixes(1);
+  assert.equal(h.evaluations.length, 1, 'both trips fit in a single stored-point chunk');
+  const input = h.evaluations[0];
+  const starts = input.tracking!.changes.filter(c => c.type === 'started');
+  const opened = input.writes.filter(w => w.type === 'opened');
+  assert.equal(starts.length, 2);
+  assert.deepEqual(opened.map(w => w.tripStartedAt), starts.map(c => c.startedAt));
+  assert.equal(input.writes.filter(w => w.type === 'resolved').length, 2);
+  assert.equal(input.writes.filter(w => w.type === 'escalated').length, 1);
+  assert.ok(input.actions.every(a => a.status === 'skipped' && a.reason === 'historyReplay'));
+  assert.ok(input.actions.every(a => a.decidedAt <= points.at(-1)!.sampledAt));
+  assert.equal(h.tracker()!.historyReplay, true);
+  await h.runner.processFixes(1); // duplicate upload after a persisted cursor produces nothing new
+  await h.runner.checkClock(points.at(-1)!.sampledAt.getTime() + 60_000);
+  assert.equal(h.evaluations.length, 1);
+  assert.equal(h.followUps(), 0);
+});
+
+test('runner persists replay suppression even for a fresh active risk, then separates historical and live points in one read', async () => {
+  const active = new Track(HOME.center).dwell(60).walk(P(0, -300)).loop(8 * 60);
+  const history = runnerHarness(stored(active.fixes, true));
+  await history.runner.processFixes(1);
+  assert.ok(history.evaluations[0].writes.some(w => w.type === 'opened'));
+  await history.runner.checkClock(active.now + 120_000);
+  assert.equal(history.evaluations.length, 1, 'clock must not advance or resend historical actions');
+  assert.equal(history.followUps(), 0);
+
+  const completed = wanderTrip(8 * 60).track;
+  const mixed = runnerHarness([...stored(completed.fixes, true), ...stored(active.fixes, false, 86_400_000)]);
+  await mixed.runner.processFixes(1);
+  assert.deepEqual(mixed.evaluations.map(e => e.historyReplay), [true, false]);
+  assert.ok(mixed.evaluations[0].actions.every(a => a.status === 'skipped'));
+  assert.ok(mixed.evaluations[1].actions.some(a => a.kind === 'startNavigation' && a.status === 'pending'));
+  assert.equal(mixed.tracker()!.historyReplay, false);
+  assert.equal(mixed.followUps(), 1);
+  mixed.runner.onModuleInit();
+  try {
+    await mixed.events.publishLocationsStored({ elderId: 1, replay: true });
+    assert.equal(mixed.evaluations.length, 2);
+    assert.equal(mixed.followUps(), 1, 'repeating historical data after a live run must not renew live navigation');
+  } finally { mixed.runner.onModuleDestroy(); }
+});
+
+test('historical explanations describe recorded risk without claiming alerts or navigation, including later live follow-up', async () => {
+  const at = (minutes: number) => new Date(T0 + minutes * 60_000);
+  for (const anomaly of ['wandering', 'deviation'] as const) {
+    const event: RiskEventRecord = {
+      id: '7', key: `${anomaly}:1`, tripId: '3', level: 'high', status: 'resolved', anomaly,
+      anomalyStartedAt: at(0), openedAt: at(7), escalatedAt: at(15), resolvedAt: at(20), resolution: 'home',
+      falseAlarm: false, explanation: null, version: 3, changedAt: at(20), historyReplay: true,
+    };
+    let saved = '';
+    const store = {
+      safeZones: async () => [HOME, MARKET], tracker: async () => null, pointsAfter: async () => [],
+      household: async () => ({ elder: { callName: 'Grandma' } }),
+    };
+    const risks = {
+      referenceRoutes: async () => [ROUTE], settings: async () => DEFAULT_CAREGIVER_SETTINGS,
+      activeRiskEvent: async () => event, latestNavigation: async () => ({ id: '1', seq: 1, status: 'skipped', expiresAt: null }),
+      riskEvent: async () => event, saveExplanation: async (_id: string, text: string) => { saved = text; },
+      activity: async () => { assert.fail('the historical explanation does not call the live-event template'); },
+    };
+    const runner = new CareAgentRunner(store as any, risks as any, new CareEvents());
+    // The durable event marker must protect explanations even when the current run is live.
+    await runner.processFixes(1);
+    assert.match(saved, /From the recorded locations, I detected (wandering|route deviation) for Grandma/);
+    assert.match(saved, /low risk after 7 minutes/);
+    assert.match(saved, /high risk after 15 minutes/);
+    assert.match(saved, /recorded return home resolved the risk/);
+    assert.match(saved, /No notifications were sent and no navigation was started/);
+    assert.doesNotMatch(saved, /sent you an urgent alert|notified you|Navigation home started|I am still watching/);
+
+    event.status = 'active'; event.resolvedAt = null; event.resolution = null;
+    await runner.processFixes(1);
+    assert.match(saved, /recorded risk remains unresolved/);
+    assert.doesNotMatch(saved, /resolved the risk/);
+  }
 });
 
 test('navigation that lapsed unanswered is re-issued while the risk is active and her phone reports', () => {

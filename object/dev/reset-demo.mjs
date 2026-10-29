@@ -3,10 +3,12 @@
 // route was planned for it). Run from the repository root:
 //   node object/dev/reset-demo.mjs            reset the backend running in Docker
 //   node object/dev/reset-demo.mjs --devices  also forget registered phones
+//   node object/dev/reset-demo.mjs --history  reset and ingest one historical month, ready to record
 //   node object/dev/reset-demo.mjs --local    reset through a backend run with `npm run start:dev`
 import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { replayHistory } from './replay-history.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const { note, ...seed } = JSON.parse(readFileSync(new URL('./demo-household.json', import.meta.url), 'utf8'));
@@ -28,3 +30,10 @@ const [command, args] = process.argv.includes('--local')
 const result = spawnSync(command, args, { cwd: repo, input: JSON.stringify(seed), stdio: ['pipe', 'inherit', 'inherit'] });
 console.log(`Phone numbers: elder ${env.DEMO_ELDER_PHONE ? 'from server/.env' : 'fictional'}, caregiver ${env.DEMO_CAREGIVER_PHONE ? 'from server/.env' : 'fictional'}`);
 process.exitCode = result.status ?? 1;
+if (process.exitCode === 0 && process.argv.includes('--history')) {
+  const at = process.argv.indexOf('--server');
+  const server = at >= 0 ? process.argv[at + 1] : 'http://127.0.0.1:3000';
+  try {
+    console.log(JSON.stringify(await replayHistory({ server, onTrip: trip => console.log(`${trip.day} ${trip.kind}: ${trip.points.length} fixes`) }), null, 2));
+  } catch (error) { console.error('History replay failed:', error.message); process.exitCode = 1; }
+}
