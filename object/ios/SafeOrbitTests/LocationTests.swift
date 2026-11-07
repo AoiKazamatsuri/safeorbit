@@ -18,6 +18,68 @@ import SwiftUI
 }
 
 final class LocationTests: XCTestCase {
+    func testSafeZonePlaceTagsMatchApprovedSymbolsAndExistOnIOS() throws {
+        let expected = [
+            ("Home", "house.fill"), ("Market", "storefront.fill"),
+            ("Hospital", "cross.case.fill"), ("Pharmacy", "pills.fill"),
+            ("Subway Station", "tram.fill"), ("Bus Stop", "bus.fill"),
+            ("Restaurant", "fork.knife"), ("Park", "tree.fill"),
+            ("Shopping Mall", "bag.fill"), ("Bank", "building.columns.fill"),
+            ("Community Center", "person.3.fill")
+        ]
+        XCTAssertEqual(SafeZonePlaceTag.allCases.map(\.rawValue), expected.map { $0.0 })
+        for (name, symbol) in expected {
+            let tag = try XCTUnwrap(SafeZonePlaceTag.matching(name))
+            XCTAssertEqual(tag.symbolName, symbol, name)
+            XCTAssertNotNil(UIImage(systemName: symbol), name)
+            for spelling in [name, name.uppercased(), "  " + name.lowercased() + "  "] {
+                let zone = SafeZone(id: "test", name: spelling,
+                                    center: LocationPreviewData.campus, radiusMeters: 200)
+                XCTAssertEqual(zone.symbolName, symbol, spelling)
+                XCTAssertEqual(zone.name, spelling, "Looking up an icon must not rewrite a saved name")
+            }
+        }
+        XCTAssertNotNil(UIImage(systemName: SafeZonePlaceTag.fallbackSymbolName))
+    }
+
+    func testSafeZoneIconsRespectHomeFlagAndUseFallbackWithoutGuessing() {
+        let point = LocationPreviewData.campus
+        for name in ["Home", " home ", "Market", "Grandma's place", "家"] {
+            let home = SafeZone(id: "test", name: name, center: point, radiusMeters: 200, isHome: true)
+            XCTAssertEqual(home.symbolName, "house.fill", name)
+        }
+        for name in ["Home", " HOME ", "Campus", "City Hospital", "Central Park", "医院", "", "  "] {
+            let other = SafeZone(id: "test", name: name, center: point, radiusMeters: 200, isHome: false)
+            XCTAssertEqual(other.symbolName, "mappin.and.ellipse", name)
+        }
+        let hospital = SafeZone(id: "test", name: " \nHoSpItAl\t ", center: point, radiusMeters: 200, isHome: false)
+        XCTAssertEqual(hospital.symbolName, "cross.case.fill")
+        let legacyNewlineHome = SafeZone(id: "test", name: "\nHome\n", center: point, radiusMeters: 200)
+        XCTAssertFalse(legacyNewlineHome.isHomeZone, "Icon lookup must not broaden the existing Home business rule")
+        XCTAssertEqual(legacyNewlineHome.symbolName, "mappin.and.ellipse")
+    }
+
+    func testSafeZoneTagChoicesKeepLegacyAndCustomNamesVerbatim() {
+        let presets = SafeZonePlaceTag.allCases.map(\.rawValue)
+        for name in presets { XCTAssertEqual(SafeZonePlaceTag.choices(including: name), presets) }
+        for name in [" hospital ", "HOME", "Campus", "Grandma's garden"] {
+            let choices = SafeZonePlaceTag.choices(including: name)
+            XCTAssertEqual(Array(choices.dropLast()), presets)
+            XCTAssertEqual(choices.last, name)
+            XCTAssertEqual(Set(choices).count, choices.count)
+        }
+    }
+
+    func testSafeZoneIconsDecodeExistingWireFormatWithoutMigration() throws {
+        let data = Data(#"[{"id":"home","name":"Home","center":{"latitude":32,"longitude":118},"radiusMeters":100},{"id":"market","name":" Market ","center":{"latitude":32,"longitude":118},"radiusMeters":200},{"id":"hospital","name":"Hospital","center":{"latitude":32,"longitude":118},"radiusMeters":500},{"id":"custom","name":"Campus","isHome":true,"center":{"latitude":32,"longitude":118},"radiusMeters":200},{"id":"not-home","name":"Home","isHome":false,"center":{"latitude":32,"longitude":118},"radiusMeters":200}]"#.utf8)
+        let zones = try JSONDecoder().decode([SafeZone].self, from: data)
+        XCTAssertEqual(zones.map(\.symbolName), ["house.fill", "storefront.fill", "cross.case.fill", "house.fill", "mappin.and.ellipse"])
+        XCTAssertEqual(zones.map(\.name), ["Home", " Market ", "Hospital", "Campus", "Home"])
+        XCTAssertNil(zones[0].isHome)
+        XCTAssertEqual(zones[3].isHome, true)
+        XCTAssertEqual(zones[4].isHome, false)
+    }
+
     func testCaregiverTrailUsesTheSameVisibleStyleForBothMapBackends() throws {
         let coordinates = LocationPreviewData.trail.map(\.appleCoordinate)
         let lines = CaregiverTrailStyle.lines(coordinates: coordinates)
@@ -360,12 +422,15 @@ final class LocationTests: XCTestCase {
         for (name, size, type) in [
             ("safe-zone-add-design", CGSize(width: 402, height: 874), DynamicTypeSize.large),
             ("safe-zone-add", CGSize(width: 393, height: 852), DynamicTypeSize.large),
-            ("safe-zone-edit-small-large-text", CGSize(width: 375, height: 812), DynamicTypeSize.accessibility1)
+            ("safe-zone-edit-small-large-text", CGSize(width: 375, height: 812), DynamicTypeSize.accessibility1),
+            ("safe-zone-edit-community-center", CGSize(width: 375, height: 812), DynamicTypeSize.large)
         ] {
             let window = UIWindow(windowScene: scene)
             window.frame = CGRect(origin: .zero, size: size)
             window.rootViewController = UIHostingController(rootView: SafeZoneEditorPage(
-                zone: name.hasPrefix("safe-zone-add") ? nil : LocationPreviewData.snapshot().safeZones[0],
+                zone: name.hasPrefix("safe-zone-add") ? nil : (name == "safe-zone-edit-community-center"
+                    ? SafeZone(id: "community", name: "Community Center", center: LocationPreviewData.campus, radiusMeters: 200)
+                    : LocationPreviewData.snapshot().safeZones[0]),
                 initialCenter: LocationPreviewData.campus,
                 nearbyZones: LocationPreviewData.snapshot().safeZones,
                 save: { _ in }, delete: { _ in }

@@ -52,6 +52,54 @@ enum MainlandCoordinates {
     }
 }
 
+/// Display-only tags: stored names and the care API payload stay unchanged.
+enum SafeZonePlaceTag: String, CaseIterable {
+    case home = "Home"
+    case market = "Market"
+    case hospital = "Hospital"
+    case pharmacy = "Pharmacy"
+    case subwayStation = "Subway Station"
+    case busStop = "Bus Stop"
+    case restaurant = "Restaurant"
+    case park = "Park"
+    case shoppingMall = "Shopping Mall"
+    case bank = "Bank"
+    case communityCenter = "Community Center"
+
+    static let fallbackSymbolName = "mappin.and.ellipse"
+
+    var symbolName: String {
+        switch self {
+        case .home: "house.fill"
+        case .market: "storefront.fill"
+        case .hospital: "cross.case.fill"
+        case .pharmacy: "pills.fill"
+        case .subwayStation: "tram.fill"
+        case .busStop: "bus.fill"
+        case .restaurant: "fork.knife"
+        case .park: "tree.fill"
+        case .shoppingMall: "bag.fill"
+        case .bank: "building.columns.fill"
+        case .communityCenter: "person.3.fill"
+        }
+    }
+
+    func localizedTitle(locale: Locale) -> String {
+        String(localized: String.LocalizationValue(rawValue), locale: locale)
+    }
+
+    static func matching(_ name: String) -> Self? {
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return allCases.first { $0.rawValue.lowercased() == normalized }
+    }
+
+    static func choices(including savedName: String) -> [String] {
+        let presets = allCases.map(\.rawValue)
+        // Keep even differently cased legacy names intact when editing and saving.
+        return presets.contains(savedName) ? presets : presets + [savedName]
+    }
+}
+
 struct SafeZone: Decodable, Identifiable {
     let id: String
     let name: String
@@ -61,6 +109,13 @@ struct SafeZone: Decodable, Identifiable {
     var isHome: Bool? = nil
     var renderKey: String { "\(id):\(name):\(center.latitude):\(center.longitude):\(radiusMeters)" }
     var isHomeZone: Bool { isHome ?? (name.trimmingCharacters(in: .whitespaces).lowercased() == "home") }
+    var symbolName: String {
+        if isHomeZone { return SafeZonePlaceTag.home.symbolName }
+        guard let tag = SafeZonePlaceTag.matching(name), tag != .home else {
+            return SafeZonePlaceTag.fallbackSymbolName
+        }
+        return tag.symbolName
+    }
 }
 
 struct ElderLocationSnapshot: Decodable {

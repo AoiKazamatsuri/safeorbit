@@ -78,6 +78,15 @@
     "%lldm" : {
 
     },
+    "Home" : {
+      "extractionState" : "manual"
+    },
+    "Hospital" : {
+      "extractionState" : "manual"
+    },
+    "Market" : {
+      "extractionState" : "manual"
+    },
     "＋ New Tag" : {
 
     },
@@ -135,6 +144,12 @@
     "Back to records" : {
 
     },
+    "Bank" : {
+      "extractionState" : "manual"
+    },
+    "Bus Stop" : {
+      "extractionState" : "manual"
+    },
     "Call senior" : {
 
     },
@@ -161,6 +176,9 @@
     },
     "Code expired" : {
 
+    },
+    "Community Center" : {
+      "extractionState" : "manual"
     },
     "Connection link" : {
 
@@ -301,11 +319,17 @@
     "or" : {
 
     },
+    "Park" : {
+      "extractionState" : "manual"
+    },
     "Passwords don't match." : {
 
     },
     "Paste link" : {
 
+    },
+    "Pharmacy" : {
+      "extractionState" : "manual"
     },
     "Phone connection QR code" : {
 
@@ -345,6 +369,9 @@
     },
     "Remove this local family member?" : {
 
+    },
+    "Restaurant" : {
+      "extractionState" : "manual"
     },
     "Restoring your connection…" : {
 
@@ -400,6 +427,9 @@
     "Share link" : {
 
     },
+    "Shopping Mall" : {
+      "extractionState" : "manual"
+    },
     "Show password" : {
 
     },
@@ -414,6 +444,9 @@
     },
     "Stop dictation" : {
 
+    },
+    "Subway Station" : {
+      "extractionState" : "manual"
     },
     "Tag" : {
 

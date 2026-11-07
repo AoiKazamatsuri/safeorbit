@@ -560,7 +560,7 @@ struct LocationPage: View {
             AMapMarker(id: "zone-" + zone.renderKey, coordinate: zone.center.appleCoordinate,
                 anchor: .bottom, content: AnyView(Button { zoneEditor = SafeZoneEditorSelection(zone: zone) } label: {
                     VStack(spacing: 2) {
-                        Image(systemName: zone.name.lowercased() == "home" ? "house.fill" : "storefront.fill")
+                        Image(systemName: zone.symbolName)
                             .font(.system(size: 21)).foregroundStyle(.white)
                             .frame(width: 39, height: 39).background(OrbitStyle.teal, in: Circle())
                         Circle().fill(OrbitStyle.teal).frame(width: 11, height: 11)
@@ -703,6 +703,7 @@ struct SafeZoneEditorPage: View {
     let delete: (SafeZone) -> Void
     let close: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
     @State private var selectedCenter: GeoPoint
     @State private var mapAvailable = false
     @State private var tag: String
@@ -712,7 +713,6 @@ struct SafeZoneEditorPage: View {
     @State private var showingNewTag = false
     @State private var confirmingDelete = false
     private let radii = [100, 200, 500, 1000, 2000]
-    private let presets = ["Home", "Market", "Hospital"]
 
     init(zone: SafeZone?, initialCenter: GeoPoint, nearbyZones: [SafeZone],
          save: @escaping (SafeZone) -> Void, delete: @escaping (SafeZone) -> Void,
@@ -731,7 +731,7 @@ struct SafeZoneEditorPage: View {
     private var coordinateText: String {
         String(format: "%.5f, %.5f", selectedCenter.latitude, selectedCenter.longitude)
     }
-    private var tagChoices: [String] { presets.contains(tag) ? presets : presets + [tag] }
+    private var tagChoices: [String] { SafeZonePlaceTag.choices(including: tag) }
 
     private func closePage() {
         if let close { close() } else { dismiss() }
@@ -788,20 +788,28 @@ struct SafeZoneEditorPage: View {
 
                     VStack(alignment: .leading, spacing: 17) {
                         Text("Tag").caregiverText()
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 7) {
-                                ForEach(tagChoices, id: \.self) { choice in
-                                    Button("#\(choice)") { tag = choice }
-                                        .font(.system(size: 14))
-                                        .foregroundStyle(tag == choice ? .white : .black)
-                                        .padding(.horizontal, 12).frame(height: 31)
-                                        .background(tag == choice ? OrbitStyle.teal : Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
+                        ScrollViewReader { tags in
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 7) {
+                                    ForEach(tagChoices, id: \.self) { choice in
+                                        let title = SafeZonePlaceTag(rawValue: choice)?.localizedTitle(locale: locale) ?? choice
+                                        Button("#\(title)") { tag = choice }
+                                            .font(.system(size: 14))
+                                            .fixedSize(horizontal: true, vertical: false)
+                                            .accessibilityAddTraits(tag == choice ? .isSelected : [])
+                                            .foregroundStyle(tag == choice ? .white : .black)
+                                            .padding(.horizontal, 12).frame(height: 31)
+                                            .background(tag == choice ? OrbitStyle.teal : Color(red: 0.83, green: 0.91, blue: 0.91), in: Capsule())
+                                            .id(choice)
+                                    }
+                                    Button("＋ New Tag") { newTag = ""; showingNewTag = true }
+                                        .caregiverText(.secondary).foregroundStyle(.black)
+                                        .padding(.horizontal, 11).frame(height: 31)
+                                        .overlay(Capsule().stroke(.black, lineWidth: 1))
                                 }
-                                Button("＋ New Tag") { newTag = ""; showingNewTag = true }
-                                    .caregiverText(.secondary).foregroundStyle(.black)
-                                    .padding(.horizontal, 11).frame(height: 31)
-                                    .overlay(Capsule().stroke(.black, lineWidth: 1))
                             }
+                            .onAppear { tags.scrollTo(tag, anchor: .center) }
+                            .onChange(of: tag) { _, value in tags.scrollTo(value, anchor: .center) }
                         }
                         Text("Safe Zone Radius").caregiverText()
                             .padding(.top, 2)
