@@ -333,10 +333,6 @@ struct RecordsPage: View {
             } else if store.trends != nil {
                 trendCard
                 metricGrid
-                Text(store.trends?.pattern ?? "").caregiverText()
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(OrbitLayout.cardPadding).caregiverCard()
             } else {
                 ProgressView("Loading trends…").caregiverText().padding(22)
             }
