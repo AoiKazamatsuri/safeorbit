@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "" : {
+
+    },
     "#%@" : {
 
     },
@@ -24,22 +27,12 @@
         }
       }
     },
-    "%@ %lld" : {
+    "%@, %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%1$@ %2$lld"
-          }
-        }
-      }
-    },
-    "%@, %@%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@, %2$@%3$@"
+            "value" : "%1$@, %2$@"
           }
         }
       }
@@ -247,7 +240,13 @@
     "Exit navigation" : {
 
     },
+    "False alarms are left out of the calendar and trends." : {
+
+    },
     "Forgot password?" : {
+
+    },
+    "Have you met her?" : {
 
     },
     "Hide password" : {
@@ -265,6 +264,15 @@
     "Last\nmonth" : {
 
     },
+    "Loading records…" : {
+
+    },
+    "Loading trends…" : {
+
+    },
+    "Loading trip…" : {
+
+    },
     "Location unavailable" : {
 
     },
@@ -275,6 +283,12 @@
 
     },
     "Map configuration required" : {
+
+    },
+    "Mark as a false alarm?" : {
+
+    },
+    "Mark as False Alarm" : {
 
     },
     "Monitoring limited" : {
@@ -304,6 +318,9 @@
     "No emergency contacts added." : {
 
     },
+    "No recorded route" : {
+
+    },
     "No trips in this period" : {
 
     },
@@ -314,6 +331,9 @@
 
     },
     "Open Settings" : {
+
+    },
+    "Opens the risk event" : {
 
     },
     "or" : {
@@ -344,171 +364,6 @@
 
     },
     "Privacy Policy" : {
-
-    },
-    "Question" : {
-
-    },
-    "Recent" : {
-
-    },
-    "Recording" : {
-
-    },
-    "Remove contact" : {
-
-    },
-    "Remove member" : {
-
-    },
-    "Remove photo" : {
-
-    },
-    "Remove this emergency contact?" : {
-
-    },
-    "Remove this local family member?" : {
-
-    },
-    "Restaurant" : {
-      "extractionState" : "manual"
-    },
-    "Restoring your connection…" : {
-
-    },
-    "Retry" : {
-
-    },
-    "Route Deviation" : {
-
-    },
-    "Route Deviation Trend" : {
-
-    },
-    "Route end" : {
-
-    },
-    "Route end, %@" : {
-
-    },
-    "Safe return & recovery" : {
-
-    },
-    "Safe Zone Radius" : {
-
-    },
-    "Sample position" : {
-
-    },
-    "Save account settings" : {
-
-    },
-    "Save Changes" : {
-
-    },
-    "Save senior profile" : {
-
-    },
-    "Saved" : {
-
-    },
-    "Scan code" : {
-
-    },
-    "Send question" : {
-
-    },
-    "Senior location" : {
-
-    },
-    "Senior location, %@" : {
-
-    },
-    "Share link" : {
-
-    },
-    "Shopping Mall" : {
-      "extractionState" : "manual"
-    },
-    "Show password" : {
-
-    },
-    "Sign out" : {
-
-    },
-    "Sign out on this phone?" : {
-
-    },
-    "Start dictation" : {
-
-    },
-    "Stop dictation" : {
-
-    },
-    "Subway Station" : {
-      "extractionState" : "manual"
-    },
-    "Tag" : {
-
-    },
-    "Tag name" : {
-
-    },
-    "This\nmonth" : {
-
-    },
-    "This conversation and all its messages will be deleted from this device." : {
-
-    },
-    "This safe zone will be removed." : {
-
-    },
-    "This Week" : {
-
-    },
-    "Try again" : {
-
-    },
-    "Unmute guidance" : {
-
-    },
-    "Use at least 8 characters." : {
-
-    },
-    "Use trip history" : {
-
-    },
-    "View Less" : {
-
-    },
-    "View More" : {
-
-    },
-    "Voice volume" : {
-
-    },
-    "vs last month" : {
-
-    },
-    "vs. last month" : {
-
-    },
-    "Week" : {
-
-    },
-    "What do the risk colors mean?" : {
-
-    },
-    "What is a safe zone?" : {
-
-    },
-    "Where do I find trips and guidance?" : {
-
-    },
-    "Your location" : {
-
-    },
-    "Your message: %@" : {
 
     },
     "PUSH_RISK_HIGH_DEVIATION" : {
@@ -642,6 +497,177 @@
           }
         }
       }
+    },
+    "Question" : {
+
+    },
+    "Recent" : {
+
+    },
+    "Recording" : {
+
+    },
+    "Remove contact" : {
+
+    },
+    "Remove member" : {
+
+    },
+    "Remove photo" : {
+
+    },
+    "Remove this emergency contact?" : {
+
+    },
+    "Remove this local family member?" : {
+
+    },
+    "Restaurant" : {
+      "extractionState" : "manual"
+    },
+    "Restoring your connection…" : {
+
+    },
+    "Retry" : {
+
+    },
+    "Route Deviation Trend" : {
+
+    },
+    "Route end" : {
+
+    },
+    "Route end, %@" : {
+
+    },
+    "Safe return & recovery" : {
+
+    },
+    "Safe Zone Radius" : {
+
+    },
+    "Sample position" : {
+
+    },
+    "Save account settings" : {
+
+    },
+    "Save Changes" : {
+
+    },
+    "Save senior profile" : {
+
+    },
+    "Saved" : {
+
+    },
+    "Scan code" : {
+
+    },
+    "Send question" : {
+
+    },
+    "Senior location" : {
+
+    },
+    "Senior location, %@" : {
+
+    },
+    "Share link" : {
+
+    },
+    "Shopping Mall" : {
+      "extractionState" : "manual"
+    },
+    "Show password" : {
+
+    },
+    "Sign out" : {
+
+    },
+    "Sign out on this phone?" : {
+
+    },
+    "Start dictation" : {
+
+    },
+    "Stop dictation" : {
+
+    },
+    "Subway Station" : {
+      "extractionState" : "manual"
+    },
+    "Tag" : {
+
+    },
+    "Tag name" : {
+
+    },
+    "This\nmonth" : {
+
+    },
+    "This conversation and all its messages will be deleted from this device." : {
+
+    },
+    "This resolves the risk now, even if her phone is offline." : {
+
+    },
+    "This safe zone will be removed." : {
+
+    },
+    "This Week" : {
+
+    },
+    "Try again" : {
+
+    },
+    "Try Again" : {
+
+    },
+    "Unmute guidance" : {
+
+    },
+    "Use at least 8 characters." : {
+
+    },
+    "Use trip history" : {
+
+    },
+    "View Less" : {
+
+    },
+    "View More" : {
+
+    },
+    "Voice volume" : {
+
+    },
+    "vs last month" : {
+
+    },
+    "vs. last month" : {
+
+    },
+    "We've Met" : {
+
+    },
+    "Week" : {
+
+    },
+    "What do the risk colors mean?" : {
+
+    },
+    "What is a safe zone?" : {
+
+    },
+    "Where do I find trips and guidance?" : {
+
+    },
+    "Your location" : {
+
+    },
+    "Your message: %@" : {
+
     }
   },
   "version" : "1.0"
