@@ -149,7 +149,7 @@ struct CaregiverHomePage: View {
     let chooseRole: (() -> Void)?
     @StateObject private var zoneStore = SafeZoneSessionStore()
     @StateObject private var settingsStore = CaregiverSettingsStore()
-    @StateObject private var agentSessions = AgentSessionStore()
+    @StateObject private var agentSessions: AgentSessionStore
     @State private var selectedSettings: CaregiverSettingsGroup?
     @State private var tab: CaregiverTab = .location
     @StateObject private var navigation: WalkingNavigationModel
@@ -163,6 +163,7 @@ struct CaregiverHomePage: View {
     @Environment(\.scenePhase) private var scenePhase
     init(store: OnboardingStore, settingsInitiallyOpen: Bool = false, chooseRole: (() -> Void)? = nil) {
         self.store = store
+        _agentSessions = StateObject(wrappedValue: AgentSessionStore(service: store.device.map { AgentChatAPI(device: $0) }))
         self.chooseRole = chooseRole
         _showingSettings = State(initialValue: settingsInitiallyOpen)
         #if targetEnvironment(simulator)

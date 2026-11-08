@@ -5,6 +5,8 @@ struct AgentMessage: Codable, Identifiable, Equatable {
     let fromCaregiver: Bool
     let text: String
     let createdAt: Date
+    var citations: [AgentCitation]? = nil
+    var failed: Bool? = nil
 }
 
 struct AgentConversation: Codable, Identifiable, Equatable {
@@ -48,12 +50,16 @@ struct AgentSuggestion: Equatable {
     @Published private(set) var activeID: UUID?
     @Published private(set) var storageError: String?
     @Published private var drafts: [UUID: String] = [:]
+    @Published private var revealing: [UUID: String] = [:]
     private var emptySessions: [UUID: AgentConversation] = [:]
     private let defaults: UserDefaults
+    private let service: (any AgentChatServing)?
+    @Published private(set) var pending: Set<UUID> = []
     private let now: () -> Date
 
-    init(defaults: UserDefaults = .standard, now: @escaping () -> Date = Date.init) {
+    init(defaults: UserDefaults = .standard, now: @escaping () -> Date = Date.init, service: (any AgentChatServing)? = nil) {
         self.defaults = defaults
+        self.service = service
         self.now = now
         retryLoading()
     }
@@ -75,6 +81,8 @@ struct AgentSuggestion: Equatable {
         activeID = id
     }
     func showList() { activeID = nil }
+    func displayedText(for message: AgentMessage) -> String { revealing[message.id] ?? message.text }
+    func isRevealing(_ message: AgentMessage) -> Bool { revealing[message.id] != nil }
     func draft(for id: UUID) -> String { drafts[id] ?? "" }
     func setDraft(_ value: String, for id: UUID) { drafts[id] = value }
     /// Suggested-question chips belong to a blank conversation only. The first message, however it
@@ -85,20 +93,68 @@ struct AgentSuggestion: Equatable {
 
     @discardableResult func send(_ question: String, in id: UUID, allowTripHistory: Bool) -> Bool {
         let text = question.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard storageError == nil, !text.isEmpty, var session = conversation(id) else { return false }
+        guard storageError == nil, !text.isEmpty, text.utf16.count <= 1000, !pending.contains(id), var session = conversation(id) else { return false }
         let date = now()
         if session.messages.isEmpty { session.title = AgentConversationTitle.make(from: text) }
-        session.messages.append(AgentMessage(id: UUID(), fromCaregiver: true, text: text, createdAt: date))
-        session.messages.append(AgentMessage(id: UUID(), fromCaregiver: false,
-                                            text: DemoRecords.answer(to: text, allowTripHistory: allowTripHistory), createdAt: date))
+        let message = AgentMessage(id: UUID(), fromCaregiver: true, text: text, createdAt: date)
+        session.messages.append(message)
         session.updatedAt = date
-        var updated = sessions.filter { $0.id != id }
+        guard save(session) else { return false }
+        emptySessions[id] = nil; drafts[id] = nil
+        request(message, in: id, allowTripHistory: allowTripHistory)
+        return true
+    }
+    func retry(_ message: AgentMessage, in id: UUID, allowTripHistory: Bool) {
+        guard storageError == nil, !pending.contains(id),
+              conversation(id)?.messages.contains(where: { $0.id == message.id && $0.failed == true }) == true else { return }
+        request(message, in: id, allowTripHistory: allowTripHistory)
+    }
+    private func save(_ session: AgentConversation) -> Bool {
+        var updated = sessions.filter { $0.id != session.id }
         updated.append(session)
         guard persist(updated) else { return false }
         sessions = updated
-        emptySessions[id] = nil
-        drafts[id] = nil
         return true
+    }
+    private func request(_ message: AgentMessage, in id: UUID, allowTripHistory: Bool) {
+        let language = message.text.unicodeScalars.contains { (0x3400...0x9FFF).contains($0.value) } ? "zh" : "en"
+        if !allowTripHistory {
+            let text = language == "zh" ? "已关闭 AI 使用出行记录。可以在 AI 设置中开启。" : "Trip history access is off. You can enable it in AI Settings."
+            let answer = AgentMessage(id: UUID(), fromCaregiver: false, text: text, createdAt: now())
+            _ = saveAnswer(answer, after: message.id, in: id)
+            return
+        }
+        pending.insert(id)
+        Task { @MainActor in
+            defer { pending.remove(id) }
+            do {
+                guard let service else { throw APIError(kind: .unavailable) }
+                let response = try await service.ask(message.text, language: language)
+                guard !response.paragraphs.isEmpty else { throw APIError(kind: .other) }
+                let answer = AgentMessage(id: UUID(), fromCaregiver: false,
+                                          text: response.paragraphs.joined(separator: "\n\n"),
+                                          createdAt: now(), citations: response.citations)
+                if response.paragraphs.count > 1 { revealing[answer.id] = response.paragraphs[0] }
+                guard saveAnswer(answer, after: message.id, in: id) else { revealing[answer.id] = nil; return }
+                for index in 1..<response.paragraphs.count {
+                    try? await Task.sleep(for: .milliseconds(250))
+                    guard conversation(id) != nil else { revealing[answer.id] = nil; return }
+                    revealing[answer.id] = response.paragraphs.prefix(index + 1).joined(separator: "\n\n")
+                }
+                revealing[answer.id] = nil
+            } catch {
+                guard var session = conversation(id), let index = session.messages.firstIndex(where: { $0.id == message.id }) else { return }
+                session.messages[index].failed = true
+                _ = save(session)
+            }
+        }
+    }
+    private func saveAnswer(_ answer: AgentMessage, after questionID: UUID, in id: UUID) -> Bool {
+        guard var session = conversation(id),
+              let index = session.messages.firstIndex(where: { $0.id == questionID }) else { return false }
+        session.messages[index].failed = nil
+        session.messages.insert(answer, at: index + 1)
+        return save(session)
     }
     @discardableResult func delete(_ id: UUID) -> Bool {
         guard storageError == nil, sessions.contains(where: { $0.id == id }) else { return false }
@@ -122,7 +178,13 @@ struct AgentSuggestion: Equatable {
                   decoded.allSatisfy({ !$0.title.isEmpty && !$0.messages.isEmpty && $0.messages.first?.fromCaregiver == true }) else {
                 throw SessionReadError.invalid
             }
-            sessions = decoded
+            sessions = decoded.map { conversation in
+                var conversation = conversation
+                if let last = conversation.messages.indices.last, conversation.messages[last].fromCaregiver {
+                    conversation.messages[last].failed = true
+                }
+                return conversation
+            }
             storageError = nil
         } catch {
             storageError = "Could not read saved conversations. Your history has been kept. Try again."
@@ -292,18 +354,32 @@ struct AgentChatPage: View {
                                 ForEach(lines) { line in
                                     HStack {
                                         if line.fromCaregiver { Spacer(minLength: 52) }
-                                        Text(line.text)
-                                            .caregiverText()
-                                            .foregroundStyle(line.fromCaregiver ? .white : .black)
-                                            .padding(.horizontal, 16).padding(.vertical, 13)
-                                            .background(line.fromCaregiver ? OrbitStyle.teal : OrbitStyle.pale,
-                                                        in: RoundedRectangle(cornerRadius: 20))
-                                            .layoutProbe("chat-bubble-\(line.id)")
-                                            .frame(maxWidth: 315, alignment: line.fromCaregiver ? .trailing : .leading)
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text(sessions.displayedText(for: line))
+                                                .caregiverText()
+                                                .foregroundStyle(line.fromCaregiver ? .white : .black)
+                                                .padding(.horizontal, 16).padding(.vertical, 13)
+                                                .background(line.fromCaregiver ? OrbitStyle.teal : OrbitStyle.pale,
+                                                            in: RoundedRectangle(cornerRadius: 20))
+                                                .layoutProbe("chat-bubble-\(line.id)")
+                                                .frame(maxWidth: 315, alignment: line.fromCaregiver ? .trailing : .leading)
+                                                .accessibilityLabel(line.fromCaregiver ? "Your message: \(line.text)" : "Agent: \(sessions.displayedText(for: line))")
+                                            if let citations = line.citations, !citations.isEmpty, !sessions.isRevealing(line) {
+                                                ForEach(Array(citations.enumerated()), id: \.offset) { _, citation in
+                                                    Text([citation.label, citation.date, citation.startDate, citation.endDate].compactMap { $0 }.joined(separator: " · "))
+                                                        .caregiverText(.caption).foregroundStyle(.secondary)
+                                                }
+                                            }
+                                            if line.failed == true {
+                                                Button("Retry") { sessions.retry(line, in: sessionID, allowTripHistory: settings.data.allowAITripHistory) }
+                                                    .caregiverText(.caption).frame(minHeight: 44)
+                                                    .disabled(sessions.pending.contains(sessionID))
+                                                Text("Could not get an answer. Try again.").caregiverText(.caption)
+                                            }
+                                        }
                                         if !line.fromCaregiver { Spacer(minLength: 30) }
                                     }
                                     .id(line.id)
-                                    .accessibilityLabel(line.fromCaregiver ? "Your message: \(line.text)" : "Agent: \(line.text)")
                                 }
                                 if showsSuggestions { suggestions }
                             }
@@ -315,9 +391,9 @@ struct AgentChatPage: View {
                         }
                         .defaultScrollAnchor(showsSuggestions ? .bottom : nil)
                         .scrollDismissesKeyboard(.interactively)
-                        .onChange(of: lines.count) { _, _ in
-                            guard let last = lines.last else { return }
-                            withAnimation(.easeOut(duration: 0.22)) { proxy.scrollTo(last.id, anchor: .bottom) }
+                        .onChange(of: lines.last?.id) { _, id in
+                            guard let id else { return }
+                            withAnimation(.easeOut(duration: 0.22)) { proxy.scrollTo(id, anchor: .bottom) }
                         }
                     }
                 }
@@ -325,6 +401,15 @@ struct AgentChatPage: View {
                     Text(message).caregiverText(.caption).foregroundStyle(.red)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, OrbitLayout.pageMargin).padding(.bottom, 5)
+                }
+                if draft.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count > 1000 {
+                    Text("Please keep your question to 1,000 characters or fewer.")
+                        .caregiverText(.caption).foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, OrbitLayout.pageMargin).padding(.bottom, 5)
+                }
+                if sessions.pending.contains(sessionID) {
+                    ProgressView().accessibilityLabel("Waiting for an answer").padding(.bottom, 6)
                 }
                 composer
                     .layoutProbe("chat-composer")
@@ -447,13 +532,14 @@ struct AgentChatPage: View {
                     .frame(width: 44, height: 44)
                     .foregroundStyle(.white).background(OrbitStyle.teal, in: Circle())
             }.accessibilityLabel("Send question")
+                .disabled(sessions.pending.contains(sessionID) || draft.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count > 1000)
                 .layoutProbe("chat-send")
         }
     }
 
     private func send() {
         let question = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !question.isEmpty else { return }
+        guard !question.isEmpty, question.utf16.count <= 1000 else { return }
         speech.stop()
         composing = false
         ask(question)

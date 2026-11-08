@@ -1,8 +1,9 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import {
   CareEvents, CareStore, CaregiverSettings, GeoPoint, RiskEventRecord, RiskRecords, RiskWrite, SafeZone, StoredFix, TripChange,
 } from '../care-api/public';
 import { navigationAction, navigationReissue, planActions } from './risk-actions';
+import { LanguageModel } from './language-model';
 import { explainRisk } from './risk-explanation';
 import {
   applyMet, DEMO_RISK_PARAMS, initialRiskState, RiskOutput, RiskState, riskStep, riskTick, RULE_VERSION,
@@ -56,8 +57,10 @@ function explainHistoricalRisk(event: RiskEventRecord, callName: string): string
 export class CareAgentRunner implements OnModuleInit, OnModuleDestroy {
   private queue: Promise<void> = Promise.resolve();
   private timer?: NodeJS.Timeout;
+  private readonly explanationFingerprints = new Map<string, string>();
+  private readonly explanationPending = new Set<string>();
 
-  constructor(private readonly store: CareStore, private readonly risks: RiskRecords, private readonly events: CareEvents) {}
+  constructor(private readonly store: CareStore, private readonly risks: RiskRecords, private readonly events: CareEvents, @Optional() private readonly model?: LanguageModel) {}
 
   onModuleInit(): void {
     this.events.onLocationsStored(({ elderId, replay }) => this.enqueue(() => this.processFixes(elderId, replay)));
@@ -187,9 +190,29 @@ export class CareAgentRunner implements OnModuleInit, OnModuleDestroy {
       const { elder } = await this.store.household(elderId);
       for (const id of ids) {
         const event = await this.risks.riskEvent(elderId, id);
+        const activity = event.historyReplay ? null : await this.risks.activity(id);
+        const fingerprint = JSON.stringify({ event, activity }, (key, value) => key === 'explanation' ? undefined : value);
+        if (this.explanationFingerprints.get(id) === fingerprint) continue;
+        this.explanationFingerprints.set(id, fingerprint);
         const text = event.historyReplay ? explainHistoricalRisk(event, elder.callName)
-          : explainRisk(event, await this.risks.activity(id), elder.callName);
+          : explainRisk(event, activity!, elder.callName);
         if (text !== event.explanation) await this.risks.saveExplanation(id, text);
+        if (!event.historyReplay && this.model?.enabled && this.explanationPending.size < 4 && !this.explanationPending.has(id)) {
+          const sentences = [event.anomaly === 'wandering' ? 'Wandering was recorded.' : 'Route deviation was recorded.',
+            event.escalatedAt ? 'The risk increased to high.' : 'Low risk was recorded.',
+            ...(activity!.actions.some(a => a.kind === 'startNavigation' && a.status === 'started') ? ['Navigation home started.'] : []),
+            ...(activity!.actions.some(a => (a.kind === 'notifyHigh' || a.kind === 'notifyLow') && a.status === 'sent') ? ['An alert was sent.'] : []),
+            event.resolvedAt ? 'The risk was resolved.' : 'The risk remains active.'];
+          this.explanationPending.add(id);
+          void this.model.risk(sentences).then(async result => {
+            const parts = result.match(/[^.!?]+[.!?]/g)?.map(p => p.trim()) ?? [];
+            if (parts.length !== sentences.length || !sentences.every(s => parts.filter(p => p === s).length === 1)) return;
+            const latest = await this.risks.riskEvent(elderId, id);
+            const latestActivity = await this.risks.activity(id);
+            const latestFingerprint = JSON.stringify({ event: latest, activity: latestActivity }, (key, value) => key === 'explanation' ? undefined : value);
+            if (latestFingerprint === fingerprint) await this.risks.saveExplanation(id, parts.join(' '), event.version, text);
+          }).catch(() => undefined).finally(() => this.explanationPending.delete(id));
+        }
       }
     } catch (error) { console.error('Risk explanation failed:', (error as Error).message); }
   }

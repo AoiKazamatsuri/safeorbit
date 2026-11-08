@@ -393,15 +393,6 @@ final class RecordsTests: XCTestCase {
         XCTAssertEqual(labels.map(\.id), Array(0...7))
         XCTAssertTrue(labels.allSatisfy { !$0.month.isEmpty && !$0.day.isEmpty })
     }
-    func testAgentTripHistoryPermissionBlocksAllSampleAnswers() {
-        for question in DemoRecords.quickQuestions + ["8 月路线偏离几次？"] {
-            let answer = DemoRecords.answer(to: question, allowTripHistory: false)
-            XCTAssertTrue(answer.contains("access is off") || answer.contains("已关闭"))
-            XCTAssertFalse(answer.contains("August 24"))
-            XCTAssertFalse(answer.contains("route deviations"))
-        }
-        XCTAssertTrue(DemoRecords.answer(to: DemoRecords.quickQuestions[0], allowTripHistory: true).contains("August 24"))
-    }
     func testSampleRecordsStayConsistentAcrossPages() throws {
         let august = DemoRecords.trips.filter { $0.month == 8 }
         XCTAssertEqual(august.reduce(0) { $0 + $1.deviations }, 4)
@@ -413,11 +404,6 @@ final class RecordsTests: XCTestCase {
         XCTAssertEqual(DemoRecords.weeklyDeviations(), [0, 2, 1, 2, 0, 0, 2, 2])
         let latest = try XCTUnwrap(august.filter { $0.risk == .high }.max(by: { $0.date < $1.date }))
         XCTAssertEqual(latest.day, 24)
-        XCTAssertTrue(DemoRecords.answer(to: DemoRecords.quickQuestions[0]).contains("August 24, 2026"))
-        XCTAssertTrue(DemoRecords.answer(to: DemoRecords.quickQuestions[1]).contains("4 route deviations"))
-        XCTAssertTrue(DemoRecords.answer(to: "What is the weather?").contains("don't have a verified answer"))
-        XCTAssertTrue(DemoRecords.answer(to: "8 月路线偏离几次？").contains("演示回答"))
-        XCTAssertTrue(DemoRecords.answer(to: "明天天气如何？").contains("无法核对"))
         XCTAssertEqual(DemoRecords.weekStarts().map { DemoRecords.calendar.component(.weekday, from: $0) }, Array(repeating: 2, count: 8))
         for trip in DemoRecords.trips {
             XCTAssertEqual(trip.events.last?.minute, DemoRecords.calendar.component(.hour, from: trip.date) * 60
@@ -791,9 +777,62 @@ final class ElderLiveNavigationTests: XCTestCase {
     }
 }
 
+@MainActor private final class StubAgentChat: AgentChatServing {
+    var calls: [(String, String)] = []
+    var shouldFail = false
+    var paragraphs = ["Verified"]
+    func ask(_ question: String, language: String) async throws -> AgentResponse {
+        calls.append((question, language))
+        if shouldFail { throw APIError(kind: .network) }
+        return AgentResponse(outcome: "answered", paragraphs: paragraphs, citations: [AgentCitation(kind: "trip", id: "7", label: "Trip 7", date: "2026-10-01", startDate: nil, endDate: nil)])
+    }
+}
+
 final class AgentSessionTests: XCTestCase {
     @MainActor private func isolatedDefaults() -> UserDefaults {
         UserDefaults(suiteName: "safeorbit.test.sessions.\(UUID().uuidString)")!
+    }
+    @MainActor func testNetworkFailureRetryCitationsAndLocalPrivacy() async throws {
+        let defaults = isolatedDefaults(), service = StubAgentChat()
+        let store = AgentSessionStore(defaults: defaults, service: service)
+        let id = try XCTUnwrap(store.newConversation())
+        service.shouldFail = true
+        XCTAssertTrue(store.send("问题", in: id, allowTripHistory: true))
+        await Task.yield(); await Task.yield()
+        let failed = try XCTUnwrap(store.conversation(id)?.messages.first)
+        XCTAssertEqual(failed.failed, true)
+        XCTAssertEqual(service.calls.count, 1)
+        XCTAssertEqual(service.calls[0].1, "zh")
+        XCTAssertTrue(store.send("private", in: id, allowTripHistory: false))
+        XCTAssertEqual(service.calls.count, 1)
+        service.shouldFail = false
+        store.retry(failed, in: id, allowTripHistory: true)
+        await Task.yield(); await Task.yield()
+        let messages = try XCTUnwrap(store.conversation(id)?.messages)
+        XCTAssertEqual(messages.map(\.fromCaregiver), [true, false, true, false])
+        XCTAssertNil(messages[0].failed)
+        XCTAssertEqual(messages[1].citations?.first?.id, "7")
+        XCTAssertTrue(messages[3].text.contains("access is off"))
+        XCTAssertEqual(AgentSessionStore(defaults: defaults).conversation(id), store.conversation(id))
+        XCTAssertEqual(service.calls.count, 2)
+    }
+    @MainActor func testCompleteAnswerPersistsBeforeRevealAndUTF16Limit() async throws {
+        let defaults = isolatedDefaults(), service = StubAgentChat()
+        service.paragraphs = ["First", "Second"]
+        let store = AgentSessionStore(defaults: defaults, service: service)
+        let id = try XCTUnwrap(store.newConversation())
+        XCTAssertFalse(store.send(String(repeating: "😀", count: 501), in: id, allowTripHistory: true))
+        XCTAssertTrue(store.send(String(repeating: "😀", count: 500), in: id, allowTripHistory: true))
+        await Task.yield(); await Task.yield()
+        let answer = try XCTUnwrap(store.conversation(id)?.messages.last)
+        XCTAssertEqual(store.displayedText(for: answer), "First")
+        XCTAssertTrue(store.isRevealing(answer))
+        let restored = try XCTUnwrap(AgentSessionStore(defaults: defaults).conversation(id)?.messages.last)
+        XCTAssertEqual(restored.text, "First\n\nSecond")
+        XCTAssertEqual(restored.citations?.first?.id, "7")
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(store.displayedText(for: answer), "First\n\nSecond")
+        XCTAssertFalse(store.isRevealing(answer))
     }
     @MainActor func testBlankDraftIsEphemeralAndFirstSendPersistsStableIDsAndFixedTitle() throws {
         let defaults = isolatedDefaults()
@@ -804,19 +843,19 @@ final class AgentSessionTests: XCTestCase {
         store.showList(); store.open(draftID)
         XCTAssertEqual(store.draft(for: draftID), "Unsent draft")
         XCTAssertTrue(store.sessions.isEmpty)
-        XCTAssertFalse(store.send(" \n ", in: draftID, allowTripHistory: true))
+        XCTAssertFalse(store.send(" \n ", in: draftID, allowTripHistory: false))
         XCTAssertNil(defaults.object(forKey: AgentSessionStore.storageKey))
         XCTAssertTrue(AgentSessionStore(defaults: defaults).sessions.isEmpty)
         let persisted = AgentSessionStore(defaults: defaults)
         let id = try XCTUnwrap(persisted.newConversation())
         persisted.setDraft("draft", for: id)
         XCTAssertNil(defaults.object(forKey: AgentSessionStore.storageKey))
-        XCTAssertTrue(persisted.send(DemoRecords.quickQuestions[0], in: id, allowTripHistory: true))
+        XCTAssertTrue(persisted.send(DemoRecords.quickQuestions[0], in: id, allowTripHistory: false))
         XCTAssertEqual(persisted.sessions.count, 1)
         XCTAssertEqual(persisted.sessions[0].title, "Recent high-risk event")
         XCTAssertEqual(persisted.sessions[0].messages.count, 2)
         XCTAssertEqual(persisted.draft(for: id), "")
-        XCTAssertTrue(persisted.send(DemoRecords.quickQuestions[1], in: id, allowTripHistory: true))
+        XCTAssertTrue(persisted.send(DemoRecords.quickQuestions[1], in: id, allowTripHistory: false))
         let restored = AgentSessionStore(defaults: defaults)
         XCTAssertEqual(restored.sessions, persisted.sessions)
         XCTAssertEqual(restored.sessions[0].title, "Recent high-risk event")
@@ -828,16 +867,16 @@ final class AgentSessionTests: XCTestCase {
         var date = Date(timeIntervalSince1970: 100)
         let store = AgentSessionStore(defaults: isolatedDefaults(), now: { date })
         let a = try XCTUnwrap(store.newConversation())
-        store.send("First question", in: a, allowTripHistory: true)
+        store.send("First question", in: a, allowTripHistory: false)
         date.addTimeInterval(1)
         let b = try XCTUnwrap(store.newConversation())
-        store.send("Second question", in: b, allowTripHistory: true)
+        store.send("Second question", in: b, allowTripHistory: false)
         XCTAssertEqual(store.recent.map(\.id), [b, a])
         store.open(a); store.setDraft("Follow up", for: a); store.showList(); store.showList(); store.open(a)
         XCTAssertEqual(store.draft(for: a), "Follow up")
         XCTAssertEqual(store.recent.map(\.id), [b, a])
         date.addTimeInterval(1)
-        store.send(store.draft(for: a), in: a, allowTripHistory: true)
+        store.send(store.draft(for: a), in: a, allowTripHistory: false)
         XCTAssertEqual(store.recent.map(\.id), [a, b])
     }
     @MainActor func testConfirmedDeletionRemovesMessagesDraftAndActiveSelectionFromDisk() throws {
@@ -845,7 +884,7 @@ final class AgentSessionTests: XCTestCase {
         let store = AgentSessionStore(defaults: defaults)
         let diskStore = AgentSessionStore(defaults: defaults)
         let id = try XCTUnwrap(diskStore.newConversation())
-        diskStore.send("Question", in: id, allowTripHistory: true)
+        diskStore.send("Question", in: id, allowTripHistory: false)
         diskStore.setDraft("draft", for: id)
         let before = defaults.data(forKey: AgentSessionStore.storageKey)
         diskStore.showList(); diskStore.open(id)
@@ -861,14 +900,14 @@ final class AgentSessionTests: XCTestCase {
         let defaults = isolatedDefaults()
         let good = AgentSessionStore(defaults: defaults)
         let id = try XCTUnwrap(good.newConversation())
-        good.send("Saved question", in: id, allowTripHistory: true)
+        good.send("Saved question", in: id, allowTripHistory: false)
         let valid = try XCTUnwrap(defaults.data(forKey: AgentSessionStore.storageKey))
         let corrupt = Data("invalid json".utf8)
         defaults.set(corrupt, forKey: AgentSessionStore.storageKey)
         let restored = AgentSessionStore(defaults: defaults)
         XCTAssertNotNil(restored.storageError)
         XCTAssertNil(restored.newConversation())
-        XCTAssertFalse(restored.send("New question", in: id, allowTripHistory: true))
+        XCTAssertFalse(restored.send("New question", in: id, allowTripHistory: false))
         XCTAssertFalse(restored.delete(id))
         restored.retryLoading()
         XCTAssertEqual(defaults.data(forKey: AgentSessionStore.storageKey), corrupt)
@@ -886,7 +925,7 @@ final class AgentSessionTests: XCTestCase {
         let store = AgentSessionStore(defaults: defaults)
         let sessions = AgentSessionStore(defaults: defaults)
         let id = try XCTUnwrap(sessions.newConversation())
-        sessions.send(DemoRecords.quickQuestions[0], in: id, allowTripHistory: true)
+        sessions.send(DemoRecords.quickQuestions[0], in: id, allowTripHistory: false)
         let previous = sessions.sessions[0].messages
         sessions.send(DemoRecords.quickQuestions[0], in: id, allowTripHistory: false)
         XCTAssertEqual(Array(sessions.sessions[0].messages.prefix(2)), previous)
@@ -911,10 +950,10 @@ final class AgentSessionTests: XCTestCase {
         let typed = try XCTUnwrap(store.newConversation())
         XCTAssertTrue(store.showsSuggestions(in: typed), "A new conversation is blank")
         store.setDraft("Is she home?", for: typed)
-        XCTAssertFalse(store.send(" \n ", in: typed, allowTripHistory: true))
+        XCTAssertFalse(store.send(" \n ", in: typed, allowTripHistory: false))
         store.showList(); store.open(typed)
         XCTAssertTrue(store.showsSuggestions(in: typed), "A draft or a blank send is not a message")
-        XCTAssertTrue(store.send(store.draft(for: typed), in: typed, allowTripHistory: true))
+        XCTAssertTrue(store.send(store.draft(for: typed), in: typed, allowTripHistory: false))
         XCTAssertFalse(store.showsSuggestions(in: typed), "Typing and sending removes them")
         let chip = try XCTUnwrap(store.newConversation())
         XCTAssertTrue(store.send(DemoRecords.quickQuestions[2], in: chip, allowTripHistory: false))
@@ -928,44 +967,18 @@ final class AgentSessionTests: XCTestCase {
             XCTAssertFalse(restored.showsSuggestions(in: session.id), "Saved conversations always hold messages")
         }
     }
-    func testSuggestedQuestionsAreEnglishAndGetTheirDemoAnswers() {
-        let questions = DemoRecords.quickQuestions
-        XCTAssertEqual(questions, ["When was the last high-risk event?", "How many route deviations happened in August?",
-                                   "Has unusual movement increased?"])
-        for question in questions {
-            XCTAssertFalse(question.unicodeScalars.contains { (0x3400...0x9FFF).contains($0.value) }, question)
-        }
-        let answers = questions.map { DemoRecords.answer(to: $0) }
-        XCTAssertTrue(answers[0].hasPrefix("Demo answer: The latest high-risk trip was on August 24, 2026."), answers[0])
-        XCTAssertTrue(answers[1].hasPrefix("Demo answer: From August 1–31, 2026, the sample records contain 4 route deviations."),
-                      answers[1])
-        XCTAssertTrue(answers[2].hasPrefix("Demo answer: Unusual movement appears 2 times in August 2026, compared with 1 time in July 2026."),
-                      answers[2])
-        XCTAssertEqual(questions.map(AgentConversationTitle.make),
-                       ["Recent high-risk event", "August route deviations", "Unusual movement trends"])
-    }
-    func testUnverifiableAnswersPointToSuggestionsInNewConversations() {
-        let english = DemoRecords.answer(to: "What is the weather?")
-        let chinese = DemoRecords.answer(to: "明天天气如何？")
-        XCTAssertEqual(english, "I don't have a verified answer for that question in the available sample records. "
-                       + "Start a new conversation to pick a suggested question.")
-        XCTAssertEqual(chinese, "现有样例记录无法核对这个问题的答案。新建会话时可以选择常用问题。")
-        for answer in [english, chinese] + DemoRecords.quickQuestions.map({ DemoRecords.answer(to: $0) }) {
-            XCTAssertFalse(answer.contains("Try one of the suggested questions"), answer)
-            XCTAssertFalse(answer.contains("可以试试常用问题"), answer)
-        }
-    }
     @MainActor func testSessionAndRecordsLayoutsAtAllRequiredSizes() async throws {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let previous = scene.windows.first(where: \.isKeyWindow)
         let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("FrontendSnapshots")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let settings = CaregiverSettingsStore(defaults: isolatedDefaults())
+        settings.binding(\.allowAITripHistory).wrappedValue = false
         for (width, height, type) in [(402, 874, DynamicTypeSize.large), (393, 852, .large), (375, 812, .large), (320, 568, .accessibility1)] {
             let sessions = AgentSessionStore(defaults: isolatedDefaults())
             for question in DemoRecords.quickQuestions + ["How can I better understand these recent changes in outdoor movement?"] {
                 let id = try XCTUnwrap(sessions.newConversation())
-                sessions.send(question, in: id, allowTripHistory: true)
+                sessions.send(question, in: id, allowTripHistory: false)
             }
             sessions.showList()
             for screen in ["sessions", "session-chat", "session-empty", "sessions-records", "session-load-error"] {
@@ -1148,7 +1161,7 @@ extension AgentSessionTests {
             let sessions = AgentSessionStore(defaults: defaults())
             for question in DemoRecords.quickQuestions.prefix(2) {
                 let id = try XCTUnwrap(sessions.newConversation())
-                sessions.send(question, in: id, allowTripHistory: true)
+                sessions.send(question, in: id, allowTripHistory: false)
             }
             sessions.showList()
             let page = AgentSessionPage(sessions: sessions, settings: settings, keyboardVisible: false)
@@ -1193,6 +1206,7 @@ extension AgentSessionTests {
     @MainActor func testComposerAndSuggestionChipsAtRequiredSizes() async throws {
         let h = LayoutLineHarness.self
         let settings = CaregiverSettingsStore(defaults: isolatedDefaults())
+        settings.binding(\.allowAITripHistory).wrappedValue = false
         for size in [CGSize(width: 320, height: 568), CGSize(width: 390, height: 844), CGSize(width: 402, height: 874)] {
             let label = "\(Int(size.width))x\(Int(size.height))"
             let sessions = AgentSessionStore(defaults: isolatedDefaults())
@@ -1229,6 +1243,7 @@ extension AgentSessionTests {
     @MainActor func testChipAndTypedQuestionAskAlikeAndChipsNeverReturn() async throws {
         let h = LayoutLineHarness.self
         let settings = CaregiverSettingsStore(defaults: isolatedDefaults())
+        settings.binding(\.allowAITripHistory).wrappedValue = false
         let sessions = AgentSessionStore(defaults: isolatedDefaults())
         let size = CGSize(width: 390, height: 844)
         let chips = ["chat-suggestion-0", "chat-suggestion-1", "chat-suggestion-2"]
@@ -1263,7 +1278,7 @@ extension AgentSessionTests {
             }
             let chip = try XCTUnwrap(sessions.conversation(asked[0]))
             let typed = try XCTUnwrap(sessions.conversation(asked[1]))
-            XCTAssertEqual(chip.messages.map(\.text), [question, DemoRecords.answer(to: question)])
+            XCTAssertEqual(chip.messages.map(\.text), [question, "Trip history access is off. You can enable it in AI Settings."])
             XCTAssertEqual(chip.messages.map(\.text), typed.messages.map(\.text), "Chip and typed question get the same answer")
             XCTAssertEqual(chip.messages.map(\.fromCaregiver), [true, false])
             XCTAssertEqual(typed.messages.map(\.fromCaregiver), [true, false])
@@ -1633,6 +1648,7 @@ extension AgentSessionTests {
                        "Each chip shows the title its conversation gets")
         let f = TypeFloorHarness.self, h = LayoutLineHarness.self
         let settings = CaregiverSettingsStore(defaults: isolatedDefaults())
+        settings.binding(\.allowAITripHistory).wrappedValue = false
         for (index, suggestion) in AgentSuggestion.all.enumerated() {
             let sessions = AgentSessionStore(defaults: isolatedDefaults())
             let id = try XCTUnwrap(sessions.newConversation())
@@ -1653,7 +1669,7 @@ extension AgentSessionTests {
                 try await Task.sleep(for: .milliseconds(200))
             }
             let conversation = try XCTUnwrap(sessions.conversation(id))
-            XCTAssertEqual(conversation.messages.map(\.text), [suggestion.question, DemoRecords.answer(to: suggestion.question)],
+            XCTAssertEqual(conversation.messages.map(\.text), [suggestion.question, "Trip history access is off. You can enable it in AI Settings."],
                            "Chip \(index) asks the full question and gets its demo answer")
             XCTAssertEqual(conversation.title, suggestion.topic)
             XCTAssertEqual(conversation.title, AgentConversationTitle.make(from: suggestion.question))
@@ -1667,12 +1683,13 @@ extension AgentSessionTests {
     @MainActor func testAgentPagesMeetTextSizeFloor() async throws {
         let f = TypeFloorHarness.self, h = LayoutLineHarness.self
         let settings = CaregiverSettingsStore(defaults: isolatedDefaults())
+        settings.binding(\.allowAITripHistory).wrappedValue = false
         for size in f.sizes {
             for type in f.types {
                 let sessions = AgentSessionStore(defaults: isolatedDefaults())
                 for question in DemoRecords.quickQuestions + ["How can I better understand these recent changes in outdoor movement?"] {
                     let id = try XCTUnwrap(sessions.newConversation())
-                    sessions.send(question, in: id, allowTripHistory: true)
+                    sessions.send(question, in: id, allowTripHistory: false)
                 }
                 sessions.showList()
                 let list = f.label("agent list", size, type)

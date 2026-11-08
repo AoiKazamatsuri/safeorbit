@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A04000000000000000000001 /* SafeOrbit/AgentChatAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A04000000000000000000002 /* SafeOrbit/AgentChatAPI.swift */; };
 		07847ED970BE051D143FB891 /* SafeOrbit/OnboardingAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38AD48EA6F376F2130580E69 /* SafeOrbit/OnboardingAPI.swift */; };
 		09A74B74C46451ABC6862DE0 /* SafeOrbit/ServerConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366EE99968210FA8F05B566B /* SafeOrbit/ServerConfiguration.swift */; };
 		2EDE6AA1E01EF56672EBA75A /* SafeOrbit/DemoDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70F4B636EE370F894300C48F /* SafeOrbit/DemoDevice.swift */; };
@@ -70,6 +71,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A04000000000000000000002 /* SafeOrbit/AgentChatAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/AgentChatAPI.swift; sourceTree = "<group>"; };
 		0ACB9C79C3916CFE444EAF9A /* SafeOrbit/SpeechInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/SpeechInput.swift; sourceTree = "<group>"; };
 		2079A8DCA3FF92477242FE6F /* SafeOrbit/CaregiverChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/CaregiverChrome.swift; sourceTree = "<group>"; };
 		2089A105658F9DA1C0E2CDAD /* SafeOrbit/SafeZoneSelectionMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/SafeZoneSelectionMap.swift; sourceTree = "<group>"; };
@@ -178,6 +180,7 @@
 				DA53952549CDCA05340C60F9 /* SafeOrbit/RecordsUI.swift */,
 				7DEA7FFA864492BF25BFFF59 /* SafeOrbit/RecordsAPI.swift */,
 				BB4F603B5486041FEBA35ACC /* SafeOrbit/AgentChatUI.swift */,
+				A04000000000000000000002 /* SafeOrbit/AgentChatAPI.swift */,
 				0ACB9C79C3916CFE444EAF9A /* SafeOrbit/SpeechInput.swift */,
 				7BD09487CE4893D666662F67 /* SafeOrbitTests/SettingsTests.swift */,
 				4992F8DC7C6767DCEFBBF16C /* SafeOrbit/CaregiverSettings.swift */,
@@ -360,6 +363,7 @@
 				BF5EE4F8FAF460EEDC28CC18 /* SafeOrbit/RecordsUI.swift in Sources */,
 				9C0730426E23488122881C39 /* SafeOrbit/RecordsAPI.swift in Sources */,
 				321A60DCBB9E709B352A2238 /* SafeOrbit/AgentChatUI.swift in Sources */,
+				A04000000000000000000001 /* SafeOrbit/AgentChatAPI.swift in Sources */,
 				28253C904530F4D2D868CCA0 /* SafeOrbit/SpeechInput.swift in Sources */,
 				EE0077FD6325A34EFB34060B /* SafeOrbit/CaregiverSettings.swift in Sources */,
 				3D269921683A45E5ADBD5041 /* TrendDeviationChart.swift in Sources */,

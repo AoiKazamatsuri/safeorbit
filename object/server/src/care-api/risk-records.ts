@@ -153,8 +153,8 @@ export class RiskRecords {
     return { touched };
   }
 
-  async saveExplanation(eventId: string, text: string): Promise<void> {
-    await this.db.query('UPDATE risk_events SET explanation = $2 WHERE id = $1', [eventId, text]);
+  async saveExplanation(eventId: string, text: string, expectedVersion?: number, expectedText?: string): Promise<void> {
+    await this.db.query('UPDATE risk_events SET explanation = $2 WHERE id = $1 AND ($3::integer IS NULL OR version = $3) AND ($4::text IS NULL OR explanation = $4)', [eventId, text, expectedVersion ?? null, expectedText ?? null]);
   }
 
   async latestNavigation(eventId: string): Promise<{ id: string; seq: number; status: string; expiresAt: Date | null } | null> {

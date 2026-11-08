@@ -141,34 +141,7 @@ enum DemoRecords {
         "Has unusual movement increased?"
     ]
 
-    static func answer(to question: String, allowTripHistory: Bool = true) -> String {
-        let text = question.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let chinese = text.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) }
-        guard allowTripHistory else {
-            return chinese ? "已关闭 AI 使用出行记录。可以在 AI 设置中开启。" : "Trip history access is off. You can enable it in AI Settings."
-        }
-        if text.contains("high-risk") || text.contains("high risk") || text.contains("走失") || text.contains("高风险") {
-            guard let latest = trips.filter({ $0.risk == .high }).max(by: { $0.date < $1.date }) else {
-                return chinese ? "演示回答：样例记录中没有高风险出行。" : "Demo answer: No high-risk trip appears in the sample records."
-            }
-            if chinese {
-                return "演示回答：最近一次高风险出行是 2026 年 8 月 \(latest.day) 日；发生 \(latest.deviations) 次路线偏离和 \(latest.calls) 次家属通话，出行 \(latest.durationMinutes) 分钟后回到家。"
-            }
-            return "Demo answer: The latest high-risk trip was on August \(latest.day), 2026. There \(latest.deviations == 1 ? "was 1 route deviation" : "were \(latest.deviations) route deviations") and \(latest.calls) caregiver call was started. The trip lasted \(latest.durationMinutes) minutes and ended at home."
-        }
-        if text.contains("deviation") || text.contains("偏离") {
-            let total = trips.filter { $0.month == 8 }.reduce(0) { $0 + $1.deviations }
-            if chinese { return "演示回答：2026 年 8 月 1 日至 31 日，样例记录中共有 \(total) 次路线偏离。" }
-            return "Demo answer: From August 1–31, 2026, the sample records contain \(total) route deviations."
-        }
-        if text.contains("unusual") || text.contains("wandering") || text.contains("徘徊") || text.contains("异常移动") {
-            let current = count(month: 8) { $0.unusualMovement }
-            let previous = count(month: 7) { $0.unusualMovement }
-            if chinese { return "演示回答：2026 年 8 月样例记录有 \(current) 次异常移动，7 月有 \(previous) 次。" }
-            return "Demo answer: Unusual movement appears \(current) times in August 2026, compared with \(previous) time in July 2026."
-        }
-        return chinese ? "现有样例记录无法核对这个问题的答案。新建会话时可以选择常用问题。" : "I don't have a verified answer for that question in the available sample records. Start a new conversation to pick a suggested question."
-    }
+
 }
 
 #if DEBUG

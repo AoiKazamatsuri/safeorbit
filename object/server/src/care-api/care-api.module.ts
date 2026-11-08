@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ChatQueries } from './chat-queries';
 import { CareEvents } from './care-events';
 import { CareStore } from './care-store';
 import {
@@ -13,7 +14,7 @@ import { RiskRecords } from './risk-records';
 
 @Module({
   controllers: [RecordsController, HealthController, DevicesController, SafeZonesController, LocationsController, RiskEventsController, OutreachController],
-  providers: [Records, DatabaseService, CareStore, RiskRecords, CareEvents, DeviceAuth],
-  exports: [Records, CareStore, RiskRecords, CareEvents],
+  providers: [ChatQueries, Records, DatabaseService, CareStore, RiskRecords, CareEvents, DeviceAuth],
+  exports: [ChatQueries, DeviceAuth, Records, CareStore, RiskRecords, CareEvents],
 })
 export class CareApiModule {}

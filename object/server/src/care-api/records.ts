@@ -23,7 +23,7 @@ export class Records {
         timezone: elder.timezone,
         trips: trips.map(r => ({ id: String(r.id), startedAt: r.started_at, endedAt: r.ended_at, startKnown: r.start_known, stops: r.stops })),
         risks: risks.map(r => ({ id: String(r.id), tripId: r.trip_id === null ? null : String(r.trip_id), openedAt: r.opened_at,
-          escalatedAt: r.escalated_at, resolvedAt: r.resolved_at, falseAlarm: r.false_alarm })),
+          escalatedAt: r.escalated_at, resolvedAt: r.resolved_at, falseAlarm: r.false_alarm, anomaly: r.anomaly, resolution: r.resolution })),
         observations: observations.map(r => ({ key: r.key, kind: r.kind, startedAt: r.started_at, riskEventId: r.risk_event_id === null ? null : String(r.risk_event_id) })),
         actions: actions.map(r => ({ id: String(r.id), riskEventId: String(r.risk_event_id), kind: r.kind, status: r.status,
           reason: r.reason, decidedAt: r.decided_at, resultAt: r.result_at })),

@@ -312,7 +312,7 @@ struct SettingsAIPage: View {
                     Toggle(isOn: settings.binding(\.allowAITripHistory)) {
                         SettingsLabel("Use trip history", systemImage: "clock.arrow.circlepath")
                     }.frame(minHeight: 44)
-                    SettingsNote(text: "Allow Agent to use sample trip records in answers. Turning this off clears the current chat.")
+                    SettingsNote(text: "Allow Agent to use trip records in answers. When off, questions stay on this phone and existing conversations are kept.")
                 }
             }
             SettingsSection("Voice input permissions") {

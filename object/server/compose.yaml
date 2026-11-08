@@ -28,6 +28,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-safeorbit}
       POSTGRES_USER: ${POSTGRES_USER:-safeorbit}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run node ../dev/setup-env.mjs first}
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      LLM_MODEL: ${LLM_MODEL:-qwen3.7-flash}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
       # Apple push (T38): ids from server/.env; the .p8 key file is mounted read-only. Without APNS_KEY_PATH an
       # empty /dev/null is mounted and the server records notifications as not configured.
       APNS_KEY_PATH: ${APNS_KEY_PATH:+/run/secrets/apns-key.p8}

@@ -8,3 +8,6 @@ export {
   RiskEventRecord, RiskRecords, RiskWrite,
 } from '../risk-records';
 export { Records } from '../records';
+
+export { DeviceAuth } from '../device-auth';
+export { ChatQueries, ChatQuery, Citation, QueryResult } from '../chat-queries';

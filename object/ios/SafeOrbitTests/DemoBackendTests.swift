@@ -56,6 +56,31 @@ final class DemoBackendTests: XCTestCase {
         XCTAssertEqual(device.installationID, registrations[0]["installationId"])
     }
 
+    @MainActor func testAgentChatUsesCaregiverTokenAndRetriesExpiredRegistration() async throws {
+        var registrations = 0, chats = 0
+        StubURLProtocol.handler = { request in
+            if request.url?.path == "/v1/devices" {
+                registrations += 1
+                return (200, Self.registration("cg-\(registrations)", role: "caregiver"))
+            }
+            XCTAssertEqual(request.url?.path, "/v1/agent/chat")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer cg-\(registrations)")
+            let body = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.body(of: request)) as? [String: Any])
+            XCTAssertEqual(body["question"] as? String, "What happened?")
+            XCTAssertEqual(body["language"] as? String, "en")
+            XCTAssertEqual(body["allowTripHistory"] as? Bool, true)
+            chats += 1
+            if chats == 1 { return (401, Data()) }
+            return (200, Data(#"{"outcome":"answered","paragraphs":["Verified"],"citations":[{"kind":"trip","id":"7","label":"Trip 7","date":"2026-10-01"}]}"#.utf8))
+        }
+        let client = AgentChatAPI(device: DemoDevice(role: .caregiver, api: api, defaults: defaults))
+        let response = try await client.ask("What happened?", language: "en")
+        XCTAssertEqual(response.citations.first?.id, "7")
+        XCTAssertEqual(registrations, 2)
+        XCTAssertEqual(chats, 2)
+    }
+
     @MainActor func testCaregiverPageLoadsTheHouseholdAndLiveLocation() async throws {
         var paths: [String] = []
         StubURLProtocol.handler = { request in

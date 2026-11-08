@@ -7,6 +7,7 @@ import { InputError } from './validation';
 // The common read model for calendar, trends, details and future read-only conversation tools.
 export interface RecordRisk {
   id: string; tripId: string | null; openedAt: Date; escalatedAt: Date | null; resolvedAt: Date | null; falseAlarm: boolean;
+  anomaly?: AnomalyValue; resolution?: 'home' | 'met' | null;
 }
 export interface RecordObservation { key: string; kind: AnomalyValue; startedAt: Date; riskEventId: string | null }
 export interface RecordAction { id: string; riskEventId: string; kind: string; status: string; reason: string | null; decidedAt: Date; resultAt: Date | null }
