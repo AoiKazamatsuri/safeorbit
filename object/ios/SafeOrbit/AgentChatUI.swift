@@ -7,6 +7,10 @@ struct AgentMessage: Codable, Identifiable, Equatable {
     let createdAt: Date
     var citations: [AgentCitation]? = nil
     var failed: Bool? = nil
+    var generalExchange: [AgentHistoryEntry]? = nil
+    var recordContext: [AgentRecordQuery]? = nil
+    var localRequests: [AgentLocalRequest]? = nil
+    var language: String? = nil
 }
 
 struct AgentConversation: Codable, Identifiable, Equatable {
@@ -15,6 +19,89 @@ struct AgentConversation: Codable, Identifiable, Equatable {
     let createdAt: Date
     var updatedAt: Date
     var messages: [AgentMessage]
+}
+
+enum AgentDestination: String, Identifiable {
+    case locationMap, safeZonesMap, tripRecords, riskRecords
+
+    var id: String { rawValue }
+
+    func title(language: String) -> String {
+        switch self {
+        case .locationMap: language == "zh" ? "打开位置地图" : "Open location map"
+        case .safeZonesMap: language == "zh" ? "查看安全区" : "View safe zones"
+        case .tripRecords: language == "zh" ? "查看出行记录" : "View trip records"
+        case .riskRecords: language == "zh" ? "查看风险统计" : "View risk statistics"
+        }
+    }
+}
+
+enum AgentLocalRequest: String, Codable {
+    case seniorAge, seniorProfile, caregiverProfile, familyMembers, emergencyContacts, settings
+    case locationMap, safeZonesMap, tripRecords, riskRecords
+
+    var destination: AgentDestination? { AgentDestination(rawValue: rawValue) }
+
+    static func allowed(_ requests: [String]?) -> [Self] {
+        var seen: Set<Self> = []
+        return (requests ?? []).compactMap(Self.init(rawValue:)).filter { seen.insert($0).inserted }
+    }
+
+    static func accessOff(language: String) -> String {
+        language == "zh" ? "照护资料访问已关闭，可在 AI 设置中开启。" : "Care data access is off. You can enable it in AI Settings."
+    }
+
+    func text(from data: CaregiverSettingsData, language: String) -> String? {
+        let zh = language == "zh"
+        func field(_ label: String, _ value: String) -> String? {
+            value.isEmpty ? nil : label + (zh ? "：" : ": ") + value
+        }
+        func person(_ name: String, _ contact: String, _ relationship: String = "") -> String {
+            [name, relationship, contact].filter { !$0.isEmpty }.joined(separator: " · ")
+        }
+        func toggle(_ label: String, _ enabled: Bool) -> String {
+            field(label, enabled ? (zh ? "开启" : "On") : (zh ? "关闭" : "Off")) ?? label
+        }
+        switch self {
+        case .seniorAge:
+            return zh ? "未记录老人的年龄。" : "The senior’s age is not recorded."
+        case .seniorProfile:
+            return [
+                zh ? "老人资料" : "Senior profile",
+                field(zh ? "姓名" : "Name", data.senior.name),
+                field(zh ? "电话" : "Phone", data.senior.phone),
+                field(zh ? "与我的关系" : "Relationship to you", data.seniorRelationship)
+            ].compactMap { $0 }.joined(separator: "\n")
+        case .caregiverProfile:
+            return [
+                zh ? "家属资料" : "Caregiver profile",
+                field(zh ? "姓名" : "Name", data.caregiver.name),
+                field(zh ? "电话" : "Phone", data.caregiver.phone),
+                field(zh ? "邮箱" : "Email", data.caregiver.email)
+            ].compactMap { $0 }.joined(separator: "\n")
+        case .familyMembers:
+            let selfMember = person(data.caregiver.name, data.caregiver.phone)
+            let otherMembers = data.members.map { person($0.name, $0.phone, $0.relationship) }
+            return ([zh ? "家庭成员" : "Family members", selfMember] + otherMembers).joined(separator: "\n")
+        case .emergencyContacts:
+            guard !data.emergencyContacts.isEmpty else {
+                return zh ? "尚未添加紧急联系人。" : "No emergency contacts have been added."
+            }
+            return ([zh ? "紧急联系人" : "Emergency contacts"]
+                + data.emergencyContacts.map { person($0.name, $0.phone, $0.relationship) }).joined(separator: "\n")
+        case .settings:
+            return [
+                zh ? "当前设置" : "Current settings",
+                toggle(zh ? "照护资料访问" : "Care data access", data.allowAITripHistory),
+                toggle(zh ? "自动导航" : "Automatic navigation", data.autoNavigation),
+                toggle(zh ? "低风险通知" : "Low-risk notifications", data.lowRiskNotifications),
+                toggle(zh ? "风险解除通知" : "Recovery notifications", data.recoveryNotifications),
+                toggle(zh ? "监测受限通知" : "Limited monitoring notifications", data.limitedMonitoringNotifications)
+            ].joined(separator: "\n")
+        case .locationMap, .safeZonesMap, .tripRecords, .riskRecords:
+            return nil
+        }
+    }
 }
 
 enum AgentConversationTitle {
@@ -54,12 +141,18 @@ struct AgentSuggestion: Equatable {
     private var emptySessions: [UUID: AgentConversation] = [:]
     private let defaults: UserDefaults
     private let service: (any AgentChatServing)?
+    private let settings: CaregiverSettingsStore?
+    private let additionalPrivacyValues: () -> (names: [String], otherValues: [String])
     @Published private(set) var pending: Set<UUID> = []
     private let now: () -> Date
 
-    init(defaults: UserDefaults = .standard, now: @escaping () -> Date = Date.init, service: (any AgentChatServing)? = nil) {
+    init(defaults: UserDefaults = .standard, now: @escaping () -> Date = Date.init,
+         service: (any AgentChatServing)? = nil, settings: CaregiverSettingsStore? = nil,
+         additionalPrivacyValues: @escaping () -> (names: [String], otherValues: [String]) = { ([], []) }) {
         self.defaults = defaults
         self.service = service
+        self.settings = settings
+        self.additionalPrivacyValues = additionalPrivacyValues
         self.now = now
         retryLoading()
     }
@@ -96,7 +189,8 @@ struct AgentSuggestion: Equatable {
         guard storageError == nil, !text.isEmpty, text.utf16.count <= 1000, !pending.contains(id), var session = conversation(id) else { return false }
         let date = now()
         if session.messages.isEmpty { session.title = AgentConversationTitle.make(from: text) }
-        let message = AgentMessage(id: UUID(), fromCaregiver: true, text: text, createdAt: date)
+        let message = AgentMessage(id: UUID(), fromCaregiver: true, text: text, createdAt: date,
+                                   language: Self.language(for: text))
         session.messages.append(message)
         session.updatedAt = date
         guard save(session) else { return false }
@@ -117,44 +211,110 @@ struct AgentSuggestion: Equatable {
         return true
     }
     private func request(_ message: AgentMessage, in id: UUID, allowTripHistory: Bool) {
-        let language = message.text.unicodeScalars.contains { (0x3400...0x9FFF).contains($0.value) } ? "zh" : "en"
-        if !allowTripHistory {
-            let text = language == "zh" ? "已关闭 AI 使用出行记录。可以在 AI 设置中开启。" : "Trip history access is off. You can enable it in AI Settings."
-            let answer = AgentMessage(id: UUID(), fromCaregiver: false, text: text, createdAt: now())
-            _ = saveAnswer(answer, after: message.id, in: id)
-            return
-        }
+        guard let messages = conversation(id)?.messages else { return }
+        guard let service else { markFailed(message.id, in: id); return }
+        let language = message.language ?? Self.language(for: message.text)
+        let allowRecords = allowTripHistory && settings?.data.allowAITripHistory != false
+        let filter = privacyFilter()
+        let safeText = filter.redact(message.text).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !safeText.isEmpty else { markFailed(message.id, in: id); return }
+        let priorMessages = messages.prefix { $0.id != message.id }
+        let history = Self.history(from: priorMessages, filter: filter)
+        let recordContext = allowRecords
+            ? priorMessages.reversed().compactMap(\.recordContext).first(where: { !$0.isEmpty }) : nil
+        let question = AgentQuestion(question: String(decoding: safeText.utf16.prefix(1000), as: UTF16.self), language: language,
+                                     allowTripHistory: allowRecords, history: history.isEmpty ? nil : history,
+                                     recordContext: recordContext.map { Array($0.prefix(3)) })
         pending.insert(id)
         Task { @MainActor in
             defer { pending.remove(id) }
             do {
-                guard let service else { throw APIError(kind: .unavailable) }
-                let response = try await service.ask(message.text, language: language)
-                guard !response.paragraphs.isEmpty else { throw APIError(kind: .other) }
+                let response = try await service.ask(question)
+                let stillAllowed = allowRecords && settings?.data.allowAITripHistory != false
+                let hasPrivateContent = response.outcome == "answered" || !response.citations.isEmpty
+                    || response.localRequests?.isEmpty == false || response.recordContext?.isEmpty == false
+                let withhold = !stillAllowed && hasPrivateContent
+                let localRequests = stillAllowed ? AgentLocalRequest.allowed(response.localRequests) : []
+                let paragraphs = withhold ? [AgentLocalRequest.accessOff(language: language)] : response.paragraphs
+                guard !paragraphs.isEmpty || !localRequests.isEmpty else { throw APIError(kind: .other) }
+                let citations = withhold ? [] : response.citations
+                let retryable = !withhold && response.retryable == true
+                let general = response.outcome == "general" && !hasPrivateContent && !retryable
+                let answerText = paragraphs.joined(separator: "\n\n")
+                let exchange = general ? [
+                    AgentHistoryEntry(role: .user, text: question.question),
+                    AgentHistoryEntry(role: .assistant, text: privacyFilter().redact(filter.redact(answerText)))
+                ] : nil
+                let context = stillAllowed ? response.recordContext.map { Array($0.prefix(3)) } : nil
                 let answer = AgentMessage(id: UUID(), fromCaregiver: false,
-                                          text: response.paragraphs.joined(separator: "\n\n"),
-                                          createdAt: now(), citations: response.citations)
-                if response.paragraphs.count > 1 { revealing[answer.id] = response.paragraphs[0] }
-                guard saveAnswer(answer, after: message.id, in: id) else { revealing[answer.id] = nil; return }
-                for index in 1..<response.paragraphs.count {
+                                          text: answerText, createdAt: now(), citations: citations,
+                                          generalExchange: exchange, recordContext: context,
+                                          localRequests: localRequests.isEmpty ? nil : localRequests, language: language)
+                if paragraphs.count > 1 { revealing[answer.id] = paragraphs[0] }
+                guard saveAnswer(answer, after: message.id, in: id, retryable: retryable) else {
+                    revealing[answer.id] = nil
+                    return
+                }
+                for index in paragraphs.indices.dropFirst() {
                     try? await Task.sleep(for: .milliseconds(250))
                     guard conversation(id) != nil else { revealing[answer.id] = nil; return }
-                    revealing[answer.id] = response.paragraphs.prefix(index + 1).joined(separator: "\n\n")
+                    revealing[answer.id] = paragraphs.prefix(index + 1).joined(separator: "\n\n")
                 }
                 revealing[answer.id] = nil
             } catch {
-                guard var session = conversation(id), let index = session.messages.firstIndex(where: { $0.id == message.id }) else { return }
-                session.messages[index].failed = true
-                _ = save(session)
+                markFailed(message.id, in: id)
             }
         }
     }
-    private func saveAnswer(_ answer: AgentMessage, after questionID: UUID, in id: UUID) -> Bool {
+    private func markFailed(_ questionID: UUID, in id: UUID) {
+        guard var session = conversation(id), let index = session.messages.firstIndex(where: { $0.id == questionID }) else { return }
+        session.messages[index].failed = true
+        _ = save(session)
+    }
+    private func saveAnswer(_ answer: AgentMessage, after questionID: UUID, in id: UUID, retryable: Bool) -> Bool {
         guard var session = conversation(id),
               let index = session.messages.firstIndex(where: { $0.id == questionID }) else { return false }
-        session.messages[index].failed = nil
-        session.messages.insert(answer, at: index + 1)
+        session.messages[index].failed = retryable ? true : nil
+        let replyIndex = index + 1
+        if session.messages.indices.contains(replyIndex), !session.messages[replyIndex].fromCaregiver {
+            session.messages[replyIndex] = answer
+        } else {
+            session.messages.insert(answer, at: replyIndex)
+        }
         return save(session)
+    }
+
+    private func privacyFilter() -> AgentPrivacyFilter {
+        let data = settings?.data ?? CaregiverSettingsData()
+        let more = additionalPrivacyValues()
+        return AgentPrivacyFilter(
+            names: [data.caregiver.name, data.senior.name, data.senior.callName] + data.members.map(\.name)
+                + data.emergencyContacts.map(\.name) + more.names,
+            otherValues: [data.caregiver.phone, data.caregiver.email, data.senior.phone, data.seniorRelationship]
+                + data.members.flatMap { [$0.phone, $0.relationship] }
+                + data.emergencyContacts.flatMap { [$0.phone, $0.relationship] } + more.otherValues)
+    }
+
+    private static func language(for text: String) -> String {
+        text.unicodeScalars.contains { (0x3400...0x9FFF).contains($0.value) } ? "zh" : "en"
+    }
+
+    private static func history(from messages: ArraySlice<AgentMessage>, filter: AgentPrivacyFilter) -> [AgentHistoryEntry] {
+        var entries: [AgentHistoryEntry] = []
+        var remaining = 4_000
+        for (question, answer) in zip(messages, messages.dropFirst()).reversed() {
+            guard question.fromCaregiver, question.failed != true, !answer.fromCaregiver,
+                  let exchange = answer.generalExchange, exchange.map(\.role) == [.user, .assistant] else { continue }
+            let user = filter.redact(exchange[0].text).trimmingCharacters(in: .whitespacesAndNewlines)
+            let assistant = filter.redact(exchange[1].text).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !user.isEmpty, !assistant.isEmpty, user.utf16.count < remaining else { break }
+            let boundedReply = String(decoding: assistant.utf16.prefix(remaining - user.utf16.count), as: UTF16.self)
+            entries.append(AgentHistoryEntry(role: .assistant, text: boundedReply))
+            entries.append(AgentHistoryEntry(role: .user, text: user))
+            remaining -= user.utf16.count + boundedReply.utf16.count
+            if entries.count == 8 || remaining == 0 { break }
+        }
+        return entries.reversed()
     }
     @discardableResult func delete(_ id: UUID) -> Bool {
         guard storageError == nil, sessions.contains(where: { $0.id == id }) else { return false }
@@ -208,6 +368,7 @@ struct AgentSessionPage: View {
     @ObservedObject var settings: CaregiverSettingsStore
     let keyboardVisible: Bool
     var isActive = true
+    var openDestination: (AgentDestination) -> Void = { _ in }
     @State private var pendingDelete: UUID?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -215,7 +376,8 @@ struct AgentSessionPage: View {
         Group {
             if let id = sessions.activeID, sessions.conversation(id) != nil {
                 AgentChatPage(keyboardVisible: keyboardVisible, settings: settings, sessions: sessions,
-                              sessionID: id, isActive: isActive, back: sessions.showList)
+                              sessionID: id, isActive: isActive, back: sessions.showList,
+                              openDestination: openDestination)
                     .id(id)
             } else {
                 list
@@ -303,6 +465,7 @@ struct AgentChatPage: View {
     @ObservedObject var sessions: AgentSessionStore
     let sessionID: UUID
     let back: () -> Void
+    let openDestination: (AgentDestination) -> Void
     @State private var dictationTask: Task<Void, Never>?
     private var draft: String { sessions.draft(for: sessionID) }
     private var draftBinding: Binding<String> { Binding(get: { draft }, set: { sessions.setDraft($0, for: sessionID) }) }
@@ -315,13 +478,15 @@ struct AgentChatPage: View {
 #endif
 
     @MainActor init(keyboardVisible: Bool, settings: CaregiverSettingsStore, sessions: AgentSessionStore,
-                    sessionID: UUID, isActive: Bool = true, back: @escaping () -> Void) {
+                    sessionID: UUID, isActive: Bool = true, back: @escaping () -> Void,
+                    openDestination: @escaping (AgentDestination) -> Void = { _ in }) {
         self.keyboardVisible = keyboardVisible
         self.isActive = isActive
         self.settings = settings
         self.sessions = sessions
         self.sessionID = sessionID
         self.back = back
+        self.openDestination = openDestination
     }
 
     var body: some View {
@@ -351,35 +516,8 @@ struct AgentChatPage: View {
                         ScrollView {
                             VStack(spacing: 28) {
                                 Color.clear.frame(height: 45)
-                                ForEach(lines) { line in
-                                    HStack {
-                                        if line.fromCaregiver { Spacer(minLength: 52) }
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            Text(sessions.displayedText(for: line))
-                                                .caregiverText()
-                                                .foregroundStyle(line.fromCaregiver ? .white : .black)
-                                                .padding(.horizontal, 16).padding(.vertical, 13)
-                                                .background(line.fromCaregiver ? OrbitStyle.teal : OrbitStyle.pale,
-                                                            in: RoundedRectangle(cornerRadius: 20))
-                                                .layoutProbe("chat-bubble-\(line.id)")
-                                                .frame(maxWidth: 315, alignment: line.fromCaregiver ? .trailing : .leading)
-                                                .accessibilityLabel(line.fromCaregiver ? "Your message: \(line.text)" : "Agent: \(sessions.displayedText(for: line))")
-                                            if let citations = line.citations, !citations.isEmpty, !sessions.isRevealing(line) {
-                                                ForEach(Array(citations.enumerated()), id: \.offset) { _, citation in
-                                                    Text([citation.label, citation.date, citation.startDate, citation.endDate].compactMap { $0 }.joined(separator: " · "))
-                                                        .caregiverText(.caption).foregroundStyle(.secondary)
-                                                }
-                                            }
-                                            if line.failed == true {
-                                                Button("Retry") { sessions.retry(line, in: sessionID, allowTripHistory: settings.data.allowAITripHistory) }
-                                                    .caregiverText(.caption).frame(minHeight: 44)
-                                                    .disabled(sessions.pending.contains(sessionID))
-                                                Text("Could not get an answer. Try again.").caregiverText(.caption)
-                                            }
-                                        }
-                                        if !line.fromCaregiver { Spacer(minLength: 30) }
-                                    }
-                                    .id(line.id)
+                                ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+                                    messageRow(line, index: index).id(line.id)
                                 }
                                 if showsSuggestions { suggestions }
                             }
@@ -438,6 +576,64 @@ struct AgentChatPage: View {
             }
         }
 #endif
+        }
+    }
+
+    private func messageRow(_ line: AgentMessage, index: Int) -> some View {
+        let revealing = sessions.isRevealing(line)
+        let language = line.language ?? "en"
+        let hasLocalRequests = line.localRequests?.isEmpty == false
+        let requests = !revealing && settings.data.allowAITripHistory ? line.localRequests ?? [] : []
+        let destinations = requests.compactMap(\.destination)
+        let localText = hasLocalRequests && !settings.data.allowAITripHistory
+            ? [AgentLocalRequest.accessOff(language: language)]
+            : requests.compactMap { $0.text(from: settings.data, language: language) }
+        let text = ([sessions.displayedText(for: line)] + localText).filter { !$0.isEmpty }.joined(separator: "\n\n")
+        return HStack {
+            if line.fromCaregiver { Spacer(minLength: 52) }
+            VStack(alignment: .leading, spacing: 8) {
+                if !text.isEmpty {
+                    Text(text)
+                        .caregiverText()
+                        .foregroundStyle(line.fromCaregiver ? .white : .black)
+                        .padding(.horizontal, 16).padding(.vertical, 13)
+                        .background(line.fromCaregiver ? OrbitStyle.teal : OrbitStyle.pale,
+                                    in: RoundedRectangle(cornerRadius: 20))
+                        .layoutProbe("chat-bubble-\(line.id)")
+                        .frame(maxWidth: 315, alignment: line.fromCaregiver ? .trailing : .leading)
+                        .accessibilityLabel(line.fromCaregiver ? "Your message: \(text)" : "Agent: \(text)")
+                }
+                if !revealing, let citations = line.citations {
+                    ForEach(Array(citations.enumerated()), id: \.offset) { _, citation in
+                        Text([citation.label, citation.date, citation.startDate, citation.endDate].compactMap { $0 }.joined(separator: " · "))
+                            .caregiverText(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                ForEach(destinations) { destination in
+                    Button {
+                        stopInput()
+                        openDestination(destination)
+                    } label: {
+                        Label(destination.title(language: language), systemImage: "arrow.up.right.square")
+                            .caregiverText().frame(minHeight: 44)
+                    }
+                    .foregroundStyle(OrbitStyle.teal)
+                    .layoutProbe("chat-destination-\(destination.rawValue)")
+                }
+                if line.failed == true {
+                    let hasPartialReply = lines.indices.contains(index + 1) && !lines[index + 1].fromCaregiver
+                    Button(language == "zh" ? "重试" : "Retry") {
+                        sessions.retry(line, in: sessionID, allowTripHistory: settings.data.allowAITripHistory)
+                    }
+                    .caregiverText(.caption).frame(minHeight: 44)
+                    .disabled(sessions.pending.contains(sessionID))
+                    Text(hasPartialReply
+                         ? (language == "zh" ? "部分资料暂不可用，可重试。" : "Some information is unavailable. Try again.")
+                         : (language == "zh" ? "暂时无法回答，请重试。" : "Could not get an answer. Try again."))
+                        .caregiverText(.caption)
+                }
+            }
+            if !line.fromCaregiver { Spacer(minLength: 30) }
         }
     }
 

@@ -147,8 +147,8 @@ struct CaregiverTabBar: View {
 struct CaregiverHomePage: View {
     @ObservedObject var store: OnboardingStore
     let chooseRole: (() -> Void)?
-    @StateObject private var zoneStore = SafeZoneSessionStore()
-    @StateObject private var settingsStore = CaregiverSettingsStore()
+    @StateObject private var zoneStore: SafeZoneSessionStore
+    @StateObject private var settingsStore: CaregiverSettingsStore
     @StateObject private var agentSessions: AgentSessionStore
     @State private var selectedSettings: CaregiverSettingsGroup?
     @State private var tab: CaregiverTab = .location
@@ -156,6 +156,7 @@ struct CaregiverHomePage: View {
     @State private var showingSettings: Bool
     @State private var keyboardVisible = false
     @State private var recordsDetailPresented = false
+    @State private var agentRecordsSection: RecordsSection?
     @State private var zoneEditorPresented = false
     @State private var selectedRiskEvent: RiskEventSelection?
     @State private var settingsSync: CaregiverSettingsSync?
@@ -163,7 +164,19 @@ struct CaregiverHomePage: View {
     @Environment(\.scenePhase) private var scenePhase
     init(store: OnboardingStore, settingsInitiallyOpen: Bool = false, chooseRole: (() -> Void)? = nil) {
         self.store = store
-        _agentSessions = StateObject(wrappedValue: AgentSessionStore(service: store.device.map { AgentChatAPI(device: $0) }))
+        let settings = CaregiverSettingsStore()
+        let zones = SafeZoneSessionStore()
+        _settingsStore = StateObject(wrappedValue: settings)
+        _zoneStore = StateObject(wrappedValue: zones)
+        _agentSessions = StateObject(wrappedValue: AgentSessionStore(
+            service: store.device.map { AgentChatAPI(device: $0) }, settings: settings,
+            additionalPrivacyValues: {
+                let names = [store.elder.name, store.elder.callName]
+                let addresses = [store.location?.address].compactMap { $0 }
+                let zoneNames = zones.visibleZones(in: store.location).map(\.name)
+                    .filter { SafeZonePlaceTag.matching($0) == nil }
+                return (names, [store.elder.phone, store.caregiverPhone] + addresses + zoneNames)
+            }))
         self.chooseRole = chooseRole
         _showingSettings = State(initialValue: settingsInitiallyOpen)
         #if targetEnvironment(simulator)
@@ -205,6 +218,22 @@ struct CaregiverHomePage: View {
     private func setSettings(_ open: Bool) {
         showingSettings = open
     }
+    private func openAgentDestination(_ destination: AgentDestination) {
+        guard settingsStore.data.allowAITripHistory else { return }
+        switch destination {
+        case .locationMap:
+            tab = .location
+            Task { await store.refreshLocation() }
+        case .safeZonesMap:
+            selectedSettings = .zones
+        case .tripRecords:
+            tab = .records
+            agentRecordsSection = .data
+        case .riskRecords:
+            tab = .records
+            agentRecordsSection = .trend
+        }
+    }
     var body: some View {
         ZStack {
             ZStack {
@@ -220,7 +249,9 @@ struct CaregiverHomePage: View {
                     .allowsHitTesting(tab == .location)
                     .accessibilityElement(children: tab == .location ? .contain : .ignore)
                     .accessibilityHidden(tab != .location)
-                AgentSessionPage(sessions: agentSessions, settings: settingsStore, keyboardVisible: keyboardVisible, isActive: tab == .agent && !showingSettings && selectedSettings == nil)
+                AgentSessionPage(sessions: agentSessions, settings: settingsStore, keyboardVisible: keyboardVisible,
+                                 isActive: tab == .agent && !showingSettings && selectedSettings == nil,
+                                 openDestination: openAgentDestination)
                     .opacity(tab == .agent ? 1 : 0)
                     .allowsHitTesting(tab == .agent)
                     .accessibilityElement(children: tab == .agent ? .contain : .ignore)
@@ -228,13 +259,16 @@ struct CaregiverHomePage: View {
                 Group {
 #if DEBUG
                     if store.previewSession {
-                        RecordsPage(onDetailPresentationChanged: { recordsDetailPresented = $0 })
+                        RecordsPage(requestedSection: $agentRecordsSection,
+                                    onDetailPresentationChanged: { recordsDetailPresented = $0 })
                     } else {
                         RecordsPage(device: store.device, isActive: tab == .records,
+                                    requestedSection: $agentRecordsSection,
                                     onDetailPresentationChanged: { recordsDetailPresented = $0 })
                     }
 #else
                     RecordsPage(device: store.device, isActive: tab == .records,
+                                requestedSection: $agentRecordsSection,
                                 onDetailPresentationChanged: { recordsDetailPresented = $0 })
 #endif
                 }

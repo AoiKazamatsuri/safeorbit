@@ -498,7 +498,7 @@ extension SettingsTests {
         let pages: [(AnyView, String, [String], [String])] = [
             (group(.people), "Profiles & Family", ["Account Settings", "Senior Profile", "Family Members"],
              ["Add family member", "Add emergency contact"]),
-            (group(.ai), "AI Settings", ["Data use", "Voice input permissions"], ["Use trip history", "Microphone", "Speech recognition"]),
+            (group(.ai), "AI Settings", ["Data use", "Voice input permissions"], ["Use care data", "Microphone", "Speech recognition"]),
             (group(.navigation), "Navigation Settings", [], ["Automatic voice navigation"]),
             (group(.notifications), "Notifications", [], ["Low-risk alerts", "Safe return & recovery", "Monitoring limited", "High-risk alerts"]),
             (group(.zones), "Safe Zones", [], ["Add safe zone"]),

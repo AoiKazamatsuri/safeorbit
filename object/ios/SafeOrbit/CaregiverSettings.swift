@@ -310,9 +310,9 @@ struct SettingsAIPage: View {
             SettingsSection("Data use") {
                 SettingsCard {
                     Toggle(isOn: settings.binding(\.allowAITripHistory)) {
-                        SettingsLabel("Use trip history", systemImage: "clock.arrow.circlepath")
+                        SettingsLabel("Use care data", systemImage: "clock.arrow.circlepath")
                     }.frame(minHeight: 44)
-                    SettingsNote(text: "Allow Agent to use trip records in answers. When off, questions stay on this phone and existing conversations are kept.")
+                    SettingsNote(text: String(localized: "Allow the Assistant to use care records and phone settings in answers. Everyday chat is still available when care data access is off."))
                 }
             }
             SettingsSection("Voice input permissions") {

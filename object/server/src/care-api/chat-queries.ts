@@ -3,7 +3,7 @@ import { CareStore } from './care-store';
 import { Records } from './records';
 import { addDays, buildTrends, localDate, monthAfter, summarizeTrip } from './records-view';
 
-export type ChatQuery = { kind: 'current' | 'events' | 'trip' | 'compare'; id?: string; month?: string; from?: string; to?: string; level?: 'warning' | 'high'; latest?: boolean };
+export type ChatQuery = { kind: 'current' | 'events' | 'trip' | 'compare' | 'riskCount' | 'safeZones' | 'activity'; id?: string; month?: string; from?: string; to?: string; level?: 'warning' | 'high'; latest?: boolean };
 export interface Citation { kind: 'riskEvent' | 'trip' | 'statistic'; id: string; label: string; date?: string; startDate?: string; endDate?: string }
 export interface QueryResult { facts: unknown; citations: Citation[]; evidence?: Record<string, unknown> }
 
@@ -16,16 +16,24 @@ export class ChatQueries {
   async run(elderId: number, query: ChatQuery, now = new Date()): Promise<QueryResult> {
     const data = await this.records.data(elderId);
     const today = localDate(now, data.timezone);
+    if (query.kind === 'safeZones') {
+      const zones = await this.store.safeZones(elderId);
+      const facts = { count: zones.length, hasHome: zones.some(z => z.isHome) };
+      return { facts, citations: [{ kind: 'statistic', id: 'safe-zones', label: 'Configured safe zones', startDate: today, endDate: today }] };
+    }
     if (query.kind === 'current') {
       const risk = [...data.risks].reverse().find(r => !r.falseAlarm && !r.resolvedAt);
       const trip = [...data.trips].reverse().find(t => !t.endedAt);
-      const tracker = await this.store.tracker(elderId);
-      if (!tracker?.processedThrough) return { facts: null, citations: [] };
-      const date = localDate(tracker.processedThrough, data.timezone);
+      const [tracker, [latest]] = await Promise.all([this.store.tracker(elderId), this.store.latestPoints(elderId, 1)]);
+      if (!latest) return { facts: null, citations: [] };
+      const date = localDate(latest.sampledAt, data.timezone);
+      const time = new Intl.DateTimeFormat('en-GB', { timeZone: data.timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(latest.sampledAt);
       const activeRisk = risk ? { id: risk.id, date: localDate(risk.openedAt, data.timezone), level: risk.escalatedAt ? 'high' : 'warning' } : null;
       const activeTrip = trip ? { id: trip.id, date: localDate(trip.startedAt, data.timezone) } : null;
-      const status = { lastRecordedDate: date, phase: tracker.phase, historyReplay: tracker.historyReplay === true,
-        olderThanFiveMinutes: now.getTime() - tracker.processedThrough.getTime() > 300_000,
+      const status = { lastRecordedDate: date, lastRecordedTime: time,
+        phase: tracker?.processedThrough?.getTime() === latest.sampledAt.getTime() ? tracker.phase : null,
+        historyReplay: latest.historyReplay === true,
+        olderThanFiveMinutes: now.getTime() - latest.sampledAt.getTime() > 300_000,
         hasActiveRisk: activeRisk !== null, hasActiveTrip: activeTrip !== null };
       const citations: Citation[] = [{ kind: 'statistic', id: `current-${date}`, label: 'Last recorded status', startDate: date, endDate: date }];
       const evidence: Record<string, unknown> = { [`statistic:current-${date}`]: status };
@@ -39,21 +47,36 @@ export class ChatQueries {
       }
       return { facts: { status, activeRisk, activeTrip }, citations, evidence };
     }
-    if (query.kind === 'events') {
+    if (query.kind === 'events' || query.kind === 'riskCount' || query.kind === 'activity') {
+      const to = query.to ?? (query.kind === 'riskCount' ? today : undefined);
       const risks = data.risks.filter(r => {
         const date = localDate(query.level === 'high' && r.escalatedAt ? r.escalatedAt : r.openedAt, data.timezone);
         return !r.falseAlarm && (!query.level || query.level === (r.escalatedAt ? 'high' : 'warning'))
-          && (!query.from || date >= query.from) && (!query.to || date <= query.to);
-      }).slice(query.latest ? -1 : -20).reverse();
-      const facts = risks.map(r => ({
+          && (!query.from || date >= query.from) && (!to || date <= to);
+      });
+      if (query.kind === 'riskCount') {
+        const startDate = query.from ?? [data.trips[0]?.startedAt, risks[0]?.openedAt]
+          .flatMap(at => at ? [localDate(at, data.timezone)] : []).sort()[0] ?? query.to ?? today;
+        const endDate = query.to ?? today;
+        const rangeStart = startDate > endDate ? endDate : startDate;
+        const facts = { count: risks.length, startDate: rangeStart, endDate, level: query.level ?? null };
+        const id = query.from || query.to || query.level ? `risk-count-${query.level ?? 'all'}-${rangeStart}-${endDate}` : 'risk-count';
+        return { facts, citations: [{ kind: 'statistic', id, label: 'Risk event count', startDate: rangeStart, endDate }] };
+      }
+      const selected = (query.id ? risks.filter(r => r.id === query.id) : risks).slice(query.latest ? -1 : -20).reverse();
+      const facts = selected.map(r => ({
         id: r.id, date: localDate(r.openedAt, data.timezone), level: r.escalatedAt ? 'high' : 'warning',
         escalatedDate: r.escalatedAt ? localDate(r.escalatedAt, data.timezone) : null,
         resolvedDate: r.resolvedAt ? localDate(r.resolvedAt, data.timezone) : null,
         anomaly: r.anomaly, resolution: r.resolution,
-        actions: data.actions.filter(a => a.riskEventId === r.id).map(a => ({ kind: a.kind, status: a.status })),
+        actions: data.actions.filter(a => a.riskEventId === r.id).map(a => ({
+          kind: a.kind, status: a.status, decidedDate: localDate(a.decidedAt, data.timezone),
+          resultDate: a.resultAt ? localDate(a.resultAt, data.timezone) : null,
+        })),
+        ...(query.kind === 'activity' ? { callCount: data.calls.filter(c => c.riskEventId === r.id).length } : {}),
         anomalies: data.observations.filter(o => o.riskEventId === r.id).map(o => o.kind),
       }));
-      return { facts, citations: risks.map(r => ({ kind: 'riskEvent', id: r.id, date: localDate(r.openedAt, data.timezone), label: `Risk event ${r.id}` })),
+      return { facts, citations: selected.map(r => ({ kind: 'riskEvent', id: r.id, date: localDate(r.openedAt, data.timezone), label: `Risk event ${r.id}` })),
         evidence: Object.fromEntries(facts.map(f => [`riskEvent:${f.id}`, f])) };
     }
     if (query.kind === 'trip') {

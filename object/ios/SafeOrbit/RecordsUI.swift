@@ -2,7 +2,7 @@ import SwiftUI
 import MapKit
 import Charts
 
-private enum RecordsSection: String, CaseIterable {
+enum RecordsSection: String, CaseIterable {
     case trend = "Trend", data = "Data"
 }
 
@@ -17,6 +17,7 @@ struct RecordsPage: View {
     @Environment(\.recordsTestDriver) private var testDriver
 #endif
     @State private var section: RecordsSection = .data
+    @Binding private var requestedSection: RecordsSection?
     @StateObject private var store: RecordsStore
     @Environment(\.scenePhase) private var scenePhase
     let isActive: Bool
@@ -25,19 +26,23 @@ struct RecordsPage: View {
     let onDetailPresentationChanged: (Bool) -> Void
 
     init(device: DemoDevice?, isActive: Bool = true, showTrendInitially: Bool = false,
-         onLayout: (([String: CGRect]) -> Void)? = nil, onDetailPresentationChanged: @escaping (Bool) -> Void = { _ in }) {
+         requestedSection: Binding<RecordsSection?> = .constant(nil), onLayout: (([String: CGRect]) -> Void)? = nil,
+         onDetailPresentationChanged: @escaping (Bool) -> Void = { _ in }) {
         self.onLayout = onLayout
         self.onDetailPresentationChanged = onDetailPresentationChanged
         self.isActive = isActive
+        _requestedSection = requestedSection
         _section = State(initialValue: showTrendInitially ? .trend : .data)
         _store = StateObject(wrappedValue: RecordsStore(service: device.map { RecordsAPI(device: $0) },
             timezone: device?.household?.elder.timezone ?? "UTC"))
     }
 #if DEBUG
-    init(showTrendInitially: Bool = false, onLayout: (([String: CGRect]) -> Void)? = nil,
+    init(showTrendInitially: Bool = false, requestedSection: Binding<RecordsSection?> = .constant(nil),
+         onLayout: (([String: CGRect]) -> Void)? = nil,
          onDetailPresentationChanged: @escaping (Bool) -> Void = { _ in }) {
         self.onLayout = onLayout; self.onDetailPresentationChanged = onDetailPresentationChanged
         isActive = true
+        _requestedSection = requestedSection
         _section = State(initialValue: showTrendInitially ? .trend : .data)
         _store = StateObject(wrappedValue: .preview())
     }
@@ -80,6 +85,11 @@ struct RecordsPage: View {
         .background(Color.white.ignoresSafeArea(edges: .bottom))
         .coordinateSpace(name: "RecordsPage")
         .onPreferenceChange(RecordsFrames.self) { onLayout?($0) }
+        .onChange(of: requestedSection) { _, next in
+            guard let next else { return }
+            section = next
+            requestedSection = nil
+        }
         .task(id: store.queryKey + ":\(isActive):\(scenePhase == .active)") {
             guard isActive, scenePhase == .active else { return }
 #if DEBUG

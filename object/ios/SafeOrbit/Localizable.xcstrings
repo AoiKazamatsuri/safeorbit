@@ -107,6 +107,9 @@
     "Agree and continue" : {
 
     },
+    "Allow the Assistant to use care records and phone settings in answers. Everyday chat is still available when care data access is off." : {
+
+    },
     "Always on" : {
 
     },
@@ -630,7 +633,7 @@
     "Use at least 8 characters." : {
 
     },
-    "Use trip history" : {
+    "Use care data" : {
 
     },
     "View Less" : {

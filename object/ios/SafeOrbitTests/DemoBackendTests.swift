@@ -69,14 +69,17 @@ final class DemoBackendTests: XCTestCase {
             let body = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.body(of: request)) as? [String: Any])
             XCTAssertEqual(body["question"] as? String, "What happened?")
             XCTAssertEqual(body["language"] as? String, "en")
-            XCTAssertEqual(body["allowTripHistory"] as? Bool, true)
+            XCTAssertEqual(body["allowTripHistory"] as? Bool, false)
+            XCTAssertNil(body["recordContext"])
+            XCTAssertEqual(body["history"] as? [[String: String]], [["role": "user", "text": "Previous question"]])
             chats += 1
             if chats == 1 { return (401, Data()) }
-            return (200, Data(#"{"outcome":"answered","paragraphs":["Verified"],"citations":[{"kind":"trip","id":"7","label":"Trip 7","date":"2026-10-01"}]}"#.utf8))
+            return (200, Data(#"{"outcome":"general","paragraphs":["Verified"],"citations":[]}"#.utf8))
         }
         let client = AgentChatAPI(device: DemoDevice(role: .caregiver, api: api, defaults: defaults))
-        let response = try await client.ask("What happened?", language: "en")
-        XCTAssertEqual(response.citations.first?.id, "7")
+        let response = try await client.ask(AgentQuestion(question: "What happened?", language: "en", allowTripHistory: false,
+                                                          history: [AgentHistoryEntry(role: .user, text: "Previous question")]))
+        XCTAssertEqual(response.outcome, "general")
         XCTAssertEqual(registrations, 2)
         XCTAssertEqual(chats, 2)
     }

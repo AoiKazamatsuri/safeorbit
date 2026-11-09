@@ -1,31 +1,14 @@
 # 执行计划
 
-1. 用户已指定模型，确认本方案后开工。写账前 fetch 并比对远端记录，经队列工具修订、批准、领取。
-2. 领取后按根契约第 25 条，把 App 和后端共同使用的接口约定登记入执行计划。接口约定见下节。
-3. App 和后端按同一约定分别实现、用替身测试，合入后联调。
-4. 跑后端全套检查、iOS 全套测试、真机版本编译和模拟器实跑。本轮云端调用预算为 0；A2 等另行授权后实测。
-5. 记录实际完成内容与验证结果，同批提交并推送 main，交付后等待用户真机验收。
+1. 按当前用户授权修订 T40 范围，把共用接口约定写入执行计划。
+2. 后端和 App 同时按接口实现并用替身测试；更新对应产品和工程条文。
+3. 合入后跑全套检查并用现有演示数据在 App 验证。真实调用沿用百炼免费额度保护，费用上限为 0。
+4. 记录结果、同批提交并推送；保留用户验收环节。
 
+## App 与后端接口约定
 
-### App 与后端的接口约定
-
-- `POST /v1/agent/chat`。按现有方式携带家属设备令牌，老人手机无权调用。由照护接口决定可查询的老人，App 和大模型均不指定老人编号。
-- 每次传当前问题、回答语言和出行记录权限。问题去除首尾空白后须为 1–1000 字符，语言为 `zh` 或 `en`，权限须显式提供。示例请求：
-
-```json
-{"question":"上次高风险发生了什么？","language":"zh","allowTripHistory":true}
-```
-
-- 回复含已核对的段落与引用。下例的日期和编号仅用于展示格式：
-
-```json
-{
-  "outcome": "answered",
-  "paragraphs": ["2026-10-21，我记录到一次因持续徘徊而升为高风险的事件。"],
-  "citations": [{"kind":"riskEvent","id":"42","label":"高风险事件 42","date":"2026-10-21"}]
-}
-```
-
-- 引用的 kind 为 `riskEvent`、`trip` 或 `statistic`。各类均有字符串 id 与 label；事件和出行的 id 为记录编号，带 date；统计带 startDate、endDate 与指标标签，日期为 YYYY-MM-DD。模型只能从本次查询得到的引用中挑选，界面显示的引用由后端从查询结果构造。
-- 无可核对的依据、医疗问题或关闭出行记录时，分别用 `unverified`、`medicalBoundary`、`historyDisabled` 作为 outcome，返回对应语言的说明与空引用。关闭权限时 App 本地显示说明，后端收到该值也直接返回。
-- HTTP 400 表示问题格式有误，401 表示设备凭证失效，403 表示设备身份无权调用，503 表示服务暂不可用。App 复用现有设备流程；网络或服务失败时保留提问并显示重试入口。无新增推送与载荷。本任务只翻译问答内容和对应提示。
+- `POST /v1/agent/chat`，仅家属设备令牌，仍由后端确定老人身份。旧请求继续有效。新增可选 `history`，最多 8 条 `{role:"user"|"assistant",text}`，合计最多 4000 UTF-16 单元，客户端只选同一会话中已完成的通用聊天轮次。新增可选 `recordContext`，上次有效只读查询最多 3 个，关闭资料权限时省略；仅作为解释追问的线索，仍须重新查当前授权记录。
+- 请求示例 `{"question":"短一点","language":"zh","allowTripHistory":false,"history":[{"role":"user","text":"写一条感谢短信"},{"role":"assistant","text":"谢谢你今天来帮忙，辛苦了。"}]}`。请求中的用户文字与历史先移除已知个人值；后端再筛查明显凭据、联系方式、坐标和 URL。任何来源都不上传结构化手机资料。
+- 回复保留 `outcome`、`paragraphs`、`citations`。纯通用回复用 `general` 和空引用，可进入通用上下文。照护、设置、混合回复不得进入通用上下文。可选 `recordContext` 回传实际执行且有依据的只读查询；类型为 `{kind:"current"|"events"|"trip"|"compare"|"riskCount"|"safeZones"|"activity", id?,month?,from?,to?,level?:"high"|"warning",latest?:boolean}`。App 只保存此查询范围供追问。
+- 可选 `localRequests` 仅允许 `seniorAge, seniorProfile, caregiverProfile, familyMembers, emergencyContacts, settings, locationMap, safeZonesMap, tripRecords, riskRecords`。响应例 `{"outcome":"answered","paragraphs":["累计记录 4 次风险事件。"],"citations":[{"kind":"statistic","id":"risk-count","label":"累计风险统计","startDate":"2026-10-01","endDate":"2026-11-09"}],"localRequests":["seniorAge"],"recordContext":[{"kind":"riskCount"}]}`。App 从当前本机设置读取并显示已允许的资料，年龄显示未记录。地图和轨迹等返回固定页面入口，地址和精确坐标只由既有页面显示。纯本机请求允许空 paragraphs。关闭权限时不执行本机请求。
+- 可选 `retryable:true` 表示部分失败，保留成功回答并使原问题可重试；重试替换该问题的上一条回答。整次故障沿用 503；400 格式不合格，401 无有效令牌，403 非家属。无推送载荷变化。中英文标签和来源用当前聊天语言呈现。

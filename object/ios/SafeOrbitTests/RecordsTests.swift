@@ -778,12 +778,18 @@ final class ElderLiveNavigationTests: XCTestCase {
 }
 
 @MainActor private final class StubAgentChat: AgentChatServing {
-    var calls: [(String, String)] = []
+    var calls: [AgentQuestion] = []
     var shouldFail = false
     var paragraphs = ["Verified"]
-    func ask(_ question: String, language: String) async throws -> AgentResponse {
-        calls.append((question, language))
+    var response: AgentResponse?
+    func ask(_ question: AgentQuestion) async throws -> AgentResponse {
+        calls.append(question)
         if shouldFail { throw APIError(kind: .network) }
+        if let response { return response }
+        if !question.allowTripHistory {
+            return AgentResponse(outcome: "historyDisabled",
+                                 paragraphs: [AgentLocalRequest.accessOff(language: question.language)], citations: [])
+        }
         return AgentResponse(outcome: "answered", paragraphs: paragraphs, citations: [AgentCitation(kind: "trip", id: "7", label: "Trip 7", date: "2026-10-01", startDate: nil, endDate: nil)])
     }
 }
@@ -792,29 +798,36 @@ final class AgentSessionTests: XCTestCase {
     @MainActor private func isolatedDefaults() -> UserDefaults {
         UserDefaults(suiteName: "safeorbit.test.sessions.\(UUID().uuidString)")!
     }
+    @MainActor private func waitForReply(_ store: AgentSessionStore, in id: UUID) async throws {
+        for _ in 0..<100 where store.pending.contains(id) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertFalse(store.pending.contains(id))
+    }
     @MainActor func testNetworkFailureRetryCitationsAndLocalPrivacy() async throws {
         let defaults = isolatedDefaults(), service = StubAgentChat()
         let store = AgentSessionStore(defaults: defaults, service: service)
         let id = try XCTUnwrap(store.newConversation())
         service.shouldFail = true
         XCTAssertTrue(store.send("问题", in: id, allowTripHistory: true))
-        await Task.yield(); await Task.yield()
+        try await waitForReply(store, in: id)
         let failed = try XCTUnwrap(store.conversation(id)?.messages.first)
         XCTAssertEqual(failed.failed, true)
         XCTAssertEqual(service.calls.count, 1)
-        XCTAssertEqual(service.calls[0].1, "zh")
-        XCTAssertTrue(store.send("private", in: id, allowTripHistory: false))
-        XCTAssertEqual(service.calls.count, 1)
+        XCTAssertEqual(service.calls[0].language, "zh")
         service.shouldFail = false
+        XCTAssertTrue(store.send("private", in: id, allowTripHistory: false))
+        try await waitForReply(store, in: id)
+        XCTAssertEqual(service.calls.map(\.allowTripHistory), [true, false])
         store.retry(failed, in: id, allowTripHistory: true)
-        await Task.yield(); await Task.yield()
+        try await waitForReply(store, in: id)
         let messages = try XCTUnwrap(store.conversation(id)?.messages)
         XCTAssertEqual(messages.map(\.fromCaregiver), [true, false, true, false])
         XCTAssertNil(messages[0].failed)
         XCTAssertEqual(messages[1].citations?.first?.id, "7")
         XCTAssertTrue(messages[3].text.contains("access is off"))
         XCTAssertEqual(AgentSessionStore(defaults: defaults).conversation(id), store.conversation(id))
-        XCTAssertEqual(service.calls.count, 2)
+        XCTAssertEqual(service.calls.count, 3)
     }
     @MainActor func testCompleteAnswerPersistsBeforeRevealAndUTF16Limit() async throws {
         let defaults = isolatedDefaults(), service = StubAgentChat()
@@ -834,7 +847,7 @@ final class AgentSessionTests: XCTestCase {
         XCTAssertEqual(store.displayedText(for: answer), "First\n\nSecond")
         XCTAssertFalse(store.isRevealing(answer))
     }
-    @MainActor func testBlankDraftIsEphemeralAndFirstSendPersistsStableIDsAndFixedTitle() throws {
+    @MainActor func testBlankDraftIsEphemeralAndFirstSendPersistsStableIDsAndFixedTitle() async throws {
         let defaults = isolatedDefaults()
         let store = AgentSessionStore(defaults: defaults)
         XCTAssertNil(store.activeID)
@@ -846,16 +859,18 @@ final class AgentSessionTests: XCTestCase {
         XCTAssertFalse(store.send(" \n ", in: draftID, allowTripHistory: false))
         XCTAssertNil(defaults.object(forKey: AgentSessionStore.storageKey))
         XCTAssertTrue(AgentSessionStore(defaults: defaults).sessions.isEmpty)
-        let persisted = AgentSessionStore(defaults: defaults)
+        let persisted = AgentSessionStore(defaults: defaults, service: StubAgentChat())
         let id = try XCTUnwrap(persisted.newConversation())
         persisted.setDraft("draft", for: id)
         XCTAssertNil(defaults.object(forKey: AgentSessionStore.storageKey))
         XCTAssertTrue(persisted.send(DemoRecords.quickQuestions[0], in: id, allowTripHistory: false))
+        try await waitForReply(persisted, in: id)
         XCTAssertEqual(persisted.sessions.count, 1)
         XCTAssertEqual(persisted.sessions[0].title, "Recent high-risk event")
         XCTAssertEqual(persisted.sessions[0].messages.count, 2)
         XCTAssertEqual(persisted.draft(for: id), "")
         XCTAssertTrue(persisted.send(DemoRecords.quickQuestions[1], in: id, allowTripHistory: false))
+        try await waitForReply(persisted, in: id)
         let restored = AgentSessionStore(defaults: defaults)
         XCTAssertEqual(restored.sessions, persisted.sessions)
         XCTAssertEqual(restored.sessions[0].title, "Recent high-risk event")
@@ -920,18 +935,179 @@ final class AgentSessionTests: XCTestCase {
         XCTAssertNotNil(restored.storageError)
         XCTAssertEqual(defaults.string(forKey: AgentSessionStore.storageKey), "wrong storage type")
     }
-    @MainActor func testDisablingTripHistoryKeepsPriorMessagesAndBlocksOnlyNewAnswers() throws {
+    @MainActor func testDisablingCareDataKeepsPriorMessagesAndAllowsGeneralAnswers() async throws {
         let defaults = isolatedDefaults()
         let store = AgentSessionStore(defaults: defaults)
-        let sessions = AgentSessionStore(defaults: defaults)
+        let service = StubAgentChat()
+        let sessions = AgentSessionStore(defaults: defaults, service: service)
         let id = try XCTUnwrap(sessions.newConversation())
-        sessions.send(DemoRecords.quickQuestions[0], in: id, allowTripHistory: false)
+        sessions.send(DemoRecords.quickQuestions[0], in: id, allowTripHistory: true)
+        try await waitForReply(sessions, in: id)
         let previous = sessions.sessions[0].messages
         sessions.send(DemoRecords.quickQuestions[0], in: id, allowTripHistory: false)
+        try await waitForReply(sessions, in: id)
         XCTAssertEqual(Array(sessions.sessions[0].messages.prefix(2)), previous)
         XCTAssertTrue(sessions.sessions[0].messages.last!.text.contains("access is off"))
+        service.response = AgentResponse(outcome: "general", paragraphs: ["Of course."], citations: [])
+        sessions.send("Write a friendly message", in: id, allowTripHistory: false)
+        try await waitForReply(sessions, in: id)
+        XCTAssertEqual(sessions.sessions[0].messages.last?.text, "Of course.")
+        XCTAssertFalse(try XCTUnwrap(service.calls.last).allowTripHistory)
+        XCTAssertNil(service.calls.last?.recordContext)
         XCTAssertEqual(AgentSessionStore(defaults: defaults).sessions, sessions.sessions)
         XCTAssertTrue(store.sessions.isEmpty)
+    }
+    @MainActor func testBoundedGeneralHistoryRedactsPrivateValuesAndStaysInItsConversation() async throws {
+        let defaults = isolatedDefaults(), service = StubAgentChat()
+        let settings = CaregiverSettingsStore(defaults: defaults)
+        var caregiver = settings.data.caregiver
+        caregiver.name = "测试家属"
+        caregiver.email = "caregiver@example.com"
+        XCTAssertTrue(settings.saveCaregiver(caregiver))
+        let store = AgentSessionStore(defaults: defaults, service: service, settings: settings,
+                                      additionalPrivacyValues: { (["Another Person"], ["秘密花园北门"]) })
+        let id = try XCTUnwrap(store.newConversation())
+        service.response = AgentResponse(outcome: "general", paragraphs: ["Hello 测试家属, an example reply."], citations: [])
+        let privateQuestion = "给测试家属和ANOTHER写问候。号码 +86 138 0013 8000，邮件 caregiver@example.com，位置秘密花园北门 (39.123456,116.234567)，链接 https://example.com/map"
+        XCTAssertTrue(store.send(privateQuestion, in: id, allowTripHistory: true))
+        try await waitForReply(store, in: id)
+        let question = try XCTUnwrap(service.calls.last)
+        XCTAssertEqual(question.language, "zh")
+        for value in ["测试家属", "ANOTHER", "138", "caregiver@example.com", "秘密花园北门", "39.123456", "https://"] {
+            XCTAssertFalse(question.question.contains(value), value)
+        }
+        XCTAssertEqual(store.conversation(id)?.messages.first?.text, privateQuestion)
+        caregiver.name = "New Name"
+        XCTAssertTrue(settings.saveCaregiver(caregiver))
+        XCTAssertTrue(store.send("Shorter, please", in: id, allowTripHistory: true))
+        try await waitForReply(store, in: id)
+        let history = try XCTUnwrap(service.calls.last?.history)
+        XCTAssertEqual(history.map(\.role), [.user, .assistant])
+        XCTAssertEqual(history.first?.text, question.question)
+        XCTAssertFalse(history.last?.text.contains("测试家属") == true, "Previously masked names must stay masked")
+
+        for index in 0..<5 {
+            service.response = AgentResponse(outcome: "general", paragraphs: ["Reply \(index)"], citations: [])
+            XCTAssertTrue(store.send("General question \(index)", in: id, allowTripHistory: false))
+            try await waitForReply(store, in: id)
+        }
+        XCTAssertEqual(service.calls.last?.history?.map(\.text), (0..<4).flatMap { ["General question \($0)", "Reply \($0)"] })
+        service.response = AgentResponse(outcome: "general", paragraphs: [String(repeating: "😀", count: 2100)], citations: [])
+        XCTAssertTrue(store.send("Long reply", in: id, allowTripHistory: true))
+        try await waitForReply(store, in: id)
+        XCTAssertTrue(store.send("继续", in: id, allowTripHistory: true))
+        try await waitForReply(store, in: id)
+        XCTAssertEqual(service.calls.last?.history?.map(\.role), [.user, .assistant])
+        XCTAssertEqual(service.calls.last?.history?.map { $0.text.utf16.count }.reduce(0, +), 4000)
+        let other = try XCTUnwrap(store.newConversation())
+        XCTAssertTrue(store.send("New topic", in: other, allowTripHistory: true))
+        try await waitForReply(store, in: other)
+        XCTAssertNil(service.calls.last?.history)
+    }
+
+    @MainActor func testMixedLocalRequestsAndRecordContextStaySeparateFromGeneralHistory() async throws {
+        let defaults = isolatedDefaults(), service = StubAgentChat()
+        let settings = CaregiverSettingsStore(defaults: defaults)
+        let query = AgentRecordQuery(kind: .riskCount, from: "2026-11-01", to: "2026-11-09")
+        let citation = AgentCitation(kind: "statistic", id: "risk-count", label: "风险统计", date: nil,
+                                     startDate: "2026-11-01", endDate: "2026-11-09")
+        service.response = AgentResponse(outcome: "answered", paragraphs: ["4 次风险。"], citations: [citation],
+                                         localRequests: ["seniorAge", "locationMap", "caregiverProfile", "http://bad", "seniorAge"],
+                                         recordContext: [query])
+        let store = AgentSessionStore(defaults: defaults, service: service, settings: settings)
+        let id = try XCTUnwrap(store.newConversation())
+        XCTAssertTrue(store.send("老人年龄和累计风险次数？", in: id, allowTripHistory: true))
+        try await waitForReply(store, in: id)
+        let mixed = try XCTUnwrap(store.conversation(id)?.messages.last)
+        XCTAssertEqual(mixed.text, "4 次风险。")
+        XCTAssertEqual(mixed.citations, [citation])
+        XCTAssertEqual(mixed.localRequests, [.seniorAge, .locationMap, .caregiverProfile])
+        XCTAssertEqual(mixed.localRequests?.compactMap(\.destination), [.locationMap])
+        XCTAssertEqual(AgentLocalRequest.seniorAge.text(from: settings.data, language: "zh"), "未记录老人的年龄。")
+        XCTAssertTrue(AgentLocalRequest.caregiverProfile.text(from: settings.data, language: "zh")?.contains(settings.data.caregiver.name) == true)
+        XCTAssertNil(mixed.generalExchange)
+
+        let restored = AgentSessionStore(defaults: defaults, service: service, settings: settings)
+        XCTAssertEqual(restored.conversation(id)?.messages.last, mixed)
+        service.response = AgentResponse(outcome: "general", paragraphs: ["Hello"], citations: [])
+        XCTAssertTrue(restored.send("What about last month?", in: id, allowTripHistory: true))
+        try await waitForReply(restored, in: id)
+        XCTAssertEqual(service.calls.last?.recordContext, [query])
+        XCTAssertNil(service.calls.last?.history)
+        settings.set(\.allowAITripHistory, false)
+        service.response = AgentResponse(outcome: "answered", paragraphs: [], citations: [],
+                                         localRequests: ["seniorProfile", "locationMap"])
+        XCTAssertTrue(restored.send("Who is she?", in: id, allowTripHistory: false))
+        try await waitForReply(restored, in: id)
+        XCTAssertFalse(try XCTUnwrap(service.calls.last).allowTripHistory)
+        XCTAssertNil(service.calls.last?.recordContext)
+        XCTAssertNil(restored.conversation(id)?.messages.last?.localRequests)
+        XCTAssertEqual(restored.conversation(id)?.messages.last?.text, AgentLocalRequest.accessOff(language: "en"))
+    }
+
+    @MainActor func testLocalOnlyReplyWithNoParagraphsSurvivesReload() async throws {
+        let defaults = isolatedDefaults(), service = StubAgentChat()
+        let settings = CaregiverSettingsStore(defaults: defaults)
+        let store = AgentSessionStore(defaults: defaults, service: service, settings: settings)
+        let id = try XCTUnwrap(store.newConversation())
+        service.response = AgentResponse(outcome: "answered", paragraphs: [], citations: [],
+                                         localRequests: ["seniorProfile", "settings"])
+        XCTAssertTrue(store.send("显示老人资料和设置", in: id, allowTripHistory: true))
+        try await waitForReply(store, in: id)
+        let answer = try XCTUnwrap(store.conversation(id)?.messages.last)
+        XCTAssertTrue(answer.text.isEmpty)
+        XCTAssertEqual(answer.localRequests, [.seniorProfile, .settings])
+        XCTAssertFalse(store.isRevealing(answer))
+        XCTAssertEqual(AgentSessionStore(defaults: defaults).conversation(id)?.messages.last, answer)
+    }
+
+    @MainActor func testPartialReplySurvivesFailedRetryAndIsReplacedOnSuccess() async throws {
+        let defaults = isolatedDefaults(), service = StubAgentChat()
+        let store = AgentSessionStore(defaults: defaults, service: service)
+        let id = try XCTUnwrap(store.newConversation())
+        let citation = AgentCitation(kind: "trip", id: "7", label: "Trip 7", date: nil, startDate: nil, endDate: nil)
+        service.response = AgentResponse(outcome: "answered", paragraphs: ["Verified part"], citations: [citation], retryable: true)
+        XCTAssertTrue(store.send("Explain both records", in: id, allowTripHistory: true))
+        try await waitForReply(store, in: id)
+        let messages = try XCTUnwrap(store.conversation(id)?.messages)
+        XCTAssertEqual(messages.count, 2)
+        XCTAssertEqual(messages.first?.failed, true)
+        XCTAssertEqual(messages.last?.citations, [citation])
+        XCTAssertEqual(AgentSessionStore(defaults: defaults).conversation(id)?.messages, messages)
+
+        service.shouldFail = true
+        store.retry(try XCTUnwrap(messages.first), in: id, allowTripHistory: true)
+        try await waitForReply(store, in: id)
+        XCTAssertEqual(store.conversation(id)?.messages, messages)
+        service.shouldFail = false
+        service.response = AgentResponse(outcome: "answered", paragraphs: ["Verified answer"], citations: [citation])
+        store.retry(try XCTUnwrap(messages.first), in: id, allowTripHistory: true)
+        try await waitForReply(store, in: id)
+        let retried = try XCTUnwrap(store.conversation(id)?.messages)
+        XCTAssertEqual(retried.count, 2)
+        XCTAssertEqual(retried.first?.id, messages.first?.id)
+        XCTAssertNil(retried.first?.failed)
+        XCTAssertEqual(retried.last?.text, "Verified answer")
+    }
+
+    @MainActor func testLegacyTranscriptWithoutMetadataStillLoadsAndStaysOutOfNetworkContext() async throws {
+        let defaults = isolatedDefaults(), service = StubAgentChat()
+        let sessionID = UUID(), questionID = UUID(), answerID = UUID()
+        let data = Data("""
+        [{"id":"\(sessionID)","title":"Saved chat","createdAt":100,"updatedAt":100,"messages":[
+          {"id":"\(questionID)","fromCaregiver":true,"text":"What happened?","createdAt":100},
+          {"id":"\(answerID)","fromCaregiver":false,"text":"Trip 7","createdAt":100,
+           "citations":[{"kind":"trip","id":"7","label":"Trip 7","date":"2026-10-01"}]}
+        ]}]
+        """.utf8)
+        defaults.set(data, forKey: AgentSessionStore.storageKey)
+        let store = AgentSessionStore(defaults: defaults, service: service)
+        XCTAssertNil(store.storageError)
+        XCTAssertEqual(store.conversation(sessionID)?.messages.last?.citations?.first?.id, "7")
+        XCTAssertTrue(store.send("Follow up", in: sessionID, allowTripHistory: true))
+        try await waitForReply(store, in: sessionID)
+        XCTAssertNil(service.calls.last?.history)
+        XCTAssertNil(service.calls.last?.recordContext)
     }
     func testTitlesUseThemesFirstSentenceAndLanguageLimits() {
         XCTAssertEqual(DemoRecords.quickQuestions.map(AgentConversationTitle.make),
@@ -975,10 +1151,11 @@ final class AgentSessionTests: XCTestCase {
         let settings = CaregiverSettingsStore(defaults: isolatedDefaults())
         settings.binding(\.allowAITripHistory).wrappedValue = false
         for (width, height, type) in [(402, 874, DynamicTypeSize.large), (393, 852, .large), (375, 812, .large), (320, 568, .accessibility1)] {
-            let sessions = AgentSessionStore(defaults: isolatedDefaults())
+            let sessions = AgentSessionStore(defaults: isolatedDefaults(), service: StubAgentChat())
             for question in DemoRecords.quickQuestions + ["How can I better understand these recent changes in outdoor movement?"] {
                 let id = try XCTUnwrap(sessions.newConversation())
                 sessions.send(question, in: id, allowTripHistory: false)
+                try await waitForReply(sessions, in: id)
             }
             sessions.showList()
             for screen in ["sessions", "session-chat", "session-empty", "sessions-records", "session-load-error"] {
@@ -1158,10 +1335,11 @@ extension AgentSessionTests {
         let settings = CaregiverSettingsStore(defaults: defaults())
         for size in h.sizes {
             let label = "\(Int(size.width))x\(Int(size.height))"
-            let sessions = AgentSessionStore(defaults: defaults())
+            let sessions = AgentSessionStore(defaults: defaults(), service: StubAgentChat())
             for question in DemoRecords.quickQuestions.prefix(2) {
                 let id = try XCTUnwrap(sessions.newConversation())
                 sessions.send(question, in: id, allowTripHistory: false)
+                try await waitForReply(sessions, in: id)
             }
             sessions.showList()
             let page = AgentSessionPage(sessions: sessions, settings: settings, keyboardVisible: false)
@@ -1244,7 +1422,7 @@ extension AgentSessionTests {
         let h = LayoutLineHarness.self
         let settings = CaregiverSettingsStore(defaults: isolatedDefaults())
         settings.binding(\.allowAITripHistory).wrappedValue = false
-        let sessions = AgentSessionStore(defaults: isolatedDefaults())
+        let sessions = AgentSessionStore(defaults: isolatedDefaults(), service: StubAgentChat())
         let size = CGSize(width: 390, height: 844)
         let chips = ["chat-suggestion-0", "chat-suggestion-1", "chat-suggestion-2"]
         for (index, question) in DemoRecords.quickQuestions.enumerated() {
@@ -1278,7 +1456,7 @@ extension AgentSessionTests {
             }
             let chip = try XCTUnwrap(sessions.conversation(asked[0]))
             let typed = try XCTUnwrap(sessions.conversation(asked[1]))
-            XCTAssertEqual(chip.messages.map(\.text), [question, "Trip history access is off. You can enable it in AI Settings."])
+            XCTAssertEqual(chip.messages.map(\.text), [question, AgentLocalRequest.accessOff(language: "en")])
             XCTAssertEqual(chip.messages.map(\.text), typed.messages.map(\.text), "Chip and typed question get the same answer")
             XCTAssertEqual(chip.messages.map(\.fromCaregiver), [true, false])
             XCTAssertEqual(typed.messages.map(\.fromCaregiver), [true, false])
@@ -1650,7 +1828,7 @@ extension AgentSessionTests {
         let settings = CaregiverSettingsStore(defaults: isolatedDefaults())
         settings.binding(\.allowAITripHistory).wrappedValue = false
         for (index, suggestion) in AgentSuggestion.all.enumerated() {
-            let sessions = AgentSessionStore(defaults: isolatedDefaults())
+            let sessions = AgentSessionStore(defaults: isolatedDefaults(), service: StubAgentChat())
             let id = try XCTUnwrap(sessions.newConversation())
             let driver = AgentChatTestDriver()
             try await h.render(AgentSessionPage(sessions: sessions, settings: settings, keyboardVisible: false)
@@ -1669,7 +1847,7 @@ extension AgentSessionTests {
                 try await Task.sleep(for: .milliseconds(200))
             }
             let conversation = try XCTUnwrap(sessions.conversation(id))
-            XCTAssertEqual(conversation.messages.map(\.text), [suggestion.question, "Trip history access is off. You can enable it in AI Settings."],
+            XCTAssertEqual(conversation.messages.map(\.text), [suggestion.question, AgentLocalRequest.accessOff(language: "en")],
                            "Chip \(index) asks the full question and gets its demo answer")
             XCTAssertEqual(conversation.title, suggestion.topic)
             XCTAssertEqual(conversation.title, AgentConversationTitle.make(from: suggestion.question))
@@ -1686,10 +1864,11 @@ extension AgentSessionTests {
         settings.binding(\.allowAITripHistory).wrappedValue = false
         for size in f.sizes {
             for type in f.types {
-                let sessions = AgentSessionStore(defaults: isolatedDefaults())
+                let sessions = AgentSessionStore(defaults: isolatedDefaults(), service: StubAgentChat())
                 for question in DemoRecords.quickQuestions + ["How can I better understand these recent changes in outdoor movement?"] {
                     let id = try XCTUnwrap(sessions.newConversation())
                     sessions.send(question, in: id, allowTripHistory: false)
+                    try await waitForReply(sessions, in: id)
                 }
                 sessions.showList()
                 let list = f.label("agent list", size, type)
