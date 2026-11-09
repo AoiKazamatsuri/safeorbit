@@ -4,7 +4,7 @@ import { ForbiddenException, ServiceUnavailableException, UnauthorizedException 
 import { ChatController } from '../src/care-agent/chat-controller';
 import { ChatService } from '../src/care-agent/chat-service';
 import { verifyAnswer } from '../src/care-agent/grounded-response';
-import { ChatQueries } from '../src/care-api/chat-queries';
+import { ChatQueries, QueryResult } from '../src/care-api/chat-queries';
 
 const result = { facts: [{ id: '42', date: '2026-10-21', level: 'high' }], citations: [{ kind: 'riskEvent' as const, id: '42', date: '2026-10-21', label: 'Risk event 42' }] };
 const fake = (plan: any = [{ kind: 'events' }], answer: any = { paragraphs: ['On 2026-10-21 event 42 was high risk.'], citations: [{ kind: 'riskEvent', id: '42' }] }) => ({ plan: async () => plan, answer: async () => answer });
@@ -54,6 +54,38 @@ test('query filtering excludes false alarms and respects local dates', async () 
     lastRecordedDate: '2026-10-21', phase: 'home', historyReplay: true,
     olderThanFiveMinutes: true, hasActiveRisk: true, hasActiveTrip: false,
   });
+});
+test('latest risk date questions keep older history and only apply an explicitly requested risk level', async () => {
+  const risk = (id: string, day: string, high = false, falseAlarm = false) => {
+    const openedAt = new Date(day + 'T10:00:00Z');
+    return { id, openedAt, escalatedAt: high ? openedAt : null, resolvedAt: null, falseAlarm };
+  };
+  const data = { timezone: 'Asia/Shanghai', risks: [
+    risk('41', '2026-10-20', true), risk('42', '2026-10-21'), risk('43', '2026-11-01', true, true),
+  ], actions: [], observations: [] };
+  const queries = new ChatQueries({ data: async () => data } as any,
+    { household: async () => ({ elder: { timezone: data.timezone } }) } as any);
+  const chat = new ChatService(queries, {
+    plan: async () => [{ kind: 'events', from: '2026-11-01', to: '2026-11-09', level: 'high' }],
+    answer: async (_question: string, language: string, [events]: QueryResult[]) => {
+      assert.equal(events.citations.length, 1);
+      const [event] = events.citations;
+      const paragraph = language === 'zh' ? `最近一次风险事件发生在${event.date}。` : event.date;
+      return { paragraphs: [paragraph], citations: [{ kind: event.kind, id: event.id }] };
+    },
+  } as any);
+  const recent = await chat.answer(1, '最近一次风险事件是什么时候', 'zh', true);
+  assert.equal(recent.outcome, 'answered');
+  assert.deepEqual(recent.paragraphs, ['最近一次风险事件发生在2026-10-21。']);
+  assert.deepEqual(recent.citations.map(c => c.id), ['42']);
+  assert.equal(verifyAnswer({
+    paragraphs: ['最近一次风险事件发生在2026-10-21。同日还发生了两次事件。'],
+    citations: [{ kind: 'riskEvent', id: '42' }],
+  }, [result], 'zh').outcome, 'unverified');
+  const high = await chat.answer(1, 'When was the last high-risk event?', 'en', true);
+  assert.equal(high.outcome, 'answered');
+  assert.deepEqual(high.citations.map(c => c.id), ['41']);
+  assert.equal((await chat.answer(1, '11月最近一次高风险事件是什么时候？', 'zh', true)).outcome, 'unverified');
 });
 test('grouped records allow one citation without borrowing another record number', () => {
   const grouped = { facts: [{ id: '42', count: 1 }, { id: '99', count: 9 }], citations: [result.citations[0], { kind: 'riskEvent' as const, id: '99', label: '99' }], evidence: { 'riskEvent:42': { id: '42', count: 1 }, 'riskEvent:99': { id: '99', count: 9 } } };

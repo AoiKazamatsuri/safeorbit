@@ -3,7 +3,7 @@ import { CareStore } from './care-store';
 import { Records } from './records';
 import { addDays, buildTrends, localDate, monthAfter, summarizeTrip } from './records-view';
 
-export type ChatQuery = { kind: 'current' | 'events' | 'trip' | 'compare'; id?: string; month?: string; from?: string; to?: string; level?: 'warning' | 'high' };
+export type ChatQuery = { kind: 'current' | 'events' | 'trip' | 'compare'; id?: string; month?: string; from?: string; to?: string; level?: 'warning' | 'high'; latest?: boolean };
 export interface Citation { kind: 'riskEvent' | 'trip' | 'statistic'; id: string; label: string; date?: string; startDate?: string; endDate?: string }
 export interface QueryResult { facts: unknown; citations: Citation[]; evidence?: Record<string, unknown> }
 
@@ -44,7 +44,7 @@ export class ChatQueries {
         const date = localDate(query.level === 'high' && r.escalatedAt ? r.escalatedAt : r.openedAt, data.timezone);
         return !r.falseAlarm && (!query.level || query.level === (r.escalatedAt ? 'high' : 'warning'))
           && (!query.from || date >= query.from) && (!query.to || date <= query.to);
-      }).slice(-20).reverse();
+      }).slice(query.latest ? -1 : -20).reverse();
       const facts = risks.map(r => ({
         id: r.id, date: localDate(r.openedAt, data.timezone), level: r.escalatedAt ? 'high' : 'warning',
         escalatedDate: r.escalatedAt ? localDate(r.escalatedAt, data.timezone) : null,

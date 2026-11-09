@@ -24,12 +24,21 @@ function validQuery(query: ChatQuery): boolean {
     case 'current': return true;
     case 'events':
       return (query.level === undefined || query.level === 'high' || query.level === 'warning')
+        && (query.latest === undefined || typeof query.latest === 'boolean')
         && (query.from === undefined || validDate(query.from)) && (query.to === undefined || validDate(query.to))
         && (!query.from || !query.to || query.from <= query.to);
     case 'trip': return query.id === undefined || (typeof query.id === 'string' && /^\d{1,18}$/.test(query.id));
     case 'compare': return query.month === undefined || (typeof query.month === 'string' && /^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(query.month));
     default: return false;
   }
+}
+
+function latestRiskQuery(question: string): ChatQuery | undefined {
+  const match = /^(?:请问[，,]?\s*)?(?:最近一次|上一次|上次)(高风险|风险)事件(?:是|在|发生在|发生于)?(?:什么时候|什么时间|哪天|哪一天)(?:发生的?)?[?？。]?$/u.exec(question)
+    ?? /^when (?:was|did) the (?:last|most recent) (high[- ]risk|risk) event(?: (?:happen|occur))?[?.]?$/i.exec(question);
+  if (!match) return undefined;
+  const level = /^(?:高风险|high[- ]risk)$/i.test(match[1]) ? 'high' : undefined;
+  return { kind: 'events', latest: true, level };
 }
 
 function patternText(result: QueryResult): string | undefined {
@@ -64,7 +73,9 @@ export class ChatService {
     let failure: unknown;
     try {
       const today = await this.queries.localToday(elderId);
-      const plan = await this.model.plan(question, language, today);
+      const proposed = await this.model.plan(question, language, today);
+      const latestRisk = latestRiskQuery(question);
+      const plan = latestRisk ? [latestRisk] : proposed;
       if (Array.isArray(plan) && plan.length >= 1 && plan.length <= 3 && plan.every(validQuery)) {
         for (const request of plan) results.push(await query(request));
         if (results.some(result => result.citations.length)) {

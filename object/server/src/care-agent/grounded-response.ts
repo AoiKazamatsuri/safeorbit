@@ -31,7 +31,9 @@ export function verifyAnswer(value: unknown, results: QueryResult[], language: L
   const numbers = new Set(source.match(/\d+(?:[.:-]\d+)*/g) ?? []);
   for (const p of answer.paragraphs as string[]) {
     // Reject written-out numbers: the numeric token verifier cannot compare these reliably.
-    if (/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|hundred|thousand)\b|[零〇一二三四五六七八九十百千万两]/i.test(p)) return notice('unverified', language);
+    // In this phrase, 一 is part of the relative reference, not a reported count.
+    const claims = p.replace(/(?:最近|上)一次(?=(?:高风险|风险)事件)/gu, '');
+    if (/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|hundred|thousand)\b|[零〇一二三四五六七八九十百千万两]/i.test(claims)) return notice('unverified', language);
     if (/\b(diagnos\w*|dementia|alzheimer\w*|disease|treat\w*|medication)\b|诊断|痴呆|阿尔茨海默|疾病|治疗|用药/i.test(p)) return notice('unverified', language);
     for (const n of p.match(/\d+(?:[.:-]\d+)*/g) ?? []) if (!numbers.has(n)) return notice('unverified', language);
   }
