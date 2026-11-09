@@ -9,7 +9,7 @@ export type LocalRequest = typeof localRequests[number];
 
 const queryKeys: Record<ChatQuery['kind'], string[]> = {
   current: [], events: ['id', 'level', 'from', 'to', 'latest'], trip: ['id'],
-  compare: ['month'], riskCount: ['level', 'from', 'to'], safeZones: [],
+  compare: ['month', 'metric'], riskCount: ['level', 'from', 'to'], safeZones: [],
   activity: ['id', 'level', 'from', 'to', 'latest'],
 };
 
@@ -28,6 +28,7 @@ function validQuery(value: unknown): value is ChatQuery {
     && (query.latest === undefined || typeof query.latest === 'boolean')
     && (query.id === undefined || (typeof query.id === 'string' && /^\d{1,18}$/.test(query.id)))
     && (query.month === undefined || (typeof query.month === 'string' && /^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(query.month)))
+    && (query.metric === undefined || query.metric === 'riskEvents')
     && (query.from === undefined || validDate(query.from)) && (query.to === undefined || validDate(query.to))
     && (!query.from || !query.to || query.from <= query.to);
 }

@@ -48,7 +48,10 @@ test('controller enforces identity, validation and temporary failure', async () 
     { recordContext: Array(4).fill({ kind: 'current' }) },
     { recordContext: [{ kind: 'events', from: '2026-02-29' }] },
     { recordContext: [{ kind: 'activity', elderId: '7' }] },
+    { recordContext: [{ kind: 'compare', metric: 'tripCount' }] },
+    { recordContext: [{ kind: 'events', metric: 'riskEvents' }] },
   ]) await assert.rejects(controller.answer({ ...request, ...invalid }, 'caregiver'), BadRequestException);
+  await assert.rejects(controller.answer({ ...request, recordContext: [{ kind: 'compare', metric: 'riskEvents' }] }, 'caregiver'), ServiceUnavailableException);
 });
 test('query filtering excludes false alarms and respects local dates', async () => {
   const data = { timezone: 'Asia/Shanghai', trips: [], risks: [
@@ -292,4 +295,106 @@ test('mixed everyday text is answered separately without exposing the household 
   assert.equal(blocked.outcome, 'historyDisabled');
   assert.equal(blocked.paragraphs[0], '早安，祝你今天一切顺利！');
   assert.deepEqual(blocked.citations, []);
+});
+
+test('monthly risk comparison answers the question first and its follow-up re-reads both cited periods', async () => {
+  const data = {
+    timezone: 'Asia/Shanghai', trips: [], observations: [], actions: [], calls: [],
+    risks: [1, 2, 3, 4, 5].map(id => ({
+      id: String(id), openedAt: new Date('2026-10-01T01:00:00Z'), falseAlarm: id === 5,
+    })),
+  };
+  const queries = new ChatQueries({ data: async () => data } as any, {} as any);
+  const calls: [number, ChatQuery][] = [];
+  const service = new ChatService({
+    run: (elderId: number, query: ChatQuery) => {
+      calls.push([elderId, query]);
+      return queries.run(elderId, query, new Date('2026-11-08T18:00:00Z'));
+    },
+  } as any, { plan: () => assert.fail('A clear risk comparison needs no model') } as any);
+  const first = await service.answer(9, '那这个月风险比上个月高？', 'zh', true);
+  assert.equal(first.outcome, 'answered');
+  assert.match(first.paragraphs[0], /^目前还看不出风险有没有升高，因为两个统计时段长短不同。/);
+  assert.match(first.paragraphs[0], /11 月 9 日，11 月还没有记录到风险事件，10 月整月有 4 次（均已排除误报）/);
+  assert.deepEqual(first.citations.map(c => [c.id, c.startDate, c.endDate]), [
+    ['month-2026-10', '2026-10-01', '2026-10-31'],
+    ['month-2026-11', '2026-11-01', '2026-11-09'],
+  ]);
+  assert.deepEqual(first.recordContext, [{ kind: 'compare', metric: 'riskEvents' }]);
+
+  data.risks.push({ id: '6', openedAt: new Date('2026-10-31T16:10:00Z'), falseAlarm: false });
+  const followUp = await service.answer(9, '这个说明了什么吗', 'zh', true, [], first.recordContext);
+  assert.equal(followUp.outcome, 'answered');
+  assert.match(followUp.paragraphs[0], /^这组数字说明了各时段记录了几次风险事件。.*各自的前 9 天/);
+  assert.match(followUp.paragraphs[1], /11 月记录了 1 次风险事件/);
+  assert.deepEqual(followUp.citations, first.citations);
+  assert.deepEqual(followUp.recordContext, first.recordContext);
+  assert.deepEqual(calls, [[9, first.recordContext![0]], [9, first.recordContext![0]]]);
+
+  const english = await service.answer(9, 'Was risk higher this month than last month?', 'en', true);
+  assert.match(english.paragraphs[0], /^It’s too early to tell.*1 risk event through November 9 and 4 in all of October/);
+  const englishFollowUp = await service.answer(9, 'What does this mean?', 'en', true, [], english.recordContext);
+  assert.match(englishFollowUp.paragraphs[0], /first 9 days of both months/);
+  assert.deepEqual(englishFollowUp.citations, english.citations);
+  assert.equal((await service.answer(9, '那这个月风险比上个月高？', 'zh', false)).outcome, 'historyDisabled');
+  assert.equal((await service.answer(9, '这个说明了什么吗', 'zh', false, [], first.recordContext)).outcome, 'historyDisabled');
+  assert.equal(calls.length, 4);
+});
+
+test('equal-length periods report only a change in recorded counts', async () => {
+  const data = {
+    timezone: 'Asia/Shanghai', trips: [], observations: [], actions: [], calls: [],
+    risks: [{ id: '1', openedAt: new Date('2026-08-01T01:00:00Z'), falseAlarm: false }],
+  };
+  const queries = new ChatQueries({ data: async () => data } as any, {} as any);
+  const service = new ChatService({
+    run: (elderId: number, query: ChatQuery) => queries.run(elderId, query, new Date('2026-09-02T01:00:00Z')),
+  } as any, {} as any);
+  const scope: ChatQuery[] = [{ kind: 'compare', month: '2026-08', metric: 'riskEvents' }];
+  const explain = () => service.answer(1, '这个说明了什么吗', 'zh', true, [], scope);
+  assert.match((await explain()).paragraphs[0], /^这个时段记录的风险事件比上个时段多。/);
+  data.risks.push({ id: '2', openedAt: new Date('2026-07-01T01:00:00Z'), falseAlarm: false });
+  assert.match((await explain()).paragraphs[0], /^两个月记录的风险事件次数相同。/);
+  data.risks[0].falseAlarm = true;
+  assert.match((await explain()).paragraphs[0], /^这个时段记录的风险事件比上个时段少。/);
+  const january = await service.answer(1, '这个说明了什么吗', 'zh', true, [], [{ kind: 'compare', month: '2026-01', metric: 'riskEvents' }]);
+  assert.match(january.paragraphs[1], /2026 年 1 月 31 日.*2025 年 12 月/);
+});
+
+test('legacy compare context, risk subsets and mixed comparisons keep the regular answer path', async () => {
+  const queriesRun: ChatQuery[] = [];
+  const service = new ChatService({
+    localToday: async () => '2026-11-09',
+    run: async (_elderId: number, query: ChatQuery) => {
+      queriesRun.push(query);
+      return result;
+    },
+  } as any, {
+    plan: async () => ({ intent: 'care', queries: [{ kind: 'compare', metric: 'riskEvents' }] }),
+    answer: async () => ({ paragraphs: ['On 2026-10-21 event 42 was high risk.'], citations: result.citations }),
+  } as any);
+  for (const question of ['这个说明了什么吗', '这个月高风险事件比上个月多吗？', '这个月的风险和出行比上个月多吗？']) {
+    const response = await service.answer(1, question, 'zh', true, [], [{ kind: 'compare' }]);
+    assert.equal(response.outcome, 'answered');
+    assert.deepEqual(response.recordContext, [{ kind: 'compare' }]);
+  }
+  assert.deepEqual(queriesRun, Array(3).fill({ kind: 'compare' }));
+});
+
+test('contact questions request only the corresponding fields from this phone', async () => {
+  const service = new ChatService({} as any, { plan: () => assert.fail('Phone contacts must remain local') } as any);
+  for (const [question, language, field] of [
+    ['老人有哪些家人的联系方式？', 'zh', 'familyMembers'],
+    ['What are her family members’ phone numbers?', 'en', 'familyMembers'],
+    ['Show me the senior’s family contacts.', 'en', 'familyMembers'],
+    ['她的紧急联系人有哪些？', 'zh', 'emergencyContacts'],
+    ['Who are her emergency contacts?', 'en', 'emergencyContacts'],
+  ] as const) {
+    assert.deepEqual(await service.answer(1, question, language, true), {
+      outcome: 'answered', paragraphs: [], citations: [], localRequests: [field],
+    });
+    const blocked = await service.answer(1, question, language, false);
+    assert.equal(blocked.outcome, 'historyDisabled');
+    assert.equal(blocked.localRequests, undefined);
+  }
 });

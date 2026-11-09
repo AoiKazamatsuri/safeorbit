@@ -26,6 +26,7 @@ struct AgentHistoryEntry: Codable, Equatable, Sendable {
 struct AgentRecordQuery: Codable, Equatable, Sendable {
     enum Kind: String, Codable, Sendable { case current, events, trip, compare, riskCount, safeZones, activity }
     enum Level: String, Codable, Sendable { case high, warning }
+    enum Metric: String, Codable, Sendable { case riskEvents }
     let kind: Kind
     var id: String? = nil
     var month: String? = nil
@@ -33,6 +34,7 @@ struct AgentRecordQuery: Codable, Equatable, Sendable {
     var to: String? = nil
     var level: Level? = nil
     var latest: Bool? = nil
+    var metric: Metric? = nil
 }
 
 struct AgentQuestion: Encodable, Sendable {

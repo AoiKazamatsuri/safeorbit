@@ -3,7 +3,7 @@ import { CareStore } from './care-store';
 import { Records } from './records';
 import { addDays, buildTrends, localDate, monthAfter, summarizeTrip } from './records-view';
 
-export type ChatQuery = { kind: 'current' | 'events' | 'trip' | 'compare' | 'riskCount' | 'safeZones' | 'activity'; id?: string; month?: string; from?: string; to?: string; level?: 'warning' | 'high'; latest?: boolean };
+export type ChatQuery = { kind: 'current' | 'events' | 'trip' | 'compare' | 'riskCount' | 'safeZones' | 'activity'; id?: string; month?: string; from?: string; to?: string; level?: 'warning' | 'high'; latest?: boolean; metric?: 'riskEvents' };
 export interface Citation { kind: 'riskEvent' | 'trip' | 'statistic'; id: string; label: string; date?: string; startDate?: string; endDate?: string }
 export interface QueryResult { facts: unknown; citations: Citation[]; evidence?: Record<string, unknown> }
 

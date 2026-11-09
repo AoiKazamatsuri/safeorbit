@@ -60,11 +60,34 @@ function monthlyQuestion(question: string): { trip: boolean; risk: boolean; mont
   return { trip, risk, month: match ? `${match[1]}-${match[2].padStart(2, '0')}` : undefined };
 }
 
-function directPlan(question: string): Plan | undefined {
+function questionPhrase(question: string): string {
+  return question.normalize('NFKC').replace(/[.!?。]+$/u, '').trim();
+}
+
+function asksMonthlyRiskComparison(question: string): boolean {
+  const phrase = questionPhrase(question).replace(/^(?:那(?:么)?|请问)[, ]*/u, '');
+  return /^(?:这个月|本月)(?:的)?风险(?:事件(?:次数|数|数量)?)?(?:比|相比|相较于)上(?:个)?月(?:的风险(?:事件(?:次数|数|数量)?)?)?(?:更|要)?(?:高|低|多|少)(?:了)?(?:吗|么)?$/u.test(phrase)
+    || /^(?:这个月|本月)(?:比|相较于)上(?:个)?月(?:的)?风险(?:事件(?:次数|数|数量)?)?(?:更|要)?(?:高|低|多|少)(?:了)?(?:吗|么)?$/u.test(phrase)
+    || /^(?:和|比|相比)上(?:个)?月(?:比起来|相比)?[, ]*(?:这个月|本月)(?:的)?风险(?:事件(?:次数|数|数量)?)?(?:升高|下降|变高|变低|变多|变少|更高|更低|更多|更少)(?:了)?(?:吗|么)?$/u.test(phrase)
+    || /^(?:so,? )?(?:(?:is|was) (?:the )?risk (?:higher|lower) this month|(?:are|were) there (?:more|fewer) risk events this month|has (?:the )?risk (?:gone up|gone down|increased|decreased) this month) (?:than|compared (?:with|to)) last month$/i.test(phrase);
+}
+
+function asksForComparisonMeaning(question: string): boolean {
+  const phrase = questionPhrase(question);
+  return /^(?:(?:那|所以)[, ]*)?(?:这(?:个(?:结果)?|些(?:数字)?)?|这组(?:数字|数据))?(?:能?说明了?什么(?:问题)?|意味着什么|有什么含义)(?:吗)?$/u.test(phrase)
+    || /^(?:so,? )?(?:what (?:does|do) (?:this|that|these numbers|these figures) (?:mean|suggest|tell us)|does (?:this|that) (?:mean anything|tell us anything)|what can we infer from (?:this|that))$/i.test(phrase);
+}
+
+function directPlan(question: string, recordContext: ChatQuery[]): Plan | undefined {
   const care = (queries: ChatQuery[], localRequests: LocalRequest[] = []): Plan =>
     ({ intent: 'care', queries, localRequests, paragraphs: [] });
   const latestRisk = latestRiskQuery(question);
   if (latestRisk) return care([latestRisk]);
+  if (asksMonthlyRiskComparison(question)) return care([{ kind: 'compare', metric: 'riskEvents' }]);
+  const [scope] = recordContext;
+  if (recordContext.length === 1 && scope.kind === 'compare' && scope.metric === 'riskEvents' && asksForComparisonMeaning(question)) {
+    return care([scope]);
+  }
   const month = monthlyQuestion(question)?.month;
   if (month && /^(?:请问[，,]?\s*)?[1-9]\d{3}\s*(?:年\s*|-)(?:1[0-2]|0?[1-9])月?\s*(?:有|一共|总共|发生|记录|的|多少|几|次|出行|风险事件|和|、|，|？|。|\s|\?|,)+$/u.test(question)) {
     return care([{ kind: 'compare', month }]);
@@ -85,11 +108,13 @@ function directPlan(question: string): Plan | undefined {
     return care([{ kind: 'current' }], ['locationMap']);
   }
   const local = parts.map(part => {
-    const topic = part.replace(/^(?:请)?(?:查看|显示|告诉我|show me|show|list)\s*/iu, '');
+    const topic = part.replace(/^(?:请|please\s+)?(?:查看|显示|列出|告诉我|show me\b|show\b|list\b)\s*/iu, '').replace(/’/gu, "'");
     if (/^(?:老人资料|老人的基本资料|(?:the )?senior(?:'s)? profile)$/iu.test(topic)) return 'seniorProfile';
     if (/^(?:家属资料|我的资料|my profile|caregiver profile)$/iu.test(topic)) return 'caregiverProfile';
-    if (/^(?:家庭成员|family members)$/iu.test(topic)) return 'familyMembers';
-    if (/^(?:紧急联系人|emergency contacts)$/iu.test(topic)) return 'emergencyContacts';
+    if (/^(?:(?:老人|她|他)(?:的)?)?(?:有哪些|有哪些已登记的)?(?:家人|家庭成员|亲属)(?:的)?(?:联系方式|电话(?:号码)?)?(?:有哪些|是什么|是多少)?$/u.test(topic)
+      || /^(?:(?:what (?:are|is) )?(?:(?:the )?(?:elder|senior)'s |her |his |the )?family (?:members(?:' (?:contact (?:information|details)|phone numbers?))?|contacts)|what contact (?:information|details) (?:is|are) saved for (?:the (?:elder|senior)'s|her|his) family members)$/i.test(topic)) return 'familyMembers';
+    if (/^(?:(?:老人|她|他)(?:的)?)?(?:有哪些)?紧急联系人(?:的)?(?:联系方式|电话(?:号码)?)?(?:有哪些|是什么|是多少)?$/u.test(topic)
+      || /^(?:(?:who|what) (?:are|is) )?(?:(?:the )?(?:elder|senior)'s |her |his |the )?emergency contacts(?:' (?:contact (?:information|details)|phone numbers?))?$/i.test(topic)) return 'emergencyContacts';
     if (/^(?:(?:当前的?)?(?:照护|AI)?设置|(?:current )?(?:care |AI )?settings)$/iu.test(topic)) return 'settings';
   });
   if (local.length && local.every(field => field !== undefined)) return care([], local);
@@ -108,6 +133,47 @@ function patternReply(result: QueryResult, language: Language): string | undefin
   const match = /^Based on (\d+) recorded trips this month, (\d+) started in the (morning|afternoon|evening)\.$/.exec(pattern);
   const periods: Record<string, string> = { morning: '上午', afternoon: '下午', evening: '晚上' };
   return match ? `本月记录了 ${match[1]} 次出行，其中 ${match[2]} 次在${periods[match[3]]}开始。` : '本月尚无出行记录。';
+}
+
+interface MonthlyPeriod {
+  month: string;
+  startDate: string;
+  endDate: string;
+  tripCount: number;
+  riskEventCount: number;
+}
+
+function monthlyRiskReply(previous: MonthlyPeriod, current: MonthlyPeriod, explain: boolean, language: Language): string[] {
+  const days = (period: MonthlyPeriod) => (Date.parse(period.endDate) - Date.parse(period.startDate)) / 86_400_000 + 1;
+  const previousDays = days(previous);
+  const currentDays = days(current);
+  const countChange = Math.sign(current.riskEventCount - previous.riskEventCount);
+  const sameLength = previousDays === currentDays;
+  const comparisonDays = Math.min(previousDays, currentDays);
+  const includeYear = current.month.slice(0, 4) !== previous.month.slice(0, 4);
+  if (language === 'zh') {
+    const monthName = (month: string) => `${includeYear ? month.slice(0, 4) + ' 年 ' : ''}${Number(month.slice(5))} 月`;
+    const through = `${monthName(current.month)} ${Number(current.endDate.slice(8))} 日`;
+    const latest = current.riskEventCount === 0 ? '还没有记录到风险事件' : `记录了 ${current.riskEventCount} 次风险事件`;
+    const counts = `截至 ${through}，${monthName(current.month)}${latest}，${monthName(previous.month)}整月有 ${previous.riskEventCount} 次（均已排除误报）。`;
+    const lead = sameLength ? (countChange === 0 ? '两个月记录的风险事件次数相同。' : `这个时段记录的风险事件比上个时段${countChange > 0 ? '多' : '少'}。`)
+      : '目前还看不出风险有没有升高，因为两个统计时段长短不同。';
+    if (!explain) return [lead + counts];
+    const meaning = sameLength ? lead + '继续比较时，可以用相同长度的时段，再结合出行和事件详情看。'
+      : `这组数字说明了各时段记录了几次风险事件。要看记录次数有没有变化，可以比较两个月各自的前 ${comparisonDays} 天。`;
+    return [meaning, counts];
+  }
+  const monthName = new Intl.DateTimeFormat('en', { month: 'long', timeZone: 'UTC', ...(includeYear ? { year: 'numeric' } : {}) });
+  const dateName = new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric', timeZone: 'UTC', ...(includeYear ? { year: 'numeric' } : {}) });
+  const currentCount = current.riskEventCount === 0 ? 'no risk events' : `${current.riskEventCount} risk event${current.riskEventCount === 1 ? '' : 's'}`;
+  const counts = `The records show ${currentCount} through ${dateName.format(new Date(current.endDate))} and ${previous.riskEventCount} in all of ${monthName.format(new Date(previous.startDate))}, excluding false alarms.`;
+  const lead = sameLength ? (countChange === 0 ? 'Both periods had the same number of recorded risk events.'
+    : `The latest period had ${countChange > 0 ? 'more' : 'fewer'} recorded risk events.`)
+    : 'It’s too early to tell whether risk has increased because the periods cover different numbers of days.';
+  if (!explain) return [`${lead} ${counts}`];
+  const meaning = sameLength ? `${lead} Keep the periods the same length in future comparisons and look at the trips and event details for context.`
+    : `These figures show how many risk events were recorded in each period. To see how the counts differ over the same length of time, compare the first ${comparisonDays} days of both months.`;
+  return [meaning, counts];
 }
 
 function directAnswer(query: ChatQuery, result: QueryResult, question: string, language: Language): { paragraphs: string[]; citations: QueryResult['citations'] } | undefined {
@@ -147,12 +213,15 @@ function directAnswer(query: ChatQuery, result: QueryResult, question: string, l
     return { paragraphs: [zh ? `最近一次${risk}事件发生在${citations[0].date}。` : `The last ${risk} event occurred on ${citations[0].date}.`], citations };
   }
   if (query.kind === 'compare') {
+    const { periods } = facts as { periods?: MonthlyPeriod[] };
+    if (query.metric === 'riskEvents' && periods?.length === 2 && citations.length === 2) {
+      return { paragraphs: monthlyRiskReply(periods[0], periods[1], asksForComparisonMeaning(question), language), citations };
+    }
     if (/pattern|routine|规律|习惯/i.test(question)) {
       const pattern = patternReply(result, language);
       if (pattern) return { paragraphs: [pattern], citations: citations.slice(-1) };
     }
     const counts = monthlyQuestion(question);
-    const { periods } = facts as { periods?: { month: string; tripCount: number; riskEventCount: number }[] };
     const period = periods?.at(-1);
     if (counts && period && (!counts.month || counts.month === period.month)) {
       const values = [
@@ -174,11 +243,13 @@ export class ChatService {
     if (medical.test(question)) return notice('medicalBoundary', language);
 
     const safeHistory = history.some(turn => hasPrivateText(turn.text)) ? [] : history;
-    let plan = directPlan(question);
+    let plan = directPlan(question, recordContext);
     if (!plan) {
       const today = allowTripHistory ? await this.queries.localToday(elderId).catch(() => undefined) : undefined;
       try {
         plan = parsePlan(await this.model.plan(question, language, today, safeHistory, allowTripHistory ? recordContext : [], allowTripHistory));
+        // Only an explicit risk-count comparison or its follow-up may choose the risk-only renderer.
+        if (plan) plan.queries = plan.queries.map(({ metric: _metric, ...query }) => query);
       } catch (error) {
         if (!(error instanceof SyntaxError)) throw error;
       }

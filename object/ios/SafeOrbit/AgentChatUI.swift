@@ -56,9 +56,6 @@ enum AgentLocalRequest: String, Codable {
         func field(_ label: String, _ value: String) -> String? {
             value.isEmpty ? nil : label + (zh ? "：" : ": ") + value
         }
-        func person(_ name: String, _ contact: String, _ relationship: String = "") -> String {
-            [name, relationship, contact].filter { !$0.isEmpty }.joined(separator: " · ")
-        }
         func toggle(_ label: String, _ enabled: Bool) -> String {
             field(label, enabled ? (zh ? "开启" : "On") : (zh ? "关闭" : "Off")) ?? label
         }
@@ -80,15 +77,13 @@ enum AgentLocalRequest: String, Codable {
                 field(zh ? "邮箱" : "Email", data.caregiver.email)
             ].compactMap { $0 }.joined(separator: "\n")
         case .familyMembers:
-            let selfMember = person(data.caregiver.name, data.caregiver.phone)
-            let otherMembers = data.members.map { person($0.name, $0.phone, $0.relationship) }
-            return ([zh ? "家庭成员" : "Family members", selfMember] + otherMembers).joined(separator: "\n")
+            let caregiver = data.caregiver
+            let caregiverContact = caregiver.phone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? caregiver.email : caregiver.phone
+            let members = [(caregiver.name, "", caregiverContact)] + data.members.map { ($0.name, $0.relationship, $0.phone) }
+            return contactReply(members, chinese: zh)
         case .emergencyContacts:
-            guard !data.emergencyContacts.isEmpty else {
-                return zh ? "尚未添加紧急联系人。" : "No emergency contacts have been added."
-            }
-            return ([zh ? "紧急联系人" : "Emergency contacts"]
-                + data.emergencyContacts.map { person($0.name, $0.phone, $0.relationship) }).joined(separator: "\n")
+            return contactReply(data.emergencyContacts.map { ($0.name, $0.relationship, $0.phone) }, chinese: zh)
         case .settings:
             return [
                 zh ? "当前设置" : "Current settings",
@@ -101,6 +96,37 @@ enum AgentLocalRequest: String, Codable {
         case .locationMap, .safeZonesMap, .tripRecords, .riskRecords:
             return nil
         }
+    }
+
+    private func contactReply(_ people: [(name: String, relationship: String, contact: String)], chinese: Bool) -> String {
+        let contacts = people.map { person in
+            (name: person.name.trimmingCharacters(in: .whitespacesAndNewlines),
+             relationship: person.relationship.trimmingCharacters(in: .whitespacesAndNewlines),
+             contact: person.contact.trimmingCharacters(in: .whitespacesAndNewlines))
+        }.filter { !$0.name.isEmpty }
+        let count = contacts.filter { !$0.contact.isEmpty }.count
+        let family = self == .familyMembers
+        let intro: String
+        if chinese {
+            let group = family ? "家人" : "紧急联系人"
+            intro = count == 0
+                ? "这部手机还没有登记\(group)的联系方式。"
+                : "这部手机目前登记了 \(count) 位\(group)的联系方式。"
+        } else {
+            let group = family ? "family member" : "emergency contact"
+            let category = family ? "family" : "emergency"
+            intro = count == 0
+                ? "No \(category) contact details are saved on this phone."
+                : "This phone has contact details for \(count) \(group)\(count == 1 ? "" : "s")."
+        }
+        let rows = contacts.map { person in
+            var fields = [person.name, person.relationship, person.contact].filter { !$0.isEmpty }
+            if person.contact.isEmpty || EmailAddress.isValid(person.contact) {
+                fields.append(chinese ? "未登记电话号码" : "No phone number saved")
+            }
+            return fields.joined(separator: " · ")
+        }
+        return rows.isEmpty ? intro : intro + "\n\n" + rows.joined(separator: "\n")
     }
 }
 

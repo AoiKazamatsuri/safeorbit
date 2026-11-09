@@ -1045,6 +1045,60 @@ final class AgentSessionTests: XCTestCase {
         XCTAssertEqual(restored.conversation(id)?.messages.last?.text, AgentLocalRequest.accessOff(language: "en"))
     }
 
+    @MainActor func testRiskComparisonMetricPersistsAndIsSentWithTheFollowUp() async throws {
+        let defaults = isolatedDefaults(), service = StubAgentChat()
+        service.response = try JSONDecoder().decode(AgentResponse.self, from: Data("""
+        {"outcome":"answered","paragraphs":["还看不出风险有没有升高。"],"citations":[],
+         "recordContext":[{"kind":"compare","metric":"riskEvents"}]}
+        """.utf8))
+        let store = AgentSessionStore(defaults: defaults, service: service)
+        let id = try XCTUnwrap(store.newConversation())
+        XCTAssertTrue(store.send("这个月的风险和上个月比怎么样？", in: id, allowTripHistory: true))
+        try await waitForReply(store, in: id)
+
+        let restored = AgentSessionStore(defaults: defaults, service: service)
+        XCTAssertEqual(restored.conversation(id)?.messages.last?.recordContext, [.init(kind: .compare, metric: .riskEvents)])
+        XCTAssertTrue(restored.send("这个说明了什么吗", in: id, allowTripHistory: true))
+        try await waitForReply(restored, in: id)
+        let request = try XCTUnwrap(service.calls.last)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any])
+        XCTAssertEqual(body["recordContext"] as? [[String: String]], [["kind": "compare", "metric": "riskEvents"]])
+        XCTAssertNil(body["history"])
+
+        let oldQuery = try JSONDecoder().decode(AgentRecordQuery.self, from: Data(#"{"kind":"compare","month":"2026-10"}"#.utf8))
+        XCTAssertEqual(oldQuery, AgentRecordQuery(kind: .compare, month: "2026-10"))
+    }
+
+    func testContactRepliesCountSavedDetailsAndIncludePeopleWithoutPhones() {
+        var data = CaregiverSettingsData()
+        data.caregiver.name = "陈晓"
+        data.caregiver.phone = "+12025550101"
+        data.members = [LocalFamilyMember(name: "陈宇", phone: " ", relationship: "孙子")]
+        XCTAssertEqual(AgentLocalRequest.familyMembers.text(from: data, language: "zh"), """
+        这部手机目前登记了 1 位家人的联系方式。
+
+        陈晓 · +12025550101
+        陈宇 · 孙子 · 未登记电话号码
+        """)
+        data.members.append(LocalFamilyMember(name: "Chen Li", phone: "family@example.com", relationship: "Daughter"))
+        let englishReply = AgentLocalRequest.familyMembers.text(from: data, language: "en")
+        XCTAssertTrue(englishReply?.hasPrefix("This phone has contact details for 2 family members.\n\n") == true)
+        XCTAssertTrue(englishReply?.contains("Chen Li · Daughter · family@example.com · No phone number saved") == true)
+
+        XCTAssertEqual(AgentLocalRequest.emergencyContacts.text(from: data, language: "en"),
+                       "No emergency contact details are saved on this phone.")
+        data.emergencyContacts = [
+            EmergencyContact(name: "Min Chen", relationship: "Neighbor", phone: "+12025550102"),
+            EmergencyContact(name: "Bo Wu", relationship: "Friend", phone: "")
+        ]
+        XCTAssertEqual(AgentLocalRequest.emergencyContacts.text(from: data, language: "en"), """
+        This phone has contact details for 1 emergency contact.
+
+        Min Chen · Neighbor · +12025550102
+        Bo Wu · Friend · No phone number saved
+        """)
+    }
+
     @MainActor func testLocalOnlyReplyWithNoParagraphsSurvivesReload() async throws {
         let defaults = isolatedDefaults(), service = StubAgentChat()
         let settings = CaregiverSettingsStore(defaults: defaults)
