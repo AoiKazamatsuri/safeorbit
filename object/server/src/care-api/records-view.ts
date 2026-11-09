@@ -124,6 +124,10 @@ export function buildTrends(data: RecordsData, month: string, now: Date) {
       return { start, deviations: deviations.filter(o => weekStart(localDate(o.startedAt, data.timezone)) === start).length };
     }),
     deviations: comparison(target => deviations.filter(o => atMonth(o.startedAt, target)).length),
+    totals: {
+      tripCount: { current: monthTrips.length, previous: data.trips.filter(t => atMonth(t.startedAt, previousMonth)).length },
+      riskEventCount: comparison(target => risks.filter(r => atMonth(r.openedAt, target)).length),
+    },
     metrics: {
       unusualMovement: comparison(target => observations.filter(o => atMonth(o.startedAt, target)).length),
       navigationAssistance: comparison(target => data.actions.filter(a => riskIds.has(a.riskEventId)

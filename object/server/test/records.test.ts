@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { verifyAnswer } from '../src/care-agent/grounded-response';
 import { CareStore, SafeZone, StoredFix } from '../src/care-api/care-store';
+import { ChatQueries } from '../src/care-api/chat-queries';
 import { DeviceAuth } from '../src/care-api/device-auth';
 import { Records } from '../src/care-api/records';
 import { RecordsController } from '../src/care-api/records-controller';
@@ -76,6 +78,21 @@ test('no records produces empty calendar, eight zero weeks and zero denominators
   const trend = buildTrends(empty(), '2026-10', NOW);
   assert.ok(trend.weeks.every(w => w.deviations === 0));
   assert.deepEqual(trend.metrics.safeReturnRate, { current: 0, previous: 0 });
+});
+
+test('chat monthly totals use local start dates, exclude false alarms and cite the matching month', async () => {
+  const data = fixture();
+  const queries = new ChatQueries({ data: async () => data } as unknown as Records, {} as CareStore);
+  const october = await queries.run(1, { kind: 'compare', month: '2026-10' }, date('2026-11-09T10:00:00Z'));
+  const totals = october.facts as { periods: Array<{ tripCount: number; riskEventCount: number }> };
+  assert.deepEqual(totals.periods.map(p => [p.tripCount, p.riskEventCount]), [[1, 1], [2, 1]]);
+  const citations = [{ kind: 'statistic', id: 'month-2026-10' }];
+  const answer = verifyAnswer({ paragraphs: ['2026-10 有 2 次出行、1 次风险事件。'], citations }, [october], 'zh');
+  assert.equal(answer.outcome, 'answered');
+  assert.deepEqual(answer.citations.map(c => [c.id, c.startDate, c.endDate]), [['month-2026-10', '2026-10-01', '2026-10-31']]);
+  assert.equal(verifyAnswer({ paragraphs: ['2026-10 有 3 次出行。'], citations }, [october], 'zh').outcome, 'unverified');
+  const emptyMonth = buildTrends(data, '2026-11', date('2026-12-01T10:00:00Z')).totals;
+  assert.deepEqual([emptyMonth.tripCount.current, emptyMonth.riskEventCount.current], [0, 0]);
 });
 
 test('safe return uses risky trips only, counts each trip once and includes ongoing trips in the denominator', () => {

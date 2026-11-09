@@ -69,8 +69,22 @@ export class ChatQueries {
     const trends = buildTrends(data, month, now);
     const start = `${trends.previousMonth}-01`, previousEnd = addDays(`${month}-01`, -1);
     const end = month === today.slice(0, 7) ? today : addDays(`${monthAfter(month, 1)}-01`, -1);
-    return { facts: { month, previousMonth: trends.previousMonth, deviations: trends.deviations, metrics: trends.metrics, pattern: trends.pattern },
-      citations: [{ kind: 'statistic', id: `month-${trends.previousMonth}`, label: `Monthly behaviour ${trends.previousMonth}`, startDate: start, endDate: previousEnd }, { kind: 'statistic', id: `month-${month}`, label: `Monthly behaviour ${month}`, startDate: `${month}-01`, endDate: end }],
-      evidence: Object.fromEntries((['previous', 'current'] as const).map((period, i) => [`statistic:month-${i ? month : trends.previousMonth}`, { month: i ? month : trends.previousMonth, startDate: i ? `${month}-01` : start, endDate: i ? end : previousEnd, deviations: trends.deviations[period], metrics: Object.fromEntries(Object.entries(trends.metrics).map(([k, v]) => [k, v[period]])), ...(i ? { pattern: trends.pattern } : {}) }])) };
+    const citations: Citation[] = [
+      { kind: 'statistic', id: `month-${trends.previousMonth}`, label: `Monthly behaviour ${trends.previousMonth}`, startDate: start, endDate: previousEnd },
+      { kind: 'statistic', id: `month-${month}`, label: `Monthly behaviour ${month}`, startDate: `${month}-01`, endDate: end },
+    ];
+    const periods = (['previous', 'current'] as const).map((period, index) => ({
+      month: period === 'current' ? month : trends.previousMonth,
+      startDate: citations[index].startDate, endDate: citations[index].endDate,
+      tripCount: trends.totals.tripCount[period], riskEventCount: trends.totals.riskEventCount[period],
+      deviations: trends.deviations[period],
+      metrics: Object.fromEntries(Object.entries(trends.metrics).map(([key, values]) => [key, values[period]])),
+      ...(period === 'current' ? { pattern: trends.pattern } : {}),
+    }));
+    return {
+      facts: { periods, pattern: trends.pattern },
+      citations,
+      evidence: Object.fromEntries(citations.map((citation, index) => [`statistic:${citation.id}`, periods[index]])),
+    };
   }
 }
