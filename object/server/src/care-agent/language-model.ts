@@ -11,9 +11,12 @@ export class LanguageModel {
     // Native dynamic imports are required because the SDK is ESM and the server compiles to CommonJS.
     const load = new Function('name', 'return import(name)') as (name: string) => Promise<any>;
     const [{ generateText }, { createOpenAICompatible }] = await Promise.all([load('ai'), load('@ai-sdk/openai-compatible')]);
+    const model = process.env.LLM_MODEL || 'qwen3.7-flash';
     const provider = createOpenAICompatible({ name: 'qwen', apiKey: process.env.LLM_API_KEY,
       baseURL: process.env.LLM_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1' });
-    const response = await generateText({ model: provider(process.env.LLM_MODEL || 'qwen3.7-flash'), prompt,
+    // The two chat calls must both fit the App's request timeout. This model can produce the small JSON replies directly.
+    const providerOptions = /^qwen3\.7-flash(?:-|$)/.test(model) ? { qwen: { enable_thinking: false } } : undefined;
+    const response = await generateText({ model: provider(model), prompt, providerOptions,
       abortSignal: AbortSignal.timeout(6000), maxRetries: 0, maxOutputTokens: 600 });
     return response.text;
   }
