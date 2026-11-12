@@ -103,6 +103,19 @@ function timeline(e: RiskEventRecord, activity: RiskActivity): TimelineItem[] {
   return items.sort((a, b) => a.at.localeCompare(b.at) || a.order - b.order).map(({ order, ...item }) => item);
 }
 
+function verifiedExplanation(e: RiskEventRecord, actions: ActionRecord[]): string | null {
+  let text = e.explanation;
+  // The previous template persisted these phrases even when APNs had not accepted a notification.
+  if (!actions.some(a => a.kind === 'notifyLow' && a.status === 'sent')) {
+    text = text?.replace(', asked her phone to start navigation home and notified you.', ' and asked her phone to start navigation home.')
+      .replace(' and notified you.', '.') ?? null;
+  }
+  if (!actions.some(a => a.kind === 'notifyHigh' && a.status === 'sent')) {
+    text = text?.replace(' and sent you an urgent alert.', '.') ?? null;
+  }
+  return text;
+}
+
 export function buildRiskDetail(input: {
   event: RiskEventRecord; activity: RiskActivity; latest: StoredFix | null; trail: StoredFix[]; now?: Date;
 }): RiskEventDetail {
@@ -114,7 +127,7 @@ export function buildRiskDetail(input: {
     headline: riskHeadline(e.anomaly, e.anomalyStartedAt, until),
     durationMinutes: Math.max(0, Math.floor((until.getTime() - e.anomalyStartedAt.getTime()) / 60_000)),
     canMarkFalseAlarm: e.status === 'resolved' && !e.falseAlarm,
-    explanation: e.explanation,
+    explanation: verifiedExplanation(e, activity.actions),
     coordinate: input.latest ? point(input.latest) : null,
     recordedAt: input.latest ? input.latest.sampledAt.toISOString() : null,
     trail: input.trail.map(point),

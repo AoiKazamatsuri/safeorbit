@@ -9,6 +9,7 @@ import { agentStatusLine, buildSnapshot, riskHeadline } from '../src/care-api/lo
 import { parseSeed } from '../src/care-api/reset-cli';
 import { ActionRecord, RiskActivity, RiskEventRecord } from '../src/care-api/risk-records';
 import { buildRiskDetail } from '../src/care-api/risk-view';
+import { explainRisk } from '../src/care-agent/risk-explanation';
 import {
   InputError, isHomeName, parseActionResult, parseCallRecord, parseDeviceRegistration, parseLocationBatch, parseReferenceRoute,
   parseSafeZone, parseSettings,
@@ -174,7 +175,9 @@ test('the risk event page lists help, a time-ordered timeline and the raw record
   const at = (min: number) => new Date(NOW + min * 60_000);
   const event: RiskEventRecord = {
     id: '7', key: 'wandering:1', tripId: '3', level: 'high', status: 'resolved', anomaly: 'wandering', anomalyStartedAt: at(0),
-    openedAt: at(7), escalatedAt: at(15), resolvedAt: at(20), resolution: 'met', falseAlarm: false, explanation: 'text', version: 4, changedAt: at(20),
+    openedAt: at(7), escalatedAt: at(15), resolvedAt: at(20), resolution: 'met', falseAlarm: false,
+    explanation: 'I raised a low risk, asked her phone to start navigation home and notified you. I raised it to high risk and sent you an urgent alert.',
+    version: 4, changedAt: at(20),
   };
   const action = (id: string, kind: ActionRecord['kind'], status: string, decided: number, extra: Partial<ActionRecord> = {}): ActionRecord => ({
     id, riskEventId: '7', kind, target: kind === 'startNavigation' ? 'elder' : 'caregivers', status, reason: null, details: {},
@@ -207,4 +210,13 @@ test('the risk event page lists help, a time-ordered timeline and the raw record
   assert.equal(detail.help[0].text, 'Navigation home could not start (routePlanningFailed)');
   assert.equal(detail.help[1].text, 'Low-risk notification not sent: push is not configured');
   assert.equal(detail.actions[1].deliveries[0].result, 'notConfigured');
+  assert.equal(detail.explanation, 'I raised a low risk and asked her phone to start navigation home. I raised it to high risk.');
+  assert.doesNotMatch(explainRisk(event, activity, 'Grandma'), /notified you|sent (?:a low-risk notification|(?:you )?an urgent alert)/);
+
+  const notified = { ...activity, actions: activity.actions.map(a =>
+    a.kind === 'notifyLow' || a.kind === 'notifyHigh' ? { ...a, status: 'sent' } : a) };
+  const explanation = explainRisk(event, notified, 'Grandma');
+  assert.match(explanation, /sent a low-risk notification/);
+  assert.match(explanation, /sent an urgent alert/);
+  assert.equal(buildRiskDetail({ event, activity: notified, latest: null, trail: [] }).explanation, event.explanation);
 });

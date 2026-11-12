@@ -497,11 +497,13 @@ struct RecordsPage: View {
     private func percentChange(_ current: Int, _ previous: Int) -> String {
         guard previous > 0 else { return current > 0 ? "New" : "—" }
         let delta = Int((100.0 * Double(current - previous) / Double(previous)).rounded())
-        return "\(delta >= 0 ? "▲ +" : "▼ ")\(delta)%"
+        guard delta != 0 else { return "0%" }
+        return "\(delta > 0 ? "▲ +" : "▼ ")\(delta)%"
     }
     private func percentagePointChange(_ current: Int, _ previous: Int) -> String {
         let delta = current - previous
-        return "\(delta >= 0 ? "▲ +" : "▼ ")\(delta) pts"
+        guard delta != 0 else { return "0 pts" }
+        return "\(delta > 0 ? "▲ +" : "▼ ")\(delta) pts"
     }
 }
 

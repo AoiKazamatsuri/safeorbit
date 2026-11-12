@@ -360,12 +360,37 @@ struct SafeZoneMapView: View {
     let onSelection: (GeoPoint) -> Void
     let onState: (Bool, String?) -> Void
     var bottomOverlayInset: CGFloat = 12
+
+    @State private var camera: MapCameraPosition = .automatic
+
     var body: some View {
         GeometryReader { geometry in
-            AMapCanvas(camera: .constant(.region(OrbitMapScale.region(center: initialCenter.appleCoordinate,
-                            viewportSize: geometry.size, verticalOffset: 0.15))),
-                       bottomOverlayInset: bottomOverlayInset)
-                .onAppear { onState(false, "AMap requires a physical iPhone on this simulator runtime.") }
+            MapReader { proxy in
+                Map(position: $camera, interactionModes: [.pan, .zoom]) {
+                    MapCircle(center: initialCenter.appleCoordinate, radius: Double(radiusMeters))
+                        .foregroundStyle(OrbitStyle.teal.opacity(0.16))
+                        .stroke(OrbitStyle.teal, lineWidth: 2)
+                    Marker("Selected location", coordinate: initialCenter.appleCoordinate)
+                        .tint(OrbitStyle.teal)
+                        .annotationTitles(.hidden)
+                }
+                .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll, showsTraffic: false))
+                .environment(\.colorScheme, .light)
+                .onTapGesture { point in
+                    guard let coordinate = proxy.convert(point, from: .local) else { return }
+                    let selected = MainlandCoordinates.toWGS84(
+                        GeoPoint(latitude: coordinate.latitude, longitude: coordinate.longitude))
+                    guard selected.isValid else { return }
+                    onSelection(selected)
+                }
+            }
+            .task {
+                if camera == .automatic {
+                    camera = .region(OrbitMapScale.region(center: initialCenter.appleCoordinate,
+                        viewportSize: geometry.size, verticalOffset: 0.15))
+                }
+                onState(initialCenter.isValid, nil)
+            }
         }
     }
 }

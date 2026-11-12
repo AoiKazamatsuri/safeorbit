@@ -182,13 +182,14 @@ export class RiskRecords {
     return row ? eventRow(row) : null;
   }
 
-  // The active event, else the latest one resolved within the window, so the caregiver can still open it
-  // (and mark it as a false alarm) from the person card for a while after it ends.
+  // Only live events belong on the location page. Importing or editing a historical
+  // record must not make it appear to have just resolved.
   async currentRiskEvent(elderId: number, resolvedWindowSeconds: number): Promise<RiskEventRecord | null> {
     const [row] = await this.db.query(
-      `SELECT * FROM risk_events WHERE elder_id = $1
-         AND (status = 'active' OR changed_at >= now() - make_interval(secs => $2))
-       ORDER BY (status = 'active') DESC, id DESC LIMIT 1`, [elderId, resolvedWindowSeconds]);
+      `SELECT * FROM risk_events WHERE elder_id = $1 AND NOT history_replay
+         AND (status = 'active' OR resolved_at >= now() - make_interval(secs => $2))
+       ORDER BY (status = 'active') DESC, resolved_at DESC NULLS LAST, id DESC LIMIT 1`,
+      [elderId, resolvedWindowSeconds]);
     return row ? eventRow(row) : null;
   }
 
