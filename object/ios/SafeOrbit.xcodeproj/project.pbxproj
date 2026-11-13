@@ -472,6 +472,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = ACD4BCC47A4DDAA3B0722D11 /* Config/Debug.xcconfig */;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = SafeOrbit/SafeOrbit.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_TESTABILITY = YES;
@@ -509,6 +510,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 323B5140B8E0B7C06560E7E1 /* Config/Release.xcconfig */;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = SafeOrbit/SafeOrbit.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_TESTABILITY = NO;

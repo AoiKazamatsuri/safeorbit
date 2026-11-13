@@ -529,10 +529,14 @@ struct AgentChatPage: View {
                 }
             }
                 .overlay(alignment: .bottom) {
-                    Image("AgentAvatar")
+                    Image(decorative: "AgentAvatar")
                         .resizable().scaledToFit()
-                        .frame(width: 84, height: 84)
+                        .frame(width: 48, height: 48)
+                        .frame(width: 68, height: 68)
+                        .background(.white, in: Circle())
+                        .overlay { Circle().strokeBorder(OrbitStyle.teal, lineWidth: 1) }
                         .shadow(color: .black.opacity(0.12), radius: 3, y: 2)
+                        .frame(width: 84, height: 84)
                         .offset(y: 40)
                 }
                 .zIndex(1)

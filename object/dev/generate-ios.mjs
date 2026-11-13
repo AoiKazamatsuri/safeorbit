@@ -52,7 +52,7 @@ for (const target of ['SafeOrbit', 'SafeOrbitTests']) {
         ENABLE_TESTABILITY: config === 'Debug' ? 'YES' : 'NO', SWIFT_OPTIMIZATION_LEVEL: config === 'Debug' ? '"-Onone"' : '"-O"',
         LD_RUNPATH_SEARCH_PATHS: '"$(inherited) @executable_path/Frameworks @loader_path/Frameworks"',
         ...(isTest ? { GENERATE_INFOPLIST_FILE: 'YES', TEST_HOST: '"$(BUILT_PRODUCTS_DIR)/SafeOrbit.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SafeOrbit"', BUNDLE_LOADER: '"$(TEST_HOST)"' }
-                   : { CODE_SIGN_ENTITLEMENTS: 'SafeOrbit/SafeOrbit.entitlements', INFOPLIST_FILE: 'SafeOrbit/Info.plist', GENERATE_INFOPLIST_FILE: 'NO', SWIFT_EMIT_LOC_STRINGS: 'YES' }),
+                   : { ASSETCATALOG_COMPILER_APPICON_NAME: 'AppIcon', CODE_SIGN_ENTITLEMENTS: 'SafeOrbit/SafeOrbit.entitlements', INFOPLIST_FILE: 'SafeOrbit/Info.plist', GENERATE_INFOPLIST_FILE: 'NO', SWIFT_EMIT_LOC_STRINGS: 'YES' }),
       },
     });
   }
