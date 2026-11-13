@@ -44,8 +44,9 @@ import CoreLocation
          navigationProvider: WalkingRouteProvider? = nil, voice: ElderNavigationVoice? = nil) {
         let home = home ?? HomeLocationStore()
         let voice = voice ?? ElderNavigationVoice()
-        self.home = home; self.provider = provider ?? AMapWalkingRouteProvider(); self.voice = voice
-        navigation = WalkingNavigationModel(provider: navigationProvider ?? AMapWalkingRouteProvider(), voice: voice, destinationKind: .home)
+        self.home = home; self.provider = provider ?? LiveWalkingRoute.provider(); self.voice = voice
+        navigation = WalkingNavigationModel(provider: navigationProvider ?? LiveWalkingRoute.provider(), voice: voice,
+                                           destinationKind: .home, isDemoRoute: navigationProvider == nil && LiveWalkingRoute.isDemo)
         navigation.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &observations)
         home.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &observations)
     }
@@ -57,7 +58,7 @@ import CoreLocation
         home.point.map { ElderLocationSnapshot(coordinate: $0, recordedAt: Date(), heading: nil, status: nil, batteryPercent: nil, address: nil, trail: [], safeZones: []) }
     }
     func startLocation() {
-        guard !running, AMapRuntime.prepare(), !navigation.isPresented else { return }
+        guard !running, !navigation.isPresented, LiveWalkingRoute.isDemo || AMapRuntime.prepare() else { return }
         running = true
         provider.startUpdates { [weak self] result in
             switch result {

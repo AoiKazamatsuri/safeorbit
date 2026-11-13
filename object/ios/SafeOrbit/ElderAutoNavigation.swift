@@ -188,6 +188,7 @@ enum ElderFallbackNotification {
         case .routeTimedOut?: return "Route planning failed: request timed out"
         case .routeNetworkUnavailable?: return "Route planning failed: no internet on her phone"
         case .routeServiceUnavailable?, .routeUnavailable?: return "Route planning failed: no walking route"
+        case .outsideDemoArea?: return "Route planning failed: outside the simulator demo area"
         case .missingDestination?, .staleDestination?, nil: return "Route planning failed"
         }
     }

@@ -13,6 +13,8 @@ struct AMapMarker {
     let coordinate: CLLocationCoordinate2D
     var anchor: UnitPoint = .center
     let content: AnyView
+    /// Stable when only the coordinate changes; avoids relaying out the native hosted view per frame.
+    var contentKey: String? = nil
 }
 struct AMapCircle {
     let id: String
@@ -165,6 +167,7 @@ struct NativeAMapCanvas: UIViewRepresentable {
     var circles: [AMapCircle] = []
     var lines: [AMapLine] = []
     var bottomOverlayInset: CGFloat = 0
+    var onUserCameraMove: () -> Void = {}
     var onCameraChange: (AMapCameraContext) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
@@ -206,8 +209,13 @@ struct NativeAMapCanvas: UIViewRepresentable {
         #endif
         var annotations: [String: MAPointAnnotation] = [:]
         var hosts: [String: UIHostingController<AnyView>] = [:]
+        private var contentKeys: [String: String] = [:]
         private var overlayStyles: [ObjectIdentifier: EitherOverlay] = [:]
-        private var renderedOverlayKey = ""
+        private var renderedCircles: [MACircle] = []
+        private var renderedLines: [MAPolyline] = []
+        private var circleKey = ""
+        private var lineKey = ""
+        private var userMoving = false
         init(parent: NativeAMapCanvas) { self.parent = parent }
 
         func update() {
@@ -221,11 +229,16 @@ struct NativeAMapCanvas: UIViewRepresentable {
             for id in Array(annotations.keys) where !wanted.contains(id) {
                 if let annotation = annotations.removeValue(forKey: id) { map.removeAnnotation(annotation) }
                 hosts.removeValue(forKey: id)
+                contentKeys.removeValue(forKey: id)
             }
             for marker in parent.markers {
                 if let annotation = annotations[marker.id] {
-                    annotation.coordinate = marker.coordinate
-                    if let view = map.view(for: annotation) { install(marker, into: view) }
+                    if annotation.coordinate.latitude != marker.coordinate.latitude ||
+                        annotation.coordinate.longitude != marker.coordinate.longitude {
+                        annotation.coordinate = marker.coordinate
+                    }
+                    if (marker.contentKey == nil || contentKeys[marker.id] != marker.contentKey),
+                       let view = map.view(for: annotation) { install(marker, into: view) }
                 } else {
                     let annotation = MAPointAnnotation()
                     annotation.coordinate = marker.coordinate
@@ -233,23 +246,30 @@ struct NativeAMapCanvas: UIViewRepresentable {
                     map.addAnnotation(annotation)
                 }
             }
-            let key = parent.circles.map { "\($0.id):\($0.center.latitude):\($0.center.longitude):\($0.radius):\($0.fill):\($0.stroke):\($0.width)" }.joined(separator: "|")
-                + parent.lines.map { "\($0.id):\($0.coordinates.map { "\($0.latitude),\($0.longitude)" }):\($0.color):\($0.width):\($0.dash)" }.joined(separator: "|")
-            if key != renderedOverlayKey {
-                map.removeOverlays(map.overlays)
-                overlayStyles.removeAll()
+            let nextCircles = parent.circles.map { "\($0.id):\($0.center.latitude):\($0.center.longitude):\($0.radius):\($0.fill):\($0.stroke):\($0.width)" }.joined(separator: "|")
+            let nextLines = parent.lines.map { "\($0.id):\($0.coordinates.map { "\($0.latitude),\($0.longitude)" }):\($0.color):\($0.width):\($0.dash)" }.joined(separator: "|")
+            if nextCircles != circleKey {
+                for overlay in renderedCircles { map.remove(overlay); overlayStyles.removeValue(forKey: ObjectIdentifier(overlay)) }
+                renderedCircles.removeAll()
                 for circle in parent.circles where circle.radius.isFinite && circle.radius > 0 {
                     let overlay = MACircle(center: circle.center, radius: circle.radius)!
                     overlayStyles[ObjectIdentifier(overlay)] = .circle(circle)
+                    renderedCircles.append(overlay)
                     map.add(overlay)
                 }
+                circleKey = nextCircles
+            }
+            if nextLines != lineKey {
+                for overlay in renderedLines { map.remove(overlay); overlayStyles.removeValue(forKey: ObjectIdentifier(overlay)) }
+                renderedLines.removeAll()
                 for line in parent.lines where line.coordinates.count > 1 {
                     var points = line.coordinates
                     let overlay = MAPolyline(coordinates: &points, count: UInt(points.count))!
                     overlayStyles[ObjectIdentifier(overlay)] = .line(line)
+                    renderedLines.append(overlay)
                     map.add(overlay)
                 }
-                renderedOverlayKey = key
+                lineKey = nextLines
             }
             cameraGate.request(parent.camera)
             cameraGate.layout(map.bounds.size)
@@ -258,10 +278,17 @@ struct NativeAMapCanvas: UIViewRepresentable {
         /// A region set before both engine init and a non-zero layout may not take
         /// effect, so the request stays pending until then and is marked only once sent.
         private func applyCamera(stage: String) {
-            guard let map, let camera = cameraGate.due,
+            guard !userMoving, let map, let camera = cameraGate.due,
                   let target = AMapCameraTarget.resolve(camera) else { return }
-            map.setRegion(MACoordinateRegion(center: target.region.center, span: MACoordinateSpan(latitudeDelta: target.region.span.latitudeDelta, longitudeDelta: target.region.span.longitudeDelta)), animated: false)
-            map.rotationDegree = CGFloat(target.heading)
+            let previous = cameraGate.applied?.region
+            if let previous, camera.region != nil,
+               abs(previous.span.latitudeDelta - target.region.span.latitudeDelta) < 0.000001,
+               abs(previous.span.longitudeDelta - target.region.span.longitudeDelta) < 0.000001 {
+                map.setCenter(target.region.center, animated: false)
+            } else {
+                map.setRegion(MACoordinateRegion(center: target.region.center, span: MACoordinateSpan(latitudeDelta: target.region.span.latitudeDelta, longitudeDelta: target.region.span.longitudeDelta)), animated: false)
+                map.rotationDegree = CGFloat(target.heading)
+            }
             let first = cameraGate.didApply(camera)
             #if DEBUG
             if first { AMapScaleProbe.record(map, page: "canvas", stage: "applied via \(stage)"); probeSettled = true }
@@ -278,6 +305,7 @@ struct NativeAMapCanvas: UIViewRepresentable {
             applyCamera(stage: "load")
         }
         private func install(_ marker: AMapMarker, into view: MAAnnotationView) {
+            contentKeys[marker.id] = marker.contentKey
             let host: UIHostingController<AnyView>
             if let existing = hosts[marker.id] { host = existing; host.rootView = marker.content }
             else {
@@ -323,6 +351,15 @@ struct NativeAMapCanvas: UIViewRepresentable {
                 return renderer
             }
         }
+        func mapView(_ mapView: MAMapView!, regionWillChangeAnimated animated: Bool, wasUserAction: Bool) {
+            guard wasUserAction else { return }
+            userMoving = true
+            cameraGate.userMoved()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !self.cameraGate.closed else { return }
+                self.parent.onUserCameraMove()
+            }
+        }
         func mapView(_ mapView: MAMapView!, regionDidChangeAnimated animated: Bool, wasUserAction: Bool) {
             let region = MKCoordinateRegion(center: mapView.region.center, span: MKCoordinateSpan(latitudeDelta: mapView.region.span.latitudeDelta, longitudeDelta: mapView.region.span.longitudeDelta))
             let context = AMapCameraContext(region: region, heading: Double(mapView.rotationDegree), wasUserAction: wasUserAction)
@@ -331,6 +368,7 @@ struct NativeAMapCanvas: UIViewRepresentable {
             #endif
             var userCamera: MapCameraPosition?
             if wasUserAction {
+                userMoving = false
                 let camera = MapCameraPosition.camera(MapCamera(centerCoordinate: region.center, distance: region.span.latitudeDelta * 111_320, heading: context.heading, pitch: 0))
                 // Drop any late programmatic request now so it cannot override the gesture.
                 cameraGate.userMoved(to: camera)
@@ -355,6 +393,7 @@ struct AMapCanvas: View {
     var circles: [AMapCircle] = []
     var lines: [AMapLine] = []
     var bottomOverlayInset: CGFloat = 0
+    var onUserCameraMove: () -> Void = {}
     var onCameraChange: (AMapCameraContext) -> Void = { _ in }
 
     var body: some View {
@@ -362,6 +401,7 @@ struct AMapCanvas: View {
         if AMapRuntime.hasKey {
             NativeAMapCanvas(camera: $camera, markers: markers, circles: circles,
                              lines: lines, bottomOverlayInset: bottomOverlayInset,
+                             onUserCameraMove: onUserCameraMove,
                              onCameraChange: onCameraChange)
         } else { previewMap }
         #else
@@ -389,6 +429,9 @@ struct AMapCanvas: View {
         }
         .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll, showsTraffic: false))
         .environment(\.colorScheme, .light)
+        .onChange(of: camera.positionedByUser) { _, moved in
+            if moved { onUserCameraMove() }
+        }
         .onMapCameraChange(frequency: .onEnd) { context in
             onCameraChange(AMapCameraContext(region: context.region,
                 heading: context.camera.heading, wasUserAction: camera.positionedByUser))

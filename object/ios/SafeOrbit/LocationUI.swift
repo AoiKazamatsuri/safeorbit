@@ -369,6 +369,8 @@ struct LocationPage: View {
     var refreshDestination: (() async -> ElderLocationSnapshot?)? = nil
     var onEditorPresentationChanged: (Bool) -> Void = { _ in }
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var seniorMotion = SeniorMapMotion()
     @State private var previousCamera: MapCameraPosition?
     @State private var followsUser = false
     @State private var showsOverview = true
@@ -381,14 +383,20 @@ struct LocationPage: View {
     @State private var homeCardTop: CGFloat?
     @State private var zoneEditor: SafeZoneEditorSelection?
 
-    private var point: CLLocationCoordinate2D? { snapshot?.coordinate.isValid == true ? snapshot?.coordinate.appleCoordinate : nil }
+    private var point: CLLocationCoordinate2D? {
+        seniorMotion.position?.appleCoordinate
+            ?? (snapshot?.coordinate.isValid == true ? snapshot?.coordinate.appleCoordinate : nil)
+    }
     var body: some View {
         GeometryReader { geometry in
         ZStack(alignment: .top) {
             AMapConsentSurface {
                 AMapCanvas(camera: $camera, markers: mapMarkers, circles: mapCircles,
-                           lines: mapLines, onCameraChange: { context in
-                visibleRegion = context.region
+                           lines: mapLines, onUserCameraMove: {
+                if navigation.isPresented { followsUser = false; showsOverview = false }
+                else { mapFollow.pause() }
+            }, onCameraChange: { context in
+                if context.wasUserAction { visibleRegion = context.region }
                 visibleHeading = context.heading
                 if navigation.isPresented {
                     if context.wasUserAction { followsUser = false; showsOverview = false }
@@ -475,7 +483,24 @@ struct LocationPage: View {
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: snapshot?.recordedAt) { _, _ in
             if navigation.isPresented { navigation.updateDestination(snapshot) }
-            else { focusOnSenior() }
+        }
+        .task(id: SeniorMotionUpdate(recordedAt: snapshot?.recordedAt, enabled: scenePhase == .active && !navigation.isPresented,
+                                      reduceMotion: reduceMotion)) {
+            guard scenePhase == .active, !navigation.isPresented else { return }
+            guard let snapshot else {
+                seniorMotion = SeniorMapMotion()
+                return
+            }
+            seniorMotion.accept(snapshot.coordinate, sampledAt: snapshot.recordedAt,
+                                now: ProcessInfo.processInfo.systemUptime,
+                                animate: snapshot.isCurrent && !reduceMotion)
+            focusOnSenior()
+            while seniorMotion.isMoving {
+                do { try await Task.sleep(for: .milliseconds(33)) } catch { return }
+                guard !Task.isCancelled else { return }
+                seniorMotion.advance(to: ProcessInfo.processInfo.systemUptime)
+                focusOnSenior()
+            }
         }
         .onChange(of: navigation.isPresented) { _, presented in
             if presented { previousCamera = camera; followsUser = true; showsOverview = false; followCurrentPosition() }
@@ -607,7 +632,8 @@ struct LocationPage: View {
             let headline = riskState == .normal ? snapshot.status : (snapshot.riskHeadline ?? riskState.headline)
             result.append(AMapMarker(id: "senior", coordinate: point, content: AnyView(SeniorMapMarker(
                 heading: snapshot.validHeading.map { $0 - visibleHeading },
-                headline: snapshot.isCurrent ? headline : nil, riskState: riskState, openRiskEvent: openRiskEvent))))
+                headline: snapshot.isCurrent ? headline : nil, riskState: riskState, openRiskEvent: openRiskEvent)),
+                contentKey: "\(snapshot.validHeading.map { $0 - visibleHeading } ?? -360):\(snapshot.isCurrent ? headline ?? "" : ""):\(riskState):\(snapshot.riskEventId ?? "")"))
         }
         return result
     }
@@ -687,6 +713,7 @@ struct CaregiverMapFollow {
     private(set) var defaultRegion: MKCoordinateRegion?
     private(set) var paused = false
     var canLocate: Bool { defaultRegion != nil }
+    mutating func pause() { paused = true }
 
     /// Records the new default view; returns it when the map should follow.
     mutating func seniorMoved(to region: MKCoordinateRegion) -> MKCoordinateRegion? {
@@ -708,6 +735,54 @@ struct CaregiverMapFollow {
         guard let defaultRegion else { return nil }
         paused = false
         return defaultRegion
+    }
+}
+
+private struct SeniorMotionUpdate: Equatable {
+    let recordedAt: Date?
+    let enabled: Bool
+    let reduceMotion: Bool
+}
+
+/// Presentation only. The camera and marker share one position; neither can lead a received fix.
+struct SeniorMapMotion {
+    private(set) var position: GeoPoint?
+    private var sampledAt: Date?
+    private var segment: (from: GeoPoint, to: GeoPoint, began: TimeInterval, duration: TimeInterval)?
+    var isMoving: Bool { segment != nil }
+
+    mutating func accept(_ target: GeoPoint, sampledAt time: Date, now: TimeInterval, animate: Bool) {
+        guard target.isValid, sampledAt.map({ time >= $0 }) ?? true else { return }
+        if time == sampledAt {
+            if !animate { position = segment?.to ?? position; segment = nil }
+            return
+        }
+        let elapsed = sampledAt.map { time.timeIntervalSince($0) } ?? .infinity
+        sampledAt = time
+        if segment?.to == target && animate { return }
+        advance(to: now)
+        guard animate, elapsed <= 15, let from = position, from != target,
+              CLLocation(latitude: from.latitude, longitude: from.longitude)
+                .distance(from: CLLocation(latitude: target.latitude, longitude: target.longitude)) <= 50 else {
+            position = target
+            segment = nil
+            return
+        }
+        segment = (from, target, now, min(3, max(0.25, elapsed)))
+    }
+
+    mutating func advance(to now: TimeInterval) {
+        guard let segment else { return }
+        let progress = min(1, max(0, (now - segment.began) / segment.duration))
+        if progress == 1 {
+            position = segment.to
+            self.segment = nil
+            return
+        }
+        let longitudeDelta = (segment.to.longitude - segment.from.longitude + 540).truncatingRemainder(dividingBy: 360) - 180
+        let longitude = (segment.from.longitude + longitudeDelta * progress + 540).truncatingRemainder(dividingBy: 360) - 180
+        position = GeoPoint(latitude: segment.from.latitude + (segment.to.latitude - segment.from.latitude) * progress,
+                            longitude: longitude)
     }
 }
 

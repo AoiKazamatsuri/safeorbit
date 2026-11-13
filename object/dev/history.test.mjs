@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { generateHistory, historyTrack, localDay, localInstant } from './history.mjs';
 import { replayHistory } from './replay-history.mjs';
+import { TRACKS, toGpx } from './tracks.mjs';
 
 const require = createRequire(import.meta.url);
 const tripRules = require('../server/dist/src/care-agent/trip-recognition.js');
@@ -73,4 +74,28 @@ test('same sample-time rules derive completed normal, low-risk deviation and hig
 test('history importer rejects invalid batching before network access', async () => {
   await assert.rejects(replayHistory({ batchSize: 0 }), /1–200/);
   await assert.rejects(replayHistory({ batchSize: 201 }), /1–200/);
+});
+
+test('the live GPX stays on the demo street and opens, escalates and resolves one wandering event', () => {
+  const start = Date.UTC(2026, 9, 20, 1);
+  const track = TRACKS['home-wander-home']();
+  assert.equal(toGpx('home-wander-home', track),
+    readFileSync(new URL('./tracks/home-wander-home.gpx', import.meta.url), 'utf8'));
+  const { distanceToPolylineMeters } = require('../server/dist/src/care-api/public/index.js');
+  assert.ok(track.every(point => distanceToPolylineMeters(point, routes[0]) < 0.1));
+  assert.ok(track.some(point => point.offset > 390 && point.offset < 1400 && point.speed === 0));
+  for (let phase = 0; phase < 10; phase++) {
+    const points = track.map(({ offset, ...fix }) => ({
+      ...fix, sampledAt: new Date(start + (offset + phase) * 1000).toISOString(),
+    }));
+    const result = recompute({ trips: [{ points }] });
+    const risk = result.outputs.filter(o => o.type !== 'observation');
+    assert.deepEqual(risk.map(o => [o.type, o.anomaly]), [
+      ['opened', 'wandering'], ['escalated', 'wandering'], ['resolved', 'wandering'],
+    ]);
+    assert.equal(new Set(risk.map(o => o.key)).size, 1);
+    assert.equal(risk[0].minutes, 7);
+    assert.equal(risk[1].minutes, 15);
+    assert.equal(risk[2].resolution, 'home');
+  }
 });

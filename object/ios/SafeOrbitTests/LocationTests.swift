@@ -18,6 +18,48 @@ import SwiftUI
 }
 
 final class LocationTests: XCTestCase {
+    func testSeniorMotionInterpolatesRetargetsAndStopsAtReceivedPosition() {
+        let first = GeoPoint(latitude: 32, longitude: 118)
+        let second = GeoPoint(latitude: 32.00005, longitude: 118)
+        let third = GeoPoint(latitude: 32.00010, longitude: 118)
+        let time = Date()
+        var motion = SeniorMapMotion()
+        motion.accept(first, sampledAt: time, now: 0, animate: true)
+        XCTAssertEqual(motion.position, first)
+        motion.accept(second, sampledAt: time.addingTimeInterval(5), now: 5, animate: true)
+        motion.advance(to: 6.5)
+        XCTAssertEqual(motion.position?.latitude ?? 0, 32.000025, accuracy: 1e-9)
+        motion.accept(third, sampledAt: time.addingTimeInterval(6), now: 6.5, animate: true)
+        XCTAssertEqual(motion.position?.latitude ?? 0, 32.000025, accuracy: 1e-9)
+        motion.accept(first, sampledAt: time, now: 6.6, animate: true)
+        motion.advance(to: 20)
+        XCTAssertEqual(motion.position, third)
+        XCTAssertFalse(motion.isMoving)
+        motion.accept(first, sampledAt: time.addingTimeInterval(30), now: 30, animate: true)
+        XCTAssertEqual(motion.position, first, "Do not animate across a data gap")
+        motion.accept(second, sampledAt: time.addingTimeInterval(35), now: 35, animate: false)
+        XCTAssertEqual(motion.position, second, "Reduced motion updates without animating")
+    }
+
+    #if DEBUG && targetEnvironment(simulator)
+    func testSimulatorWalkingRouteFollowsTheBundledStreetInBothDirections() throws {
+        let corridor = try SimulatorWalkingCorridor.bundled()
+        let home = try XCTUnwrap(corridor.points.first), market = try XCTUnwrap(corridor.points.last)
+        let outbound = try corridor.route(from: home, to: market)
+        let inbound = try corridor.route(from: market, to: home)
+        XCTAssertGreaterThan(outbound.distanceMeters, 700)
+        XCTAssertEqual(outbound.distanceMeters, inbound.distanceMeters, accuracy: 0.1)
+        XCTAssertEqual(outbound.coordinates.first?.latitude, inbound.coordinates.last?.latitude)
+        XCTAssertEqual(outbound.coordinates.last?.longitude, inbound.coordinates.first?.longitude)
+        XCTAssertTrue(outbound.steps.contains { $0.contains("Turn") })
+        let mid = try XCTUnwrap(corridor.points.dropFirst().first)
+        XCTAssertLessThan(try corridor.route(from: home, to: mid).distanceMeters, outbound.distanceMeters)
+        XCTAssertGreaterThan(try corridor.route(from: home, to: home).distanceMeters, 0)
+        XCTAssertThrowsError(try corridor.route(from: home, to: GeoPoint(latitude: 32.07, longitude: 118.77))) {
+            XCTAssertEqual($0 as? NavigationIssue, .outsideDemoArea)
+        }
+    }
+    #endif
     func testSafeZonePlaceTagsMatchApprovedSymbolsAndExistOnIOS() throws {
         let expected = [
             ("Home", "house.fill"), ("Market", "storefront.fill"),

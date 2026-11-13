@@ -39,7 +39,6 @@ export function routePrefix(line, meters) {
 }
 
 // legs: ['walk', polyline] walks the polyline from its first point; ['dwell', seconds] stays put;
-// ['loop', { seconds, radius }] walks round a small circle that starts and ends where she stands.
 // Returns one fix every stepSeconds, offsets in seconds from the track start.
 export function buildTrack(legs, { stepSeconds = 5, speedMps = 1.0, accuracy = 8 } = {}) {
   const fixes = [];
@@ -52,14 +51,6 @@ export function buildTrack(legs, { stepSeconds = 5, speedMps = 1.0, accuracy = 8
   for (const [kind, arg] of legs) {
     if (kind === 'dwell') {
       for (let s = stepSeconds; s <= arg; s += stepSeconds) emit(at, 0, null);
-      continue;
-    }
-    if (kind === 'loop') {
-      const c = at, r = arg.radius;
-      for (let s = stepSeconds; s <= arg.seconds; s += stepSeconds) {
-        const a = (s * speedMps) / r;  // the circle's centre is r metres west of the start
-        emit(offset(c, r * (Math.cos(a) - 1), r * Math.sin(a)), speedMps, Math.round((((-a * 180) / Math.PI) % 360 + 360) % 360));
-      }
       continue;
     }
     // Evenly spaced along the polyline, so corners are walked rather than cut.
@@ -86,12 +77,28 @@ export const TRACKS = {
     const route = demoRoute();
     return buildTrack([['dwell', 120], ['walk', route], ['dwell', 300], ['walk', [...route].reverse()], ['dwell', 240]]);
   },
-  // Scenes "low risk", "high risk", "risk resolved": walk 300 m of the market route, wander in a 12 m loop
-  // for 17 minutes (low risk at 7, high at 15 minutes from the start of the wandering), walk back home and
-  // settle 240 s (resolved 180 s after she is well inside home). About 33 minutes.
+  // Keep the hesitation on the surveyed Beijing West Road segment. The walker varies
+  // her turning points and occasionally waits before deciding which way to go.
   'home-wander-home': () => {
-    const part = routePrefix(demoRoute(), 300);
-    return buildTrack([['dwell', 120], ['walk', part], ['loop', { seconds: 17 * 60, radius: 12 }], ['walk', [...part].reverse()], ['dwell', 240]]);
+    const route = demoRoute();
+    const between = (from, to) => {
+      const start = routePrefix(route, Math.min(from, to));
+      const end = routePrefix(route, Math.max(from, to));
+      const points = [start.at(-1), ...end.slice(start.length - 1)];
+      return from < to ? points : points.reverse();
+    };
+    const patterns = [[302, 273, 299, 270], [301, 271, 302, 275], [302, 270, 298, 271]];
+    let at = 270;
+    const legs = [['dwell', 120], ['walk', routePrefix(route, at)]];
+    for (let cycle = 0; cycle < 8; cycle++) {
+      for (const [index, next] of patterns[cycle % patterns.length].entries()) {
+        legs.push(['walk', between(at, next)]);
+        if (cycle % 2 === 1 && index === 1) legs.push(['dwell', 10]);
+        at = next;
+      }
+    }
+    legs.push(['walk', routePrefix(route, at).reverse()], ['dwell', 240]);
+    return buildTrack(legs);
   },
   // Replay check only (not exported): leaves the market route northwards, stays more than 80 m off it for
   // about 11 minutes (low risk, reason deviation; not long enough for high), then walks straight home.

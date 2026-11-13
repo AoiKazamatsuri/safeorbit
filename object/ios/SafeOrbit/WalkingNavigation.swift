@@ -7,10 +7,12 @@ import AVFoundation
 enum NavigationIssue: Error, LocalizedError, Equatable {
     case missingDestination, missingHome, staleDestination, locationDenied, locationUnavailable
     case routeUnavailable, routeConfiguration, routeTimedOut, routeNetworkUnavailable, routeServiceUnavailable, sdkNotReady
+    case outsideDemoArea
     var errorDescription: String? {
         switch self {
         case .missingHome: return "Set a home location before starting navigation."
         case .sdkNotReady: return "Map services are unavailable. Enable map services or use a physical iPhone."
+        case .outsideDemoArea: return "Simulator walking routes are available only along the Nanjing demo route."
         case .missingDestination: return "Senior location is unavailable."
         case .staleDestination: return "Senior location is out of date. Refresh and try again."
         case .locationDenied: return "Allow location access in Settings to plan a route."
@@ -77,6 +79,23 @@ struct WalkingRoute {
     func startHeadingUpdates(_ receive: @escaping (NavigationHeading) -> Void)
     func stopUpdates()
     func cancelRoute()
+}
+
+@MainActor enum LiveWalkingRoute {
+    static func provider() -> WalkingRouteProvider {
+        #if DEBUG && targetEnvironment(simulator)
+        return SimulatorWalkingRouteProvider()
+        #else
+        return AMapWalkingRouteProvider()
+        #endif
+    }
+    static var isDemo: Bool {
+        #if DEBUG && targetEnvironment(simulator)
+        true
+        #else
+        false
+        #endif
+    }
 }
 extension WalkingRouteProvider {
     func startUpdates(_ receive: @escaping (Result<NavigationFix, NavigationIssue>) -> Void) {}
@@ -160,7 +179,7 @@ enum NavigationDestinationKind { case senior, home }
         self.provider = provider; self.voice = voice ?? NavigationVoice(); self.now = now
     }
     convenience init(destinationKind: NavigationDestinationKind = .senior) {
-        self.init(provider: AMapWalkingRouteProvider(), destinationKind: destinationKind)
+        self.init(provider: LiveWalkingRoute.provider(), destinationKind: destinationKind, isDemoRoute: LiveWalkingRoute.isDemo)
     }
     /// Use device facing direction when stationary; route tangent keeps unsupported devices useful.
     var markerHeading: Double? {
@@ -414,5 +433,145 @@ enum NavigationDestinationKind { case senior, home }
     }
     func stopUpdates() { updates?.cancel(); updates = nil }
     func cancelRoute() {}
+}
+#endif
+
+#if DEBUG && targetEnvironment(simulator)
+/// A single surveyed demo corridor, including the Home and Market endpoints. No route lookup is made.
+struct SimulatorWalkingCorridor {
+    private struct Fixture: Decodable { let points: [GeoPoint] }
+    let points: [GeoPoint]
+
+    static func bundled() throws -> Self {
+        guard let url = Bundle.main.url(forResource: "demo-route", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let fixture = try? JSONDecoder().decode(Fixture.self, from: data) else {
+            throw NavigationIssue.routeUnavailable
+        }
+        return Self(points: fixture.points)
+    }
+
+    func route(from source: GeoPoint, to destination: GeoPoint) throws -> WalkingRoute {
+        guard points.count > 1, points.allSatisfy(\.isValid), source.isValid, destination.isValid else {
+            throw NavigationIssue.routeUnavailable
+        }
+        let path = points.map { MKMapPoint($0.appleCoordinate) }
+        let lengths = zip(path, path.dropFirst()).map { $0.distance(to: $1) }
+        func snap(_ point: GeoPoint) throws -> (point: MKMapPoint, segment: Int, fraction: Double) {
+            let target = MKMapPoint(point.appleCoordinate)
+            let matches = lengths.indices.compactMap { i -> (MKMapPoint, Int, Double, Double)? in
+                guard lengths[i] > 0 else { return nil }
+                let a = path[i], b = path[i + 1], dx = b.x - a.x, dy = b.y - a.y
+                let fraction = min(1, max(0, ((target.x - a.x) * dx + (target.y - a.y) * dy) / (dx * dx + dy * dy)))
+                let projected = MKMapPoint(x: a.x + fraction * dx, y: a.y + fraction * dy)
+                return (projected, i, fraction, target.distance(to: projected))
+            }
+            guard let best = matches.min(by: { $0.3 < $1.3 }), best.3 <= 15 else { throw NavigationIssue.outsideDemoArea }
+            return (best.0, best.1, best.2)
+        }
+        let start = try snap(source), end = try snap(destination)
+        let forwards = Double(start.segment) + start.fraction <= Double(end.segment) + end.fraction
+        let first = forwards ? start : end, last = forwards ? end : start
+        var clipped = [first.point] + Array(path[(first.segment + 1)..<(last.segment + 1)]) + [last.point]
+        if !forwards { clipped.reverse() }
+        var cleaned = [clipped[0]]
+        for point in clipped.dropFirst() where cleaned.last!.distance(to: point) > 0.05 { cleaned.append(point) }
+        if cleaned.count == 1 {
+            // At the same position the existing model still needs a measurable path to confirm arrival.
+            let vertex = path[start.fraction > 0.5 ? start.segment : start.segment + 1]
+            let scale = min(1, 0.5 / start.point.distance(to: vertex))
+            cleaned.append(MKMapPoint(x: start.point.x + (vertex.x - start.point.x) * scale,
+                                      y: start.point.y + (vertex.y - start.point.y) * scale))
+        }
+        var segments: [WalkingStep] = []
+        var startIndex = 0, instruction = "Follow the highlighted route"
+        for i in cleaned.indices.dropFirst().dropLast() {
+            let a = cleaned[i - 1], b = cleaned[i], c = cleaned[i + 1]
+            let incoming = atan2(b.y - a.y, b.x - a.x), outgoing = atan2(c.y - b.y, c.x - b.x)
+            let delta = atan2(sin(outgoing - incoming), cos(outgoing - incoming))
+            guard abs(delta) >= .pi / 5 else { continue }
+            segments.append(makeStep(instruction, Array(cleaned[startIndex...i])))
+            startIndex = i
+            instruction = delta > 0 ? "Turn right and continue" : "Turn left and continue"
+        }
+        segments.append(makeStep(instruction, Array(cleaned[startIndex...])))
+        let distance = segments.reduce(0) { $0 + $1.distanceMeters }
+        return WalkingRoute(coordinates: cleaned.map(\.coordinate), distanceMeters: distance,
+                            expectedSeconds: distance / 1.0, steps: segments.map(\.instruction), segments: segments)
+    }
+
+    private func makeStep(_ instruction: String, _ path: [MKMapPoint]) -> WalkingStep {
+        let length = zip(path, path.dropFirst()).reduce(0) { $0 + $1.0.distance(to: $1.1) }
+        return WalkingStep(instruction: instruction, coordinates: path.map(\.coordinate), distanceMeters: length)
+    }
+}
+
+// Constructed on the main run loop, where Core Location delivers these callbacks.
+@MainActor final class SimulatorWalkingRouteProvider: NSObject, WalkingRouteProvider, @preconcurrency CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    private var latest: NavigationFix?
+    private var receive: ((Result<NavigationFix, NavigationIssue>) -> Void)?
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.distanceFilter = kCLDistanceFilterNone
+    }
+
+    func currentPoint() async throws -> GeoPoint {
+        let clock = ContinuousClock()
+        let deadline = clock.now + .seconds(8)
+        repeat {
+            try Task.checkCancellation()
+            if manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted {
+                throw NavigationIssue.locationDenied
+            }
+            if let latest, latest.isUsable(at: Date()) { return latest.point }
+            try await Task.sleep(for: .milliseconds(100))
+        } while clock.now < deadline
+        throw NavigationIssue.locationUnavailable
+    }
+
+    func route(from: GeoPoint, to: GeoPoint) async throws -> WalkingRoute {
+        try SimulatorWalkingCorridor.bundled().route(from: from, to: to)
+    }
+
+    func startUpdates(_ receive: @escaping (Result<NavigationFix, NavigationIssue>) -> Void) {
+        self.receive = receive
+        locationManagerDidChangeAuthorization(manager)
+    }
+
+    func stopUpdates() {
+        manager.stopUpdatingLocation()
+        receive = nil
+        latest = nil
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        guard let receive else { return }
+        switch manager.authorizationStatus {
+        case .notDetermined: manager.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse: manager.startUpdatingLocation()
+        case .denied, .restricted: receive(.failure(.locationDenied))
+        @unknown default: receive(.failure(.locationUnavailable))
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let receive else { return }
+        for location in locations {
+            let fix = NavigationFix(point: GeoPoint(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude),
+                                    accuracy: location.horizontalAccuracy, timestamp: location.timestamp, course: location.course)
+            guard fix.isUsable(at: Date()), latest.map({ fix.timestamp > $0.timestamp }) ?? true else { continue }
+            latest = fix
+            receive(.success(fix))
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        if (error as? CLError)?.code == .denied { receive?(.failure(.locationDenied)) }
+        // CoreLocation can report a transient unknown position while Xcode switches tracks.
+    }
 }
 #endif

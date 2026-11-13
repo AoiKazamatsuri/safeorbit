@@ -253,7 +253,8 @@ struct ElderHomePage: View {
 
     private var liveSummary: String {
         guard live.navigation.route != nil else { return "Going Home" }
-        return "Going Home · \(WalkingNavigationModel.distanceText(live.navigation.remainingMeters)) · \(Int(ceil(live.navigation.remainingSeconds / 60))) min"
+        let summary = "Going Home · \(WalkingNavigationModel.distanceText(live.navigation.remainingMeters)) · \(Int(ceil(live.navigation.remainingSeconds / 60))) min"
+        return live.navigation.isDemoRoute ? summary + " · Demo route" : summary
     }
     private var callCard: some View {
         (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16)) : AnyLayout(HStackLayout(spacing: 16))) {
@@ -282,9 +283,9 @@ struct ElderHomePage: View {
             GeometryReader { geometry in
             ZStack {
                 AMapConsentSurface {
-                    AMapCanvas(camera: $homeCamera, markers: [], bottomOverlayInset: 160) { context in
+                    AMapCanvas(camera: $homeCamera, markers: [], bottomOverlayInset: 160, onCameraChange: { context in
                         selectedHome = MainlandCoordinates.toWGS84(GeoPoint(latitude: context.region.center.latitude, longitude: context.region.center.longitude))
-                    }
+                    })
                 }.ignoresSafeArea()
                 Image(systemName: "mappin.circle.fill").font(.system(size: 48)).foregroundStyle(OrbitStyle.teal)
                     .allowsHitTesting(false)
