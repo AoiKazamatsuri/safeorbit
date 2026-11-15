@@ -28,6 +28,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-safeorbit}
       POSTGRES_USER: ${POSTGRES_USER:-safeorbit}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run node ../dev/setup-env.mjs first}
+      SAFEORBIT_DEMO_MODE: ${SAFEORBIT_DEMO_MODE:-false}
       LLM_ENABLED: ${LLM_ENABLED:-false}
       LLM_MODEL: ${LLM_MODEL:-qwen3.7-flash}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}

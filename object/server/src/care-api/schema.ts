@@ -1,4 +1,6 @@
-// Demo schema, applied idempotently at startup and before a reset. One pre-seeded household (T37).
+import { PoolClient } from 'pg';
+
+// Applied idempotently at startup; existing household 1 remains the isolated demo family.
 // Risk and outreach tables (T38): reference routes, behaviour observations, risk events with append-only
 // transitions, actions with delivery records, dispositions, call records and caregiver settings.
 export const SCHEMA_SQL = `
@@ -65,7 +67,13 @@ CREATE TABLE IF NOT EXISTS risk_transitions (
   from_level text, to_level text, at timestamptz NOT NULL, detail jsonb NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now(), UNIQUE (risk_event_id, seq));
 CREATE OR REPLACE FUNCTION safeorbit_append_only() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN RAISE EXCEPTION '% is append-only', TG_TABLE_NAME; END $$;
+BEGIN
+  IF TG_OP = 'DELETE' AND EXISTS (
+    SELECT 1 FROM risk_events WHERE id = OLD.risk_event_id
+      AND elder_id::text = current_setting('safeorbit.delete_elder_id', true)
+  ) THEN RETURN OLD; END IF;
+  RAISE EXCEPTION '% is append-only', TG_TABLE_NAME;
+END $$;
 DROP TRIGGER IF EXISTS risk_transitions_append_only ON risk_transitions;
 CREATE TRIGGER risk_transitions_append_only BEFORE UPDATE OR DELETE ON risk_transitions
   FOR EACH ROW EXECUTE FUNCTION safeorbit_append_only();
@@ -101,14 +109,43 @@ CREATE TABLE IF NOT EXISTS caregiver_settings (
   recovery_notifications boolean NOT NULL DEFAULT true, limited_monitoring_notifications boolean NOT NULL DEFAULT true,
   updated_at timestamptz NOT NULL DEFAULT now());
 CREATE SEQUENCE IF NOT EXISTS state_change_seq;
+CREATE SEQUENCE IF NOT EXISTS family_elder_id_seq START WITH 2;
+CREATE SEQUENCE IF NOT EXISTS family_caregiver_id_seq START WITH 2;
+ALTER TABLE elders ALTER COLUMN id SET DEFAULT nextval('family_elder_id_seq');
+ALTER TABLE caregivers ALTER COLUMN id SET DEFAULT nextval('family_caregiver_id_seq');
+CREATE TABLE IF NOT EXISTS families (
+  elder_id integer PRIMARY KEY REFERENCES elders(id), invite_code text UNIQUE,
+  is_demo boolean NOT NULL DEFAULT false,
+  CHECK ((is_demo AND elder_id = 1 AND invite_code IS NULL)
+    OR (NOT is_demo AND elder_id <> 1 AND invite_code ~ '^[A-Z0-9]{12}$')));
+-- Only the pre-existing demo is migrated; startup never invents an ordinary membership.
+INSERT INTO families (elder_id, is_demo) SELECT id, true FROM elders WHERE id = 1 ON CONFLICT DO NOTHING;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS caregiver_id integer REFERENCES caregivers(id);
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS revoked_at timestamptz;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS enrollment_hash text;
+UPDATE devices SET is_demo = true, caregiver_id = CASE WHEN role = 'caregiver' THEN 1 ELSE NULL END
+  WHERE elder_id = 1 AND NOT is_demo;
+CREATE UNIQUE INDEX IF NOT EXISTS devices_one_family_elder ON devices(elder_id)
+  WHERE role = 'elder' AND revoked_at IS NULL AND NOT is_demo;
 `;
 
 // The one household this Demo serves.
 export const DEMO_ELDER_ID = 1;
 export const DEMO_CAREGIVER_ID = 1;
 
-// Every table a demo reset empties, children before parents.
-export const RESET_TABLES = [
-  'deliveries', 'actions', 'dispositions', 'call_records', 'behaviour_observations', 'risk_transitions', 'risk_events',
-  'reference_routes', 'caregiver_settings', 'tracker_state', 'trips', 'location_points', 'safe_zones',
-];
+// Delete only one household's business data. The trigger exemption is transaction-local and
+// checks the parent event, so ordinary UPDATE/DELETE and other families remain append-only.
+export async function clearHouseholdData(client: PoolClient, elderId: number): Promise<void> {
+  await client.query("SELECT set_config('safeorbit.delete_elder_id', $1, true)", [String(elderId)]);
+  await client.query('DELETE FROM deliveries WHERE action_id IN (SELECT id FROM actions WHERE elder_id = $1)', [elderId]);
+  for (const table of ['dispositions', 'risk_transitions']) {
+    await client.query(`DELETE FROM ${table} WHERE risk_event_id IN (SELECT id FROM risk_events WHERE elder_id = $1)`, [elderId]);
+  }
+  for (const table of ['actions', 'call_records', 'behaviour_observations', 'risk_events', 'reference_routes',
+    'tracker_state', 'trips', 'location_points', 'safe_zones']) {
+    await client.query(`DELETE FROM ${table} WHERE elder_id = $1`, [elderId]);
+  }
+  await client.query('DELETE FROM caregiver_settings WHERE caregiver_id IN (SELECT id FROM caregivers WHERE elder_id = $1)', [elderId]);
+  await client.query("SELECT set_config('safeorbit.delete_elder_id', '', true)");
+}

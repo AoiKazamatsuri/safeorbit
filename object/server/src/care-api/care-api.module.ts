@@ -7,14 +7,16 @@ import {
 } from './controllers';
 import { DatabaseService } from './database.service';
 import { DeviceAuth } from './device-auth';
+import { FamilyController } from './family-controller';
+import { FamilyStore } from './family-store';
 import { HealthController } from './health.controller';
 import { Records } from './records';
 import { RecordsController } from './records-controller';
 import { RiskRecords } from './risk-records';
 
 @Module({
-  controllers: [RecordsController, HealthController, DevicesController, SafeZonesController, LocationsController, RiskEventsController, OutreachController],
-  providers: [ChatQueries, Records, DatabaseService, CareStore, RiskRecords, CareEvents, DeviceAuth],
+  controllers: [FamilyController, RecordsController, HealthController, DevicesController, SafeZonesController, LocationsController, RiskEventsController, OutreachController],
+  providers: [FamilyStore, ChatQueries, Records, DatabaseService, CareStore, RiskRecords, CareEvents, DeviceAuth],
   exports: [ChatQueries, DeviceAuth, Records, CareStore, RiskRecords, CareEvents],
 })
 export class CareApiModule {}

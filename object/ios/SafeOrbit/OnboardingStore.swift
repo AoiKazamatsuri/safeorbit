@@ -47,7 +47,10 @@ import CryptoKit
         self.previewAccessEnabled = false
 #endif
         if homeAccessEnabled { enterPreviewHome() }
-        else if device != nil { screen = .caregiverHome }
+        else if let device {
+            screen = .caregiverHome
+            if let household = device.household { elder = household.elderProfile; caregiverPhone = household.caregiver.phone }
+        }
     }
     func restore() async {
         if homeAccessEnabled || previewAccessEnabled || device != nil { return }
@@ -292,8 +295,7 @@ import CryptoKit
     /// Sends this phone's APNs token with a fresh registration so the care API can push to it.
     func registerPushToken(_ token: String) async {
         guard let device, device.pushToken != token else { return }
-        device.pushToken = token
-        _ = try? await device.register()
+        try? await device.updatePushToken(token)
     }
     /// Records a call from the person card before the system dialler opens (linked to the current risk).
     func recordCall() async {

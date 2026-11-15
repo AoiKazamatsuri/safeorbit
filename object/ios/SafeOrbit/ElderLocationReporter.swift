@@ -57,6 +57,7 @@ final class PendingFixQueue {
         points.removeFirst(min(count, points.count))
         save()
     }
+    func clear() { points.removeAll(); save() }
     private func save() {
         try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? JSONEncoder().encode(points).write(to: file, options: .atomic)
@@ -90,7 +91,7 @@ final class PendingFixQueue {
     }
 
     func start() {
-        guard !started else { return }
+        guard !started, !device.isFamilySession || (AMapRuntime.hasConsent && device.token != nil) else { return }
         started = true
         UIDevice.current.isBatteryMonitoringEnabled = true
         manager.delegate = self
@@ -112,11 +113,15 @@ final class PendingFixQueue {
         timer?.invalidate(); timer = nil
         manager.stopUpdatingLocation()
         started = false
+        if device.isFamilySession && device.token == nil { queue.clear(); home = nil; household = nil }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         let points = locations.compactMap(UploadPoint.init)
-        Task { @MainActor in self.queue.append(points) }
+        Task { @MainActor in
+            guard self.started, !self.device.isFamilySession || self.device.token != nil else { return }
+            self.queue.append(points)
+        }
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {

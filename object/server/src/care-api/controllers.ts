@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, NotFoundException, Param, Post, Put, Query,
+  BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, HttpCode, NotFoundException, Param, Post, Put, Query,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { CareEvents } from './care-events';
@@ -95,6 +95,9 @@ export class LocationsController {
     const device = await this.auth.require(authorization, 'elder');
     if (replay !== undefined && replay !== 'true' && replay !== 'false') throw new BadRequestException('replay must be true or false');
     const historical = replay === 'true';
+    if (historical && (!device.isDemo || process.env.SAFEORBIT_DEMO_MODE !== 'true')) {
+      throw new ForbiddenException('Historical replay is available only for the explicitly enabled demo household');
+    }
     const now = Date.now();
     const batch = parsed(() => parseLocationBatch(body, now));
     if (historical && batch.points.some(p => p && p.sampledAt.getTime() >= now)) {

@@ -113,7 +113,15 @@ export class RiskRecords {
     return row.id;
   }
 
-  // Demo: one caregiver, so every caregiver phone of the household shares the primary caregiver's settings.
+  private async actingCaregiverId(elderId: number, deviceId: string): Promise<number> {
+    const [row] = await this.db.query<{ id: number }>(
+      `SELECT c.id FROM devices d JOIN caregivers c ON c.id = d.caregiver_id AND c.elder_id = d.elder_id
+       WHERE d.id = $1 AND d.elder_id = $2 AND d.role = 'caregiver' AND d.revoked_at IS NULL`, [deviceId, elderId]);
+    if (!row) throw new NotFoundException('Caregiver membership not found');
+    return row.id;
+  }
+
+  // Care decisions use household-wide switches, stored against its primary caregiver.
   async settings(elderId: number): Promise<CaregiverSettings> {
     const [row] = await this.db.query(
       `SELECT s.* FROM caregiver_settings s JOIN caregivers c ON c.id = s.caregiver_id WHERE c.elder_id = $1 AND c.is_primary`, [elderId]);
@@ -284,13 +292,14 @@ export class RiskRecords {
     const event = await this.riskEvent(elderId, eventId);
     if (event.status !== 'active') throw new ConflictException('This risk is already resolved');
     await this.db.query(`INSERT INTO dispositions (risk_event_id, kind, caregiver_id, device_id) VALUES ($1, 'met', $2, $3)`,
-      [eventId, await this.primaryCaregiverId(elderId), deviceId]);
+      [eventId, await this.actingCaregiverId(elderId, deviceId), deviceId]);
     return event;
   }
 
   // A disposition on a resolved event; the risk level and its transitions are untouched (principle 1).
   async markFalseAlarm(elderId: number, eventId: string, deviceId: string): Promise<{ event: RiskEventRecord; changed: boolean }> {
-    const caregiverId = await this.primaryCaregiverId(elderId);
+    if (!/^\d{1,18}$/.test(eventId)) throw new NotFoundException('Risk event not found');
+    const caregiverId = await this.actingCaregiverId(elderId, deviceId);
     const result = await this.db.transaction(async client => {
       const { rows: [row] } = await client.query('SELECT * FROM risk_events WHERE elder_id = $1 AND id = $2', [elderId, eventId]);
       if (!row) throw new NotFoundException('Risk event not found');
@@ -314,7 +323,7 @@ export class RiskRecords {
     const linked = riskEventId ? (await this.riskEvent(elderId, riskEventId)).id : (await this.activeRiskEvent(elderId))?.id ?? null;
     const [row] = await this.db.query<{ id: string; at: Date }>(
       'INSERT INTO call_records (elder_id, risk_event_id, caregiver_id, device_id) VALUES ($1, $2, $3, $4) RETURNING id, at',
-      [elderId, linked, await this.primaryCaregiverId(elderId), deviceId]);
+      [elderId, linked, await this.actingCaregiverId(elderId, deviceId), deviceId]);
     return { id: String(row.id), at: row.at.toISOString(), riskEventId: linked };
   }
 
@@ -331,8 +340,9 @@ export class RiskRecords {
 
   async pushRecipients(elderId: number): Promise<PushRecipient[]> {
     return (await this.db.query<{ id: string; push_token: string }>(
-      `SELECT id, push_token FROM devices WHERE elder_id = $1 AND role = 'caregiver' AND push_token IS NOT NULL ORDER BY created_at`,
-      [elderId])).map(r => ({ deviceId: r.id, pushToken: r.push_token }));
+      `SELECT id, push_token FROM devices WHERE elder_id = $1 AND role = 'caregiver' AND push_token IS NOT NULL
+       AND revoked_at IS NULL AND (NOT is_demo OR $2) ORDER BY created_at`,
+      [elderId, process.env.SAFEORBIT_DEMO_MODE === 'true'])).map(r => ({ deviceId: r.id, pushToken: r.push_token }));
   }
 
   // Delivery receipt (C2 edge 11): one record per attempt, and the action's overall outcome.

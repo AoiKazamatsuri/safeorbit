@@ -137,6 +137,11 @@ extension RecordsServing {
             throw RecordsFailure.network
         }
         guard let http = response as? HTTPURLResponse else { throw RecordsFailure.invalidResponse }
+        if http.statusCode == 401 && device.isFamilySession {
+            device.rejectCredentials()
+            throw RecordsFailure.credentials
+        }
+        if device.isFamilySession && sentToken != device.token { throw CancellationError() }
         if http.statusCode == 401 && retry {
             // Concurrent record/trend failures share one refresh. A request rejected with an
             // older token reuses the replacement already obtained by the other request.

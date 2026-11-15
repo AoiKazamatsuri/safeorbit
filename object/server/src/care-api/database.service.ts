@@ -16,22 +16,31 @@ export function createPool(): Pool {
 }
 
 // Serialises concurrent schema runs (server start and the reset command).
-export async function applySchema(client: Pool | PoolClient): Promise<void> {
-  await client.query('SELECT pg_advisory_lock(37037)');
-  try { await client.query(SCHEMA_SQL); } finally { await client.query('SELECT pg_advisory_unlock(37037)'); }
+export async function applySchema(client: PoolClient): Promise<void> {
+  await client.query('BEGIN');
+  try {
+    await client.query('SELECT pg_advisory_xact_lock(37037)');
+    await client.query(SCHEMA_SQL);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw error;
+  }
 }
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private readonly pool = createPool();
+  private schemaReady = false;
 
   async onModuleInit(): Promise<void> {
     // Keep starting when the database is down so /health/ready can report it.
-    try { const client = await this.pool.connect(); try { await applySchema(client); } finally { client.release(); } }
+    try { const client = await this.pool.connect(); try { await applySchema(client); this.schemaReady = true; } finally { client.release(); } }
     catch (error) { console.error('Schema not applied:', (error as Error).message); }
   }
 
   async check(): Promise<void> {
+    if (!this.schemaReady) throw new Error('Database schema is not ready');
     await this.pool.query('SELECT PostGIS_Version()');
   }
 

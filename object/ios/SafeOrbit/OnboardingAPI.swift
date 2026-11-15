@@ -2,14 +2,16 @@ import Foundation
 import Security
 
 struct APIError: Error, LocalizedError {
-    enum Kind { case unauthorized, unavailable, notFound, invalidCode, invalidInput, network, other }
+    enum Kind { case unauthorized, unavailable, notFound, invalidCode, invalidInput, network, conflict, forbidden, other }
     let kind: Kind
     var errorDescription: String? {
         switch kind {
         case .unauthorized: return "Session expired. Sign in again."
         case .unavailable: return "Service unavailable. Try again."
         case .notFound: return "Not available yet. Try again."
-        case .invalidCode: return "Code expired or used. Ask for a new code."
+        case .invalidCode: return "Check the invitation code and try again."
+        case .conflict: return "This phone has already joined, or the senior’s phone is already connected. Ask the primary caregiver to check family members."
+        case .forbidden: return "Only the primary caregiver can do this."
         case .invalidInput: return "Check your details and try again."
         case .network: return "Check your connection and try again."
         case .other: return "Something went wrong. Try again."
@@ -23,6 +25,7 @@ struct OnboardingAPI {
                                 body: Data? = nil) async throws -> T {
         var request = URLRequest(url: baseURL.appendingPathComponent("v1").appendingPathComponent(path))
         request.httpMethod = method
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.timeoutInterval = 15
         request.httpBody = body
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -36,7 +39,9 @@ struct OnboardingAPI {
             let kind: APIError.Kind
             switch http.statusCode {
             case 401: kind = .unauthorized
-            case 409, 410: kind = .invalidCode
+            case 403: kind = .forbidden
+            case 409: kind = path.hasPrefix("family") ? .conflict : .invalidCode
+            case 410: kind = .invalidCode
             case 400, 422: kind = .invalidInput
             case 404: kind = .notFound
             case 501, 503: kind = .unavailable

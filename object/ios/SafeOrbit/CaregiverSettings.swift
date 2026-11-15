@@ -97,7 +97,19 @@ struct CaregiverSettingsData: Codable, Equatable {
            value.primaryID == "self" || value.members.contains(where: { $0.id == value.primaryID }) {
             data = value
         } else { data = .init() }
-        data.senior.timezone = TimeZone.current.identifier
+        if let session = FamilySession.shared.session {
+            applyFamily(session, ownProfile: FamilySession.shared.ownProfile)
+        } else { data.senior.timezone = TimeZone.current.identifier }
+    }
+    func applyFamily(_ session: FamilySessionReply, ownProfile: FamilyCreateRequest.Person?) {
+        var next = data
+        next.senior = session.household.elderProfile
+        next.caregiver.name = ownProfile?.name ?? (session.isPrimary ? session.household.caregiver.name : "Caregiver")
+        next.caregiver.phone = ownProfile?.phone ?? (session.isPrimary ? session.household.caregiver.phone : "")
+        next.primaryID = session.isPrimary ? "self" : "primary-caregiver"
+        next.members = session.isPrimary ? [] : [LocalFamilyMember(id: "primary-caregiver",
+            name: session.household.caregiver.name, phone: session.household.caregiver.phone)]
+        commit(next)
     }
     private func commit(_ value: CaregiverSettingsData) {
         guard let raw = try? JSONEncoder().encode(value) else { return }
@@ -224,7 +236,12 @@ struct CaregiverSettingsGroupPage: View {
     let back: () -> Void
     var body: some View {
         switch group {
-        case .people: SettingsProfilesFamilyPage(settings: settings, back: back)
+        case .people:
+            if FamilySession.shared.session != nil {
+                NavigationStack {
+                    FamilyManagementPage(family: FamilySession.shared, close: back)
+                }
+            } else { SettingsProfilesFamilyPage(settings: settings, back: back) }
         case .ai: SettingsAIPage(settings: settings, back: back)
         case .navigation: detail(.navigation)
         case .notifications: detail(.notifications)

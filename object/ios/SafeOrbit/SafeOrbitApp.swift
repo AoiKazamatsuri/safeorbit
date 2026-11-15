@@ -3,8 +3,12 @@ import SwiftUI
 @main struct SafeOrbitApp: App {
     /// Push registration and notification taps (task T38).
     @UIApplicationDelegateAdaptor(SafeOrbitAppDelegate.self) private var appDelegate
-    // Role choice is available; account and binding flows remain paused.
-    var body: some Scene { WindowGroup { DemoRoleRoot() } }
+    var body: some Scene {
+        WindowGroup {
+            if DemoLaunch.enabled { DemoRoleRoot() }
+            else { FamilyRoot() }
+        }
+    }
 }
 struct DemoRoleRoot: View {
     @StateObject private var router = DemoRoleRouter()
@@ -25,11 +29,15 @@ struct DemoRoleRoot: View {
         }
     }
 }
-private struct ElderRoot: View {
+struct ElderRoot: View {
     @StateObject private var session = ElderDemoSession(usesLiveNavigation: true)
-    @StateObject private var reporter = ElderLocationReporter()
+    @StateObject private var reporter: ElderLocationReporter
     @StateObject private var autoNavigation = ElderAutoNavigation()
     let chooseRole: () -> Void
+    init(device: DemoDevice? = nil, chooseRole: @escaping () -> Void) {
+        _reporter = StateObject(wrappedValue: ElderLocationReporter(device: device))
+        self.chooseRole = chooseRole
+    }
     var body: some View {
         NavigationStack {
             ElderHomePage(session: session, chooseRole: chooseRole, serverHome: reporter.home,
@@ -53,7 +61,11 @@ private struct ElderRoot: View {
 }
 struct HomeRoot: View {
     var chooseRole: (() -> Void)? = nil
-    @StateObject private var store = HomeRoot.makeStore()
+    @StateObject private var store: OnboardingStore
+    init(device: DemoDevice? = nil, chooseRole: (() -> Void)? = nil) {
+        self.chooseRole = chooseRole
+        _store = StateObject(wrappedValue: device.map { OnboardingStore(device: $0) } ?? HomeRoot.makeStore())
+    }
     /// Live by default; the Debug launch argument -safeorbitSampleData keeps the fixed sample for screenshots.
     static func makeStore() -> OnboardingStore {
 #if DEBUG

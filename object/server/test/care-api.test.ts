@@ -32,7 +32,10 @@ test('a location batch keeps valid points and marks malformed ones', () => {
   assert.throws(() => parseLocationBatch([point(0)], NOW), InputError);
 });
 
-test('history uploads require elder identity, persist replay intent, reject future samples and never fetch live actions', async () => {
+test('history uploads require elder identity, persist replay intent, reject future samples and never fetch live actions', async t => {
+  const previous = process.env.SAFEORBIT_DEMO_MODE;
+  process.env.SAFEORBIT_DEMO_MODE = 'true';
+  t.after(() => { if (previous === undefined) delete process.env.SAFEORBIT_DEMO_MODE; else process.env.SAFEORBIT_DEMO_MODE = previous; });
   let replayStored: boolean | undefined;
   let actionReads = 0;
   let duplicate = false;
@@ -41,7 +44,7 @@ test('history uploads require elder identity, persist replay intent, reject futu
   events.onLocationsStored(async event => { published.push(event); });
   const store = {
     deviceByToken: async (token: string) => token === 'elder' || token === 'family'
-      ? { id: token, elderId: 1, role: token === 'elder' ? 'elder' : 'caregiver' } : null,
+      ? { id: token, elderId: 1, isDemo: true, role: token === 'elder' ? 'elder' : 'caregiver' } : null,
     storePoints: async (_device: unknown, batch: ReturnType<typeof parseLocationBatch>, replay: boolean) => {
       replayStored = replay;
       return batch.points.map(p => !p ? 'invalid' : duplicate ? 'duplicate' : 'accepted');

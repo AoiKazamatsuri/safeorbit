@@ -1,9 +1,9 @@
-import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 import { PoolClient } from 'pg';
 import { DatabaseService } from './database.service';
 import { GeoPoint } from './geo';
-import { DEMO_CAREGIVER_ID, DEMO_ELDER_ID, RESET_TABLES } from './schema';
+import { clearHouseholdData, DEMO_CAREGIVER_ID, DEMO_ELDER_ID } from './schema';
 import { DeviceRegistration, DeviceRole, isHomeName, LocationBatch, SafeZoneInput } from './validation';
 
 export interface Household {
@@ -12,7 +12,7 @@ export interface Household {
 }
 // referenceRoutes: zone name -> planned WGS-84 walking route from home, for zones seeded without a phone.
 export interface HouseholdSeed extends Household { safeZones: SafeZoneInput[]; referenceRoutes?: Record<string, GeoPoint[]> }
-export interface Device { id: string; role: DeviceRole; elderId: number }
+export interface Device { id: string; role: DeviceRole; elderId: number; caregiverId?: number | null; isDemo?: boolean }
 export interface SafeZone { id: string; name: string; isHome: boolean; center: GeoPoint; radiusMeters: number }
 export interface StoredFix {
   sampledAt: Date; latitude: number; longitude: number;
@@ -46,23 +46,33 @@ export class CareStore {
   constructor(private readonly db: DatabaseService) {}
 
   async registerDevice(input: DeviceRegistration): Promise<{ token: string; device: Device }> {
-    const [elder] = await this.db.query<{ id: number }>('SELECT id FROM elders WHERE id = $1', [DEMO_ELDER_ID]);
-    if (!elder) throw new ServiceUnavailableException('Household is not seeded; run the demo reset first');
-    const token = randomBytes(32).toString('base64url');
-    const [row] = await this.db.query<{ id: string }>(
-      `INSERT INTO devices (installation_id, role, elder_id, token_hash, push_token)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (installation_id) DO UPDATE SET role = EXCLUDED.role, token_hash = EXCLUDED.token_hash,
-         push_token = COALESCE(EXCLUDED.push_token, devices.push_token), last_seen_at = now()
-       RETURNING id`,
-      [input.installationId, input.role, elder.id, hashToken(token), input.pushToken]);
-    return { token, device: { id: row.id, role: input.role, elderId: elder.id } };
+    if (process.env.SAFEORBIT_DEMO_MODE !== 'true') throw new ForbiddenException('Demo registration is disabled');
+    return this.db.transaction(async client => {
+      await client.query('SELECT pg_advisory_xact_lock(37038)');
+      const { rows: [elder] } = await client.query('SELECT elder_id FROM families WHERE elder_id = $1 AND is_demo', [DEMO_ELDER_ID]);
+      if (!elder) throw new ServiceUnavailableException('Demo household is not seeded; run the demo reset first');
+      const token = randomBytes(32).toString('base64url');
+      const { rows: [row] } = await client.query(
+        `INSERT INTO devices (installation_id, role, elder_id, token_hash, push_token, caregiver_id, is_demo)
+         VALUES ($1, $2, $3, $4, $5, $6, true)
+         ON CONFLICT (installation_id) DO UPDATE SET role = EXCLUDED.role, token_hash = EXCLUDED.token_hash,
+           caregiver_id = EXCLUDED.caregiver_id, revoked_at = NULL,
+           push_token = COALESCE(EXCLUDED.push_token, devices.push_token), last_seen_at = now()
+         WHERE devices.is_demo AND devices.elder_id = $3 RETURNING id`,
+        [input.installationId, input.role, DEMO_ELDER_ID, hashToken(token), input.pushToken,
+          input.role === 'caregiver' ? DEMO_CAREGIVER_ID : null]);
+      if (!row) throw new ConflictException('This installation belongs to a regular family');
+      return { token, device: { id: row.id, role: input.role, elderId: DEMO_ELDER_ID,
+        caregiverId: input.role === 'caregiver' ? DEMO_CAREGIVER_ID : null, isDemo: true } };
+    });
   }
 
   async deviceByToken(token: string): Promise<Device | null> {
-    const [row] = await this.db.query<{ id: string; role: DeviceRole; elder_id: number }>(
-      'UPDATE devices SET last_seen_at = now() WHERE token_hash = $1 RETURNING id, role, elder_id', [hashToken(token)]);
-    return row ? { id: row.id, role: row.role, elderId: row.elder_id } : null;
+    const [row] = await this.db.query<{ id: string; role: DeviceRole; elder_id: number; caregiver_id: number | null; is_demo: boolean }>(
+      `UPDATE devices SET last_seen_at = now() WHERE token_hash = $1 AND revoked_at IS NULL
+       AND (NOT is_demo OR $2) RETURNING id, role, elder_id, caregiver_id, is_demo`,
+      [hashToken(token), process.env.SAFEORBIT_DEMO_MODE === 'true']);
+    return row ? { id: row.id, role: row.role, elderId: row.elder_id, caregiverId: row.caregiver_id, isDemo: row.is_demo } : null;
   }
 
   async household(elderId: number): Promise<Household> {
@@ -78,7 +88,7 @@ export class CareStore {
 
   async elderDevice(elderId: number): Promise<{ batteryPercent: number | null } | null> {
     const [row] = await this.db.query<{ battery_percent: number | null }>(
-      `SELECT battery_percent FROM devices WHERE elder_id = $1 AND role = 'elder' ORDER BY last_seen_at DESC LIMIT 1`, [elderId]);
+      `SELECT battery_percent FROM devices WHERE elder_id = $1 AND role = 'elder' AND revoked_at IS NULL ORDER BY last_seen_at DESC LIMIT 1`, [elderId]);
     return row ? { batteryPercent: row.battery_percent } : null;
   }
 
@@ -211,9 +221,13 @@ export class CareStore {
 
   // Demo reset: back to the seeded household with no history. Registered phones are kept unless asked.
   async reset(seed: HouseholdSeed, options: { devices: boolean }): Promise<void> {
+    if (process.env.SAFEORBIT_DEMO_MODE !== 'true') throw new ForbiddenException('Demo reset is disabled');
     if (seed.safeZones.filter(z => isHomeName(z.name)).length !== 1) throw new Error('The seed needs exactly one home zone');
     await this.db.transaction(async client => {
-      await client.query(`TRUNCATE ${[...RESET_TABLES, ...(options.devices ? ['devices'] : [])].join(', ')}`);
+      await client.query('SELECT pg_advisory_xact_lock(37038)');
+      await client.query('SELECT elder_id FROM families WHERE elder_id = $1 FOR UPDATE', [DEMO_ELDER_ID]);
+      await clearHouseholdData(client, DEMO_ELDER_ID);
+      if (options.devices) await client.query('DELETE FROM devices WHERE elder_id = $1 AND is_demo', [DEMO_ELDER_ID]);
       await client.query(
         `INSERT INTO elders (id, name, call_name, phone, timezone) VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (id) DO UPDATE SET name = $2, call_name = $3, phone = $4, timezone = $5`,
@@ -222,6 +236,7 @@ export class CareStore {
         `INSERT INTO caregivers (id, elder_id, name, phone, is_primary) VALUES ($1, $2, $3, $4, true)
          ON CONFLICT (id) DO UPDATE SET name = $3, phone = $4, is_primary = true`,
         [DEMO_CAREGIVER_ID, DEMO_ELDER_ID, seed.caregiver.name, seed.caregiver.phone]);
+      await client.query('INSERT INTO families (elder_id,is_demo) VALUES ($1,true) ON CONFLICT DO NOTHING', [DEMO_ELDER_ID]);
       for (const z of seed.safeZones) {
         const { rows: [zone] } = await client.query<{ id: string }>(
           `INSERT INTO safe_zones (elder_id, name, is_home, latitude, longitude, radius_m) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
