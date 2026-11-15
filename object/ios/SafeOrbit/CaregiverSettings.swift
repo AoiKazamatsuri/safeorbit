@@ -238,9 +238,7 @@ struct CaregiverSettingsGroupPage: View {
         switch group {
         case .people:
             if FamilySession.shared.session != nil {
-                NavigationStack {
-                    FamilyManagementPage(family: FamilySession.shared, close: back)
-                }
+                FamilyManagementPage(family: FamilySession.shared, close: back)
             } else { SettingsProfilesFamilyPage(settings: settings, back: back) }
         case .ai: SettingsAIPage(settings: settings, back: back)
         case .navigation: detail(.navigation)

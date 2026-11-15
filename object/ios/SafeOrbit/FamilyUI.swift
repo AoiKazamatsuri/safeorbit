@@ -323,8 +323,33 @@ struct FamilyManagementPage: View {
             }
         }
         .disabled(family.busy)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let close {
+                CaregiverTopBar {
+                    HStack(spacing: 0) {
+                        Button(action: close) {
+                            Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold))
+                                .frame(width: 56, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Back")
+                        .accessibilityIdentifier("family-management-back")
+                        Text("Family Members").orbitDisplayFont(20).multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity)
+                            .accessibilityAddTraits(.isHeader)
+                        Color.clear.frame(width: 56, height: 1).accessibilityHidden(true)
+                    }.foregroundStyle(.white)
+                }
+            }
+        }
         .navigationTitle("Family Members").navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { if let close { close() } else { dismiss() } } } }
+        .toolbar {
+            if close == nil {
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+            }
+        }
         .task {
             while !Task.isCancelled && family.session?.role == "caregiver" {
                 await family.refreshMembers()
