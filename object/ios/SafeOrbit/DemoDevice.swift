@@ -48,6 +48,7 @@ extension DemoAppRole {
     let role: DemoAppRole
     private let defaults: UserDefaults
     let isFamilySession: Bool
+    let chatStorageKey: String?
     private var onInvalidation: (() -> Void)?
     private(set) var token: String?
     /// Household from the latest registration: call name for the reminder, caregiver phone for "Call Family".
@@ -57,13 +58,13 @@ extension DemoAppRole {
 
     init(role: DemoAppRole, api: OnboardingAPI = .init(baseURL: ServerConfiguration.baseURL), defaults: UserDefaults = .standard) {
         self.role = role; self.api = api; self.defaults = defaults
-        isFamilySession = false
+        isFamilySession = false; chatStorageKey = nil
     }
 
-    init(role: DemoAppRole, api: OnboardingAPI, familyToken: String, household: DeviceHousehold, onInvalidation: @escaping () -> Void) {
+    init(role: DemoAppRole, api: OnboardingAPI, familyToken: String, household: DeviceHousehold, chatStorageKey: String? = nil, onInvalidation: @escaping () -> Void) {
         self.role = role; self.api = api; self.defaults = .standard
         self.token = familyToken; self.household = household
-        self.isFamilySession = true; self.onInvalidation = onInvalidation
+        self.isFamilySession = true; self.onInvalidation = onInvalidation; self.chatStorageKey = chatStorageKey
     }
     func revoke() { token = nil; household = nil }
     func rejectCredentials() {

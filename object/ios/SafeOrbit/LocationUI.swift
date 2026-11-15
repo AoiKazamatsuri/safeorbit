@@ -170,6 +170,8 @@ struct CaregiverHomePage: View {
         _zoneStore = StateObject(wrappedValue: zones)
         _agentSessions = StateObject(wrappedValue: AgentSessionStore(
             service: store.device.map { AgentChatAPI(device: $0) }, settings: settings,
+            storageKey: store.device?.chatStorageKey,
+            sessionIsValid: { [device = store.device] in device?.isFamilySession != true || device?.token != nil },
             additionalPrivacyValues: {
                 let names = [store.elder.name, store.elder.callName]
                 let addresses = [store.location?.address].compactMap { $0 }
@@ -306,6 +308,8 @@ struct CaregiverHomePage: View {
             Task { await NotificationRouter.requestAuthorization(remote: true) }
             await store.followLocation()
         }
+        .onAppear { agentSessions.resumeViewSession() }
+        .onDisappear { if store.device?.isFamilySession == true { agentSessions.endViewSession() } }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, let settingsSync { Task { await settingsSync.sync() } }
         }

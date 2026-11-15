@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 struct APIError: Error, LocalizedError {
-    enum Kind { case unauthorized, unavailable, notFound, invalidCode, invalidInput, network, conflict, forbidden, other }
+    enum Kind { case unauthorized, unavailable, notFound, invalidCode, invalidInput, network, conflict, forbidden, rateLimited, other }
     let kind: Kind
     var errorDescription: String? {
         switch kind {
@@ -11,6 +11,7 @@ struct APIError: Error, LocalizedError {
         case .notFound: return "Not available yet. Try again."
         case .invalidCode: return "Check the invitation code and try again."
         case .conflict: return "This phone has already joined, or the senior’s phone is already connected. Ask the primary caregiver to check family members."
+        case .rateLimited: return "Too many attempts. Wait a minute and try again."
         case .forbidden: return "Only the primary caregiver can do this."
         case .invalidInput: return "Check your details and try again."
         case .network: return "Check your connection and try again."
@@ -40,7 +41,8 @@ struct OnboardingAPI {
             switch http.statusCode {
             case 401: kind = .unauthorized
             case 403: kind = .forbidden
-            case 409: kind = path.hasPrefix("family") ? .conflict : .invalidCode
+            case 409: kind = (path.hasPrefix("family") || path.hasPrefix("account")) ? .conflict : .invalidCode
+            case 429: kind = .rateLimited
             case 410: kind = .invalidCode
             case 400, 422: kind = .invalidInput
             case 404: kind = .notFound

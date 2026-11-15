@@ -12,7 +12,7 @@ export interface Household {
 }
 // referenceRoutes: zone name -> planned WGS-84 walking route from home, for zones seeded without a phone.
 export interface HouseholdSeed extends Household { safeZones: SafeZoneInput[]; referenceRoutes?: Record<string, GeoPoint[]> }
-export interface Device { id: string; role: DeviceRole; elderId: number; caregiverId?: number | null; isDemo?: boolean }
+export interface Device { id: string; role: DeviceRole; elderId: number; caregiverId?: number | null; isDemo?: boolean; accountSessionId?: string | null }
 export interface SafeZone { id: string; name: string; isHome: boolean; center: GeoPoint; radiusMeters: number }
 export interface StoredFix {
   sampledAt: Date; latitude: number; longitude: number;
@@ -68,11 +68,15 @@ export class CareStore {
   }
 
   async deviceByToken(token: string): Promise<Device | null> {
-    const [row] = await this.db.query<{ id: string; role: DeviceRole; elder_id: number; caregiver_id: number | null; is_demo: boolean }>(
+    const [row] = await this.db.query<{ id: string; role: DeviceRole; elder_id: number; caregiver_id: number | null; is_demo: boolean; account_session_id: string | null }>(
       `UPDATE devices SET last_seen_at = now() WHERE token_hash = $1 AND revoked_at IS NULL
-       AND (NOT is_demo OR $2) RETURNING id, role, elder_id, caregiver_id, is_demo`,
+       AND (NOT is_demo OR $2)
+       AND (caregiver_id IS NULL OR EXISTS (SELECT 1 FROM caregivers c WHERE c.id = devices.caregiver_id AND c.departed_at IS NULL))
+       AND (account_session_id IS NULL OR EXISTS (
+         SELECT 1 FROM caregiver_sessions s WHERE s.id = devices.account_session_id AND s.expires_at > now()))
+       RETURNING id, role, elder_id, caregiver_id, is_demo, account_session_id`,
       [hashToken(token), process.env.SAFEORBIT_DEMO_MODE === 'true']);
-    return row ? { id: row.id, role: row.role, elderId: row.elder_id, caregiverId: row.caregiver_id, isDemo: row.is_demo } : null;
+    return row ? { id: row.id, role: row.role, elderId: row.elder_id, caregiverId: row.caregiver_id, isDemo: row.is_demo, accountSessionId: row.account_session_id } : null;
   }
 
   async household(elderId: number): Promise<Household> {

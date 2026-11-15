@@ -128,6 +128,31 @@ UPDATE devices SET is_demo = true, caregiver_id = CASE WHEN role = 'caregiver' T
   WHERE elder_id = 1 AND NOT is_demo;
 CREATE UNIQUE INDEX IF NOT EXISTS devices_one_family_elder ON devices(elder_id)
   WHERE role = 'elder' AND revoked_at IS NULL AND NOT is_demo;
+CREATE TABLE IF NOT EXISTS caregiver_accounts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text NOT NULL UNIQUE,
+  password_hash text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS caregiver_sessions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), account_id uuid NOT NULL REFERENCES caregiver_accounts(id),
+  token_hash text NOT NULL UNIQUE, created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL DEFAULT now() + interval '30 days');
+ALTER TABLE caregivers ADD COLUMN IF NOT EXISTS account_id uuid REFERENCES caregiver_accounts(id);
+ALTER TABLE caregivers ADD COLUMN IF NOT EXISTS member_id uuid;
+ALTER TABLE caregivers ADD COLUMN IF NOT EXISTS departed_at timestamptz;
+UPDATE caregivers c SET member_id = COALESCE(
+  (SELECT d.id FROM devices d WHERE d.caregiver_id = c.id AND d.revoked_at IS NULL ORDER BY d.created_at,d.id LIMIT 1),
+  gen_random_uuid()) WHERE member_id IS NULL;
+ALTER TABLE caregivers ALTER COLUMN member_id SET DEFAULT gen_random_uuid();
+ALTER TABLE caregivers ALTER COLUMN member_id SET NOT NULL;
+UPDATE caregivers c SET departed_at = now(),is_primary = false
+  WHERE c.elder_id <> 1 AND c.account_id IS NULL AND c.departed_at IS NULL
+    AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.caregiver_id = c.id AND d.revoked_at IS NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS caregivers_member_id ON caregivers(member_id);
+CREATE UNIQUE INDEX IF NOT EXISTS caregivers_one_account_family ON caregivers(account_id)
+  WHERE departed_at IS NULL AND account_id IS NOT NULL;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS account_session_id uuid REFERENCES caregiver_sessions(id) ON DELETE CASCADE;
+CREATE UNIQUE INDEX IF NOT EXISTS devices_one_account_session ON devices(account_session_id)
+  WHERE account_session_id IS NOT NULL AND revoked_at IS NULL;
+
 `;
 
 // The one household this Demo serves.

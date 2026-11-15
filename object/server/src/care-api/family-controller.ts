@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Put } from '@nestjs/common';
+import { AccountStore } from './account-store';
 import { DeviceAuth } from './device-auth';
 import { FamilyStore } from './family-store';
 import { parseCreateFamily, parseJoinFamily, parsePushToken } from './family-validation';
@@ -12,13 +13,19 @@ function parsed<T>(work: () => T): T {
 }
 @Controller('v1/family')
 export class FamilyController {
-  constructor(private readonly store: FamilyStore, private readonly auth: DeviceAuth) {}
+  constructor(private readonly store: FamilyStore, private readonly auth: DeviceAuth, private readonly accounts: AccountStore) {}
   @Post() @HttpCode(200)
-  create(@Body() body: unknown) { return this.store.create(parsed(() => parseCreateFamily(body))); }
+  async create(@Body() body: unknown, @Headers('authorization') authorization?: string) {
+    const input = parsed(() => parseCreateFamily(body));
+    return this.store.create(input, await this.accounts.require(authorization));
+  }
   @Post('join') @HttpCode(200)
-  join(@Body() body: unknown) { return this.store.join(parsed(() => parseJoinFamily(body))); }
+  async join(@Body() body: unknown, @Headers('authorization') authorization?: string) {
+    const input = parsed(() => parseJoinFamily(body));
+    return this.store.join(input, input.role === 'caregiver' ? await this.accounts.require(authorization) : undefined);
+  }
   @Get('session')
-  async session(@Headers('authorization') authorization?: string) { return this.store.session(await this.auth.require(authorization)); }
+  async session(@Headers('authorization') authorization?: string) { return this.store.session(await this.auth.require(authorization, undefined, true)); }
   @Get('members')
   async members(@Headers('authorization') authorization?: string) { return this.store.members(await this.auth.require(authorization, 'caregiver')); }
   @Delete('membership') @HttpCode(204)

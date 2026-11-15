@@ -795,6 +795,46 @@ final class ElderLiveNavigationTests: XCTestCase {
 }
 
 final class AgentSessionTests: XCTestCase {
+    @MainActor private final class SuspendedChat: AgentChatServing {
+        var continuation: CheckedContinuation<AgentResponse, Error>?
+        var returned = false
+        func ask(_ question: AgentQuestion) async throws -> AgentResponse {
+            defer { returned = true }
+            return try await withCheckedThrowingContinuation { continuation = $0 }
+        }
+    }
+    @MainActor func testUnmountedReplyCannotMutateRestoredOrDifferentMembershipIncludingLateFailure() async throws {
+        for failure in [false, true] {
+            let defaults = isolatedDefaults(), service = SuspendedChat()
+            let key = "member-A", otherKey = "member-B"
+            var valid = true
+            let old = AgentSessionStore(defaults: defaults, service: service, storageKey: key, sessionIsValid: { valid })
+            let id = try XCTUnwrap(old.newConversation())
+            XCTAssertTrue(old.send("My old family question", in: id, allowTripHistory: false))
+            for _ in 0..<100 where service.continuation == nil { await Task.yield() }
+            let continuation = try XCTUnwrap(service.continuation)
+            let archive = try XCTUnwrap(defaults.data(forKey: key))
+            valid = false; old.endViewSession()
+            XCTAssertTrue(old.sessions.isEmpty)
+            XCTAssertFalse(old.send("stale", in: id, allowTripHistory: false))
+            let other = AgentSessionStore(defaults: defaults, storageKey: otherKey)
+            XCTAssertTrue(other.sessions.isEmpty)
+            let restored = AgentSessionStore(defaults: defaults, storageKey: key)
+            XCTAssertEqual(restored.conversation(id)?.messages.count, 1)
+            // Even reusing the same view object cannot revive a request from its old lifetime.
+            valid = true; old.resumeViewSession()
+            let restoredMessages = old.conversation(id)?.messages
+            if failure { continuation.resume(throwing: APIError(kind: .unauthorized)) }
+            else { continuation.resume(returning: AgentResponse(outcome: "general", paragraphs: ["late answer"], citations: [])) }
+            for _ in 0..<100 where !service.returned { await Task.yield() }
+            await Task.yield()
+            XCTAssertTrue(service.returned)
+            XCTAssertEqual(defaults.data(forKey: key), archive)
+            XCTAssertNil(defaults.data(forKey: otherKey))
+            XCTAssertEqual(old.conversation(id)?.messages.count, 1)
+            XCTAssertEqual(old.conversation(id)?.messages, restoredMessages)
+        }
+    }
     @MainActor private func isolatedDefaults() -> UserDefaults {
         UserDefaults(suiteName: "safeorbit.test.sessions.\(UUID().uuidString)")!
     }

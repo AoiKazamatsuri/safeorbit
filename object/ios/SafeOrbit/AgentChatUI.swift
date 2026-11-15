@@ -166,6 +166,10 @@ struct AgentSuggestion: Equatable {
     @Published private var revealing: [UUID: String] = [:]
     private var emptySessions: [UUID: AgentConversation] = [:]
     private let defaults: UserDefaults
+    private let persistenceKey: String
+    private let sessionIsValid: () -> Bool
+    private var viewGeneration = UUID()
+    private var viewActive = true
     private let service: (any AgentChatServing)?
     private let settings: CaregiverSettingsStore?
     private let additionalPrivacyValues: () -> (names: [String], otherValues: [String])
@@ -174,14 +178,27 @@ struct AgentSuggestion: Equatable {
 
     init(defaults: UserDefaults = .standard, now: @escaping () -> Date = Date.init,
          service: (any AgentChatServing)? = nil, settings: CaregiverSettingsStore? = nil,
+         storageKey: String? = nil, sessionIsValid: @escaping () -> Bool = { true },
          additionalPrivacyValues: @escaping () -> (names: [String], otherValues: [String]) = { ([], []) }) {
         self.defaults = defaults
+        self.persistenceKey = storageKey ?? Self.storageKey
+        self.sessionIsValid = sessionIsValid
         self.service = service
         self.settings = settings
         self.additionalPrivacyValues = additionalPrivacyValues
         self.now = now
         retryLoading()
     }
+    /// Unmounting a family view invalidates requests even if the same member logs in again later.
+    func endViewSession() {
+        viewActive = false; viewGeneration = UUID()
+        sessions = []; activeID = nil; drafts = [:]; revealing = [:]; emptySessions = [:]; pending = []
+    }
+    func resumeViewSession() {
+        guard !viewActive, sessionIsValid() else { return }
+        viewActive = true; viewGeneration = UUID(); retryLoading()
+    }
+    private var canAccess: Bool { viewActive && sessionIsValid() }
     var recent: [AgentConversation] {
         sessions.sorted { $0.updatedAt == $1.updatedAt ? $0.id.uuidString < $1.id.uuidString : $0.updatedAt > $1.updatedAt }
     }
@@ -189,7 +206,7 @@ struct AgentSuggestion: Equatable {
         sessions.first { $0.id == id } ?? emptySessions[id]
     }
     @discardableResult func newConversation() -> UUID? {
-        guard storageError == nil else { return nil }
+        guard canAccess, storageError == nil else { return nil }
         let id = UUID(), date = now()
         emptySessions[id] = AgentConversation(id: id, title: "New conversation", createdAt: date, updatedAt: date, messages: [])
         activeID = id
@@ -212,7 +229,7 @@ struct AgentSuggestion: Equatable {
 
     @discardableResult func send(_ question: String, in id: UUID, allowTripHistory: Bool) -> Bool {
         let text = question.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard storageError == nil, !text.isEmpty, text.utf16.count <= 1000, !pending.contains(id), var session = conversation(id) else { return false }
+        guard canAccess, storageError == nil, !text.isEmpty, text.utf16.count <= 1000, !pending.contains(id), var session = conversation(id) else { return false }
         let date = now()
         if session.messages.isEmpty { session.title = AgentConversationTitle.make(from: text) }
         let message = AgentMessage(id: UUID(), fromCaregiver: true, text: text, createdAt: date,
@@ -251,11 +268,14 @@ struct AgentSuggestion: Equatable {
         let question = AgentQuestion(question: String(decoding: safeText.utf16.prefix(1000), as: UTF16.self), language: language,
                                      allowTripHistory: allowRecords, history: history.isEmpty ? nil : history,
                                      recordContext: recordContext.map { Array($0.prefix(3)) })
+        let requestGeneration = viewGeneration
+        guard canAccess else { return }
         pending.insert(id)
         Task { @MainActor in
-            defer { pending.remove(id) }
+            defer { if requestGeneration == viewGeneration { pending.remove(id) } }
             do {
                 let response = try await service.ask(question)
+                guard canAccess, requestGeneration == viewGeneration else { return }
                 let stillAllowed = allowRecords && settings?.data.allowAITripHistory != false
                 let hasPrivateContent = response.outcome == "answered" || !response.citations.isEmpty
                     || response.localRequests?.isEmpty == false || response.recordContext?.isEmpty == false
@@ -283,11 +303,12 @@ struct AgentSuggestion: Equatable {
                 }
                 for index in paragraphs.indices.dropFirst() {
                     try? await Task.sleep(for: .milliseconds(250))
-                    guard conversation(id) != nil else { revealing[answer.id] = nil; return }
+                    guard canAccess, requestGeneration == viewGeneration, conversation(id) != nil else { revealing[answer.id] = nil; return }
                     revealing[answer.id] = paragraphs.prefix(index + 1).joined(separator: "\n\n")
                 }
                 revealing[answer.id] = nil
             } catch {
+                guard canAccess, requestGeneration == viewGeneration else { return }
                 markFailed(message.id, in: id)
             }
         }
@@ -352,11 +373,12 @@ struct AgentSuggestion: Equatable {
         return true
     }
     func retryLoading() {
-        guard defaults.object(forKey: Self.storageKey) != nil else {
+        guard canAccess else { return }
+        guard defaults.object(forKey: persistenceKey) != nil else {
             sessions = []; storageError = nil; return
         }
         do {
-            guard let data = defaults.data(forKey: Self.storageKey) else { throw SessionReadError.invalid }
+            guard let data = defaults.data(forKey: persistenceKey) else { throw SessionReadError.invalid }
             let decoded = try JSONDecoder().decode([AgentConversation].self, from: data)
             let messages = decoded.flatMap(\.messages)
             guard Set(decoded.map(\.id)).count == decoded.count,
@@ -378,9 +400,10 @@ struct AgentSuggestion: Equatable {
     }
     private enum SessionReadError: Error { case invalid }
     private func persist(_ updated: [AgentConversation]) -> Bool {
+        guard canAccess else { return false }
         do {
             let data = try JSONEncoder().encode(updated)
-            defaults.set(data, forKey: Self.storageKey)
+            defaults.set(data, forKey: persistenceKey)
             return true
         } catch {
             storageError = "Could not save this conversation. Try again."

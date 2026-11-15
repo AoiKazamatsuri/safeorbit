@@ -140,7 +140,7 @@ test('detail retains a complete trail, maps anomalies to their time and tells th
 
 let unavailable = false;
 const fakeStore = {
-  deviceByToken: async (token: string) => token === 'family' || token === 'elder' ? { id: token, elderId: 1, role: token === 'family' ? 'caregiver' : 'elder' } : null,
+  deviceByToken: async (token: string) => token === 'family' || token === 'elder' ? { id: token, elderId: 1, accountSessionId: 'account-session', role: token === 'family' ? 'caregiver' : 'elder' } : null,
   safeZones: async () => [],
 };
 const sql: string[] = [];

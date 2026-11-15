@@ -116,7 +116,7 @@ export class RiskRecords {
   private async actingCaregiverId(elderId: number, deviceId: string): Promise<number> {
     const [row] = await this.db.query<{ id: number }>(
       `SELECT c.id FROM devices d JOIN caregivers c ON c.id = d.caregiver_id AND c.elder_id = d.elder_id
-       WHERE d.id = $1 AND d.elder_id = $2 AND d.role = 'caregiver' AND d.revoked_at IS NULL`, [deviceId, elderId]);
+       WHERE d.id = $1 AND d.elder_id = $2 AND d.role = 'caregiver' AND d.revoked_at IS NULL AND c.departed_at IS NULL`, [deviceId, elderId]);
     if (!row) throw new NotFoundException('Caregiver membership not found');
     return row.id;
   }
@@ -341,7 +341,9 @@ export class RiskRecords {
   async pushRecipients(elderId: number): Promise<PushRecipient[]> {
     return (await this.db.query<{ id: string; push_token: string }>(
       `SELECT id, push_token FROM devices WHERE elder_id = $1 AND role = 'caregiver' AND push_token IS NOT NULL
-       AND revoked_at IS NULL AND (NOT is_demo OR $2) ORDER BY created_at`,
+       AND revoked_at IS NULL AND (NOT is_demo OR $2) AND (is_demo OR account_session_id IS NOT NULL)
+       AND (account_session_id IS NULL OR EXISTS (SELECT 1 FROM caregiver_sessions s WHERE s.id = devices.account_session_id AND s.expires_at > now()))
+       ORDER BY created_at`,
       [elderId, process.env.SAFEORBIT_DEMO_MODE === 'true'])).map(r => ({ deviceId: r.id, pushToken: r.push_token }));
   }
 

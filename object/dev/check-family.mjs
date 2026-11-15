@@ -52,32 +52,56 @@ async function upload(token, home) {
   assert.deepEqual(response.results.map(point => point.status), ['accepted']);
 }
 
-const created = [];
+const owners = new Map();
 
-async function create(body) {
-  const session = await call('/v1/family', { method: 'POST', body });
-  created.push(session.deviceToken);
-  assert.ok(session.deviceToken === body.deviceToken, 'creation uses the retained device credential');
-  assert.equal(session.role, 'caregiver');
-  assert.equal(session.isPrimary, true);
-  return session.deviceToken;
+async function register() {
+  const credentials = { email: `${randomUUID()}@example.invalid`, password: randomBytes(24).toString('base64url') };
+  const account = await call('/v1/account/register', { method: 'POST', body: credentials });
+  assert.equal(account.family, null);
+  return { ...account, credentials };
 }
 
-async function deleteFamily(token) {
-  await call('/v1/family', { method: 'DELETE', token, expect: 204 });
-  created.splice(created.indexOf(token), 1);
+async function create(account, body) {
+  const session = await call('/v1/family', { method: 'POST', token: account.accountToken, body });
+  owners.set(session.memberId, session.deviceToken);
+  assert.equal(session.role, 'caregiver');
+  assert.equal(session.isPrimary, true);
+  return session;
+}
+
+async function assertFamilyAccessEnded(token) {
+  for (const path of ['/v1/family/session', '/v1/household', '/v1/location', '/v1/records', '/v1/risk-events']) {
+    await call(path, { token, expect: 401 });
+  }
+  await call('/v1/agent/chat', { method: 'POST', token, body: {}, expect: 401 });
 }
 
 try {
   const north = family('North', 31.23);
   const south = family('South', 31.20);
-  const caregiverA = await create(north);
-  const caregiverB = await create(south);
-  const replayed = await call('/v1/family', { method: 'POST', body: north });
-  assert.ok(replayed.deviceToken === caregiverA, 'retry returns the same family session');
-  await call('/v1/family', {
-    method: 'POST', body: { ...north, deviceToken: enrollment().deviceToken }, expect: 409,
-  });
+  const northAccount = await register();
+  const southAccount = await register();
+  await call('/v1/family', { method: 'POST', body: north, expect: 401 });
+  const initialA = await create(northAccount, north);
+  const initialB = await create(southAccount, south);
+  const replayed = await call('/v1/family', { method: 'POST', token: northAccount.accountToken, body: north });
+  assert.equal(replayed.memberId, initialA.memberId);
+  const northLogin = await call('/v1/account/login', { method: 'POST', body: northAccount.credentials });
+  await call('/v1/account/session', { method: 'DELETE', token: northAccount.accountToken, expect: 204 });
+  await call('/v1/account/session', { method: 'POST', token: northAccount.accountToken, expect: 401 });
+  await assertFamilyAccessEnded(replayed.deviceToken);
+  assert.equal((await call('/v1/family/session', { token: northLogin.family.deviceToken })).memberId, initialA.memberId);
+  const reLogin = await call('/v1/account/login', { method: 'POST', body: northAccount.credentials });
+  assert.equal(reLogin.accountId, northAccount.accountId);
+  assert.equal(reLogin.family.memberId, initialA.memberId);
+  assert.equal(reLogin.family.isPrimary, true);
+  const caregiverA = reLogin.family.deviceToken;
+  const caregiverB = initialB.deviceToken;
+  owners.set(initialA.memberId, caregiverA);
+  await assertFamilyAccessEnded(reLogin.accountToken);
+  await call('/v1/family/membership', { method: 'DELETE', token: caregiverA, expect: 409 });
+  console.log('PASS: logout revokes one login; signing in restores the same household and permissions');
+
   const membershipA = await call('/v1/family/members', { token: caregiverA });
   const membershipB = await call('/v1/family/members', { token: caregiverB });
   assert.ok(membershipA.inviteCode !== membershipB.inviteCode, 'each household has its own invitation');
@@ -117,26 +141,55 @@ try {
   }
   console.log('PASS: location, records and risk queries for two households and cross-household resource rejection');
 
-  const secondary = await call('/v1/family/join', { method: 'POST', body: join(membershipA.inviteCode, 'caregiver') });
+  const secondaryAccount = await register();
+  const secondary = await call('/v1/family/join', {
+    method: 'POST', token: secondaryAccount.accountToken, body: join(membershipA.inviteCode, 'caregiver'),
+  });
   const members = await call('/v1/family/members', { token: secondary.deviceToken });
   assert.equal(members.members.length, 3);
   await call('/v1/family', { method: 'DELETE', token: secondary.deviceToken, expect: 403 });
   await call(`/v1/family/members/${secondary.memberId}`, { method: 'DELETE', token: caregiverB, expect: 404 });
-  await call(`/v1/family/members/${secondary.memberId}`, { method: 'DELETE', token: caregiverA, expect: 204 });
-  await call('/v1/records', { token: secondary.deviceToken, expect: 401 });
+  const secondaryLogin = await call('/v1/account/login', { method: 'POST', body: secondaryAccount.credentials });
+  await call('/v1/family/membership', { method: 'DELETE', token: secondary.deviceToken, expect: 204 });
+  await assertFamilyAccessEnded(secondary.deviceToken);
+  await assertFamilyAccessEnded(secondaryLogin.family.deviceToken);
+  const unbound = await call('/v1/account/session', { method: 'POST', token: secondaryAccount.accountToken });
+  assert.equal(unbound.accountId, secondaryAccount.accountId);
+  assert.equal(unbound.family, null);
+  assert.equal((await call('/v1/family/members', { token: caregiverA })).members.length, 2);
+  assert.equal((await call('/v1/location', { token: caregiverA })).coordinate.latitude, north.home.latitude);
+
+  const newFamily = await call('/v1/family/join', {
+    method: 'POST', token: secondaryAccount.accountToken, body: join(membershipB.inviteCode, 'caregiver'),
+  });
+  assert.equal((await call('/v1/location', { token: newFamily.deviceToken })).coordinate.latitude, south.home.latitude);
+  await call(`/v1/safe-zones/${zone.id}`, { method: 'DELETE', token: newFamily.deviceToken, expect: 404 });
+  await assertFamilyAccessEnded(secondary.deviceToken);
+  await call(`/v1/family/members/${newFamily.memberId}`, { method: 'DELETE', token: caregiverB, expect: 204 });
+  await assertFamilyAccessEnded(newFamily.deviceToken);
+  assert.equal((await call('/v1/account/session', { method: 'POST', token: secondaryAccount.accountToken })).family, null);
+  console.log('PASS: leaving preserves login, blocks prior data, allows joining another family and preserves other members');
+
+  const successor = await call('/v1/family/join', {
+    method: 'POST', token: secondaryAccount.accountToken, body: join(membershipA.inviteCode, 'caregiver'),
+  });
+  await call('/v1/caregiver-settings', { method: 'PUT', token: caregiverA, body: { autoNavigation: false } });
+  await call('/v1/family/membership', { method: 'DELETE', token: caregiverA, expect: 204 });
+  owners.delete(initialA.memberId);
+  owners.set(successor.memberId, successor.deviceToken);
+  await assertFamilyAccessEnded(caregiverA);
+  await assertFamilyAccessEnded(northLogin.family.deviceToken);
+  assert.equal((await call('/v1/account/session', { method: 'POST', token: reLogin.accountToken })).family, null);
+  assert.equal((await call('/v1/family/session', { token: successor.deviceToken })).isPrimary, true);
+  assert.equal((await call('/v1/caregiver-settings', { token: successor.deviceToken })).autoNavigation, false);
+  console.log('PASS: sole caregiver cannot leave; a successor takes over without changing household data or settings');
+
   await call('/v1/family/membership', { method: 'DELETE', token: elderA.deviceToken, expect: 204 });
   await call('/v1/family/session', { token: elderA.deviceToken, expect: 401 });
   await call('/v1/family/join', { method: 'POST', body: elderRequest, expect: 409 });
-  await deleteFamily(caregiverA);
-  await call('/v1/family/session', { token: caregiverA, expect: 401 });
-  await call('/v1/family/join', { method: 'POST', body: join(membershipA.inviteCode), expect: 404 });
-  assert.equal((await call('/v1/location', { token: caregiverB })).coordinate.latitude, south.home.latitude);
-  await deleteFamily(caregiverB);
-  await call('/v1/family/session', { token: elderB.deviceToken, expect: 401 });
-  console.log('PASS: member removal, leaving, household deletion and immediate credential revocation');
 } finally {
-  for (const token of [...created]) {
-    try { await deleteFamily(token); }
+  for (const token of owners.values()) {
+    try { await call('/v1/family', { method: 'DELETE', token, expect: 204 }); }
     catch { console.error('Could not clean a household created by this check'); process.exitCode = 1; }
   }
 }

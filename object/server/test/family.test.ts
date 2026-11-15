@@ -14,11 +14,12 @@ import { RiskRecords } from '../src/care-api/risk-records';
 import { CareEvents } from '../src/care-api/care-events';
 import { InputError } from '../src/care-api/validation';
 
+const account = { id: 'account-session', accountId: 'account-id', email: 'fixture@example.invalid' };
 const token = () => randomBytes(32).toString('base64url');
 const createBody = () => ({ installationId: 'test-family-creator', deviceToken: token(),
   elder: { name: 'Sam', callName: 'Grandpa', phone: '+12025550102', timezone: 'Asia/Shanghai' },
   caregiver: { name: 'Alex', phone: '+12025550101' }, home: { latitude: 31.23, longitude: 121.47, radiusMeters: 100 } });
-const caregiver = { id: '166bcb60-e30a-4c4d-b5b3-7796267e9b21', elderId: 7, role: 'caregiver' as const, caregiverId: 8, isDemo: false };
+const caregiver = { id: '166bcb60-e30a-4c4d-b5b3-7796267e9b21', elderId: 7, role: 'caregiver' as const, caregiverId: 8, isDemo: false, accountSessionId: 'account-session' };
 const elder = { ...caregiver, id: '266bcb60-e30a-4c4d-b5b3-7796267e9b21', role: 'elder' as const, caregiverId: null };
 
 test('family requests validate canonical credentials, profiles, timezone and WGS-84 home', () => {
@@ -55,9 +56,9 @@ test('family controller validates enrollment and enforces credentials and roles 
     session: async (device: unknown) => { seen.push(device); return { role: 'caregiver' }; },
     members: async (device: unknown) => { seen.push(device); return { inviteCode: 'AJKD74M4NZKP', members: [] }; },
     pushToken: async (...args: unknown[]) => { seen.push(args); },
-  } as any, auth);
-  assert.throws(() => controller.create({}), BadRequestException);
-  assert.throws(() => controller.join({}), BadRequestException);
+  } as any, auth, { require: async () => account } as any);
+  await assert.rejects(controller.create({}), BadRequestException);
+  await assert.rejects(controller.join({}), BadRequestException);
   await assert.rejects(controller.session(), UnauthorizedException);
   await assert.rejects(controller.members('Bearer elder'), ForbiddenException);
   await assert.rejects(controller.delete('Bearer elder'), ForbiddenException);
@@ -71,26 +72,28 @@ test('family controller validates enrollment and enforces credentials and roles 
 
 test('new family enrollment maps database races to a bounded conflict and leaves rollback to transaction', async () => {
   const store = new FamilyStore({ transaction: async () => { throw Object.assign(new Error('detail'), { code: '23505' }); } } as any, {} as any);
-  await assert.rejects(store.create(parseCreateFamily(createBody())), ConflictException);
+  await assert.rejects(store.create(parseCreateFamily(createBody()), account), ConflictException);
 });
 
 test('an existing installation cannot acquire a session using a different credential or enrollment operation', async () => {
   const queries: string[] = [];
   const db = { transaction: async (work: any) => work({ query: async (sql: string) => {
     queries.push(sql);
+    if (sql.startsWith('SELECT id FROM caregiver_sessions')) return { rows: [{ id: account.id }] };
     return { rows: sql.startsWith('SELECT * FROM devices') ? [{ id: caregiver.id, token_hash: 'other-token', revoked_at: null }] : [] };
   } }) };
   const store = new FamilyStore(db as any, {} as any);
-  await assert.rejects(store.create(parseCreateFamily(createBody())), ConflictException);
-  assert.equal(queries.length, 2, 'conflicts never reach household inserts');
+  await assert.rejects(store.create(parseCreateFamily(createBody()), account), ConflictException);
+  assert.ok(queries.every(sql => !sql.startsWith('INSERT')), 'conflicts never reach household inserts');
 });
 
 test('member removal, leaving and deletion check actual current membership under a family lock', async () => {
   let primary = false;
   let found = true;
   const writes: string[] = [];
-  const db = { transaction: async (work: any) => work({ query: async (sql: string) => {
-    if (sql.includes('COALESCE(c.is_primary')) return { rows: [{ ...caregiver, is_primary: primary }] };
+  const db = { transaction: async (work: any) => work({ query: async (sql: string, values: unknown[] = []) => {
+    if (sql.includes('COALESCE(c.is_primary')) return { rows: [{ ...caregiver, caregiver_id: 8, member_id: caregiver.id, is_primary: primary }] };
+    if (sql.startsWith('SELECT id,is_primary FROM caregivers')) return { rows: values[0] === caregiver.id ? [{ id: 8, is_primary: true }] : [] };
     if (sql.startsWith('SELECT id FROM devices')) return { rows: found ? [{ id: elder.id }] : [] };
     writes.push(sql);
     return { rows: [] };
@@ -99,7 +102,7 @@ test('member removal, leaving and deletion check actual current membership under
   await assert.rejects(store.remove(caregiver, elder.id), ForbiddenException);
   await assert.rejects(store.delete(caregiver), ForbiddenException);
   primary = true;
-  await assert.rejects(store.leave(caregiver), ForbiddenException);
+  await assert.rejects(store.leave(caregiver), ConflictException);
   await assert.rejects(store.remove(caregiver, caregiver.id), ForbiddenException);
   await assert.rejects(store.remove(caregiver, 'invalid-id'), NotFoundException);
   found = false;
@@ -159,4 +162,5 @@ test('caregiver calls record the actual member and revoked devices are excluded 
   await risks.pushRecipients(7);
   assert.match(queries.at(-1)![0], /revoked_at IS NULL/);
   assert.match(queries.at(-1)![0], /NOT is_demo OR \$2/);
+  assert.match(queries.at(-1)![0], /is_demo OR account_session_id IS NOT NULL/);
 });
