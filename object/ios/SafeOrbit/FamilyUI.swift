@@ -273,6 +273,46 @@ struct FamilyManagementPage: View {
     @State private var leaving = false
     @State private var deleting = false
     var body: some View {
+        Group {
+            if let close {
+                let corners = UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28)
+                let surface = Color(uiColor: .systemGroupedBackground)
+                VStack(spacing: 0) {
+                    caregiverHeader(close: close)
+                    membersForm
+                        .scrollContentBackground(.hidden)
+                        .background(surface, in: corners)
+                        .clipShape(corners)
+                        .background(alignment: .top) { OrbitStyle.teal.frame(height: 40) }
+                }
+                .background(surface.ignoresSafeArea(edges: .bottom))
+            } else {
+                membersForm
+                    .navigationTitle("Family Members").navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
+            }
+        }
+        .task {
+            while !Task.isCancelled && family.session?.role == "caregiver" {
+                await family.refreshMembers()
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
+        .confirmationDialog("Remove this member?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible) {
+            Button("Remove member", role: .destructive) { if let member = removing { Task { await family.remove(member) } }; removing = nil }
+            Button("Cancel", role: .cancel) { removing = nil }
+        } message: { Text("This phone will immediately lose access to your family.") }
+        .confirmationDialog("Leave this family?", isPresented: $leaving, titleVisibility: .visible) {
+            Button("Leave Family", role: .destructive) { Task { await family.leaveFamily() } }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Your account stays signed in. A primary caregiver must have another caregiver who can take over.") }
+        .confirmationDialog("Delete this family and all its data?", isPresented: $deleting, titleVisibility: .visible) {
+            Button("Delete Family", role: .destructive) { Task { await family.deleteFamily() } }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    private var membersForm: some View {
         Form {
             if let session = family.session {
                 Section("Senior profile") {
@@ -323,50 +363,25 @@ struct FamilyManagementPage: View {
             }
         }
         .disabled(family.busy)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if let close {
-                CaregiverTopBar {
-                    HStack(spacing: 0) {
-                        Button(action: close) {
-                            Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold))
-                                .frame(width: 56, height: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Back")
-                        .accessibilityIdentifier("family-management-back")
-                        Text("Family Members").orbitDisplayFont(20).multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity)
-                            .accessibilityAddTraits(.isHeader)
-                        Color.clear.frame(width: 56, height: 1).accessibilityHidden(true)
-                    }.foregroundStyle(.white)
+    }
+
+    private func caregiverHeader(close: @escaping () -> Void) -> some View {
+        CaregiverTopBar {
+            HStack(spacing: 0) {
+                Button(action: close) {
+                    Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold))
+                        .frame(width: 56, height: 44)
+                        .contentShape(Rectangle())
                 }
-            }
-        }
-        .navigationTitle("Family Members").navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if close == nil {
-                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
-            }
-        }
-        .task {
-            while !Task.isCancelled && family.session?.role == "caregiver" {
-                await family.refreshMembers()
-                try? await Task.sleep(for: .seconds(3))
-            }
-        }
-        .confirmationDialog("Remove this member?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible) {
-            Button("Remove member", role: .destructive) { if let member = removing { Task { await family.remove(member) } }; removing = nil }
-            Button("Cancel", role: .cancel) { removing = nil }
-        } message: { Text("This phone will immediately lose access to your family.") }
-        .confirmationDialog("Leave this family?", isPresented: $leaving, titleVisibility: .visible) {
-            Button("Leave Family", role: .destructive) { Task { await family.leaveFamily() } }
-            Button("Cancel", role: .cancel) {}
-        } message: { Text("Your account stays signed in. A primary caregiver must have another caregiver who can take over.") }
-        .confirmationDialog("Delete this family and all its data?", isPresented: $deleting, titleVisibility: .visible) {
-            Button("Delete Family", role: .destructive) { Task { await family.deleteFamily() } }
-            Button("Cancel", role: .cancel) {}
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back")
+                .accessibilityIdentifier("family-management-back")
+                Text("Family Members").orbitDisplayFont(20).multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityAddTraits(.isHeader)
+                Color.clear.frame(width: 56, height: 1).accessibilityHidden(true)
+            }.foregroundStyle(.white)
         }
     }
 }
