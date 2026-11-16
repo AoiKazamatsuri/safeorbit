@@ -462,7 +462,7 @@ struct LocationPage: View {
                         }
                     }
                     .padding(.bottom, CaregiverBottomLayout.cardBottomPadding(safeAreaBottom: geometry.safeAreaInsets.bottom))
-            }.padding(.horizontal, 20).padding(.top, 4)
+            }.padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 4)
             } else {
                 WalkingNavigationOverlay(model: navigation,
                     refreshMessage: message,
@@ -981,7 +981,7 @@ struct SafeZoneEditorPage: View {
                     }
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { editorOverlayHeight = $0 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, OrbitLayout.pageMargin)
         }
         }
         .background(.white)
@@ -1249,7 +1249,7 @@ struct WalkingNavigationOverlay: View {
             }
             NavigationSummaryCard(model: model, confirmingExit: $confirmingExit, end: end)
         }
-        .padding(.horizontal, 20).padding(.top, 8)
+        .padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 8)
         .tint(OrbitStyle.teal)
     }
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
