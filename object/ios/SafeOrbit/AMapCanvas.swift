@@ -176,7 +176,6 @@ struct NativeAMapCanvas: UIViewRepresentable {
         surface.backgroundColor = .systemGroupedBackground
         guard AMapRuntime.prepare() else { return surface }
         let map = MAMapView(frame: surface.bounds)
-        map.mapLanguage = 1 // English labels on the standard basemap.
         map.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         map.overrideUserInterfaceStyle = .light
         map.showsCompass = false
