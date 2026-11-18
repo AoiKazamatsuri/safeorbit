@@ -1,7 +1,7 @@
 // One calendar month of deterministic, timestamped WGS-84 fixes for the recording demo (T39).
-// History is generated from the same street vertices as the live demo; no pre-written risks or trips.
+// History follows the demo streets and varies the walk for each day.
 import { readFileSync } from 'node:fs';
-import { buildTrack, demoRoute, routePrefix } from './tracks.mjs';
+import { buildTrack, demoRoute, distance, offset, routePrefix, TRACKS } from './tracks.mjs';
 
 export function localDay(value, timezone) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
@@ -25,18 +25,44 @@ export function localInstant(day, hour, minute, timezone) {
   return value;
 }
 
-export function historyTrack(kind) {
+// Pause along the street without changing the intersection vertices or the destination.
+function walkWithPause(route, meters, seconds) {
+  const approach = routePrefix(route, meters);
+  return [['walk', approach], ['dwell', seconds], ['walk', [approach.at(-1), ...route.slice(approach.length - 1)]]];
+}
+
+function varyWalk(fixes, seed) {
+  let elapsed = 0;
+  return fixes.map((fix, index) => {
+    if (fix.speed === 0) {
+      elapsed += 5;
+      return { ...fix, offset: elapsed };
+    }
+    const phase = index * 0.19 + seed;
+    const interval = 5 + Math.round(1.3 * Math.sin(phase) + 0.7 * Math.sin(index * 0.41));
+    elapsed += interval;
+    const along = fix.course * Math.PI / 180;
+    const meters = 3.4 + 1.4 * Math.sin(phase) + 0.9 * Math.sin(index * 0.47 + seed);
+    // Opposite headings use opposite sides of the same street. Ease onto the
+    // street when leaving a stop and back to the surveyed point when arriving.
+    const isStopBoundary = !fixes[index - 1]?.speed || !fixes[index + 1]?.speed;
+    const sway = isStopBoundary ? 0 : meters;
+    const point = offset(fix, Math.cos(along) * sway, -Math.sin(along) * sway);
+    const stride = index === 0 ? 0 : distance(fix, fixes[index - 1]);
+    return { ...fix, latitude: +point.latitude.toFixed(7), longitude: +point.longitude.toFixed(7),
+      offset: elapsed, speed: +(stride / interval).toFixed(2) };
+  });
+}
+
+export function historyTrack(kind, seed = 0) {
   const route = demoRoute();
-  const home = route[0];
-  if (kind === 'normal') return buildTrack([['dwell', 120], ['walk', route], ['dwell', 300], ['walk', [...route].reverse()], ['dwell', 240]]);
-  const approach = routePrefix(route, 270);
+  if (kind === 'normal') {
+    const toMarket = walkWithPause(route, 174 + seed % 93, 10 + seed % 4 * 5);
+    const toHome = walkWithPause([...route].reverse(), 209 + seed % 81, 10 + seed % 3 * 5);
+    return varyWalk(buildTrack([['dwell', 120], ...toMarket, ['dwell', 300], ...toHome, ['dwell', 240]]), seed);
+  }
   if (kind === 'wandering') {
-    // Walk back and forth on a 24 m piece of the known street, rather than drawing a circle off-road.
-    const start = approach.at(-1), end = routePrefix(route, 294).at(-1);
-    const legs = [['dwell', 120], ['walk', approach]];
-    for (let i = 0; i < 22; i++) legs.push(['walk', [start, end]], ['walk', [end, start]]);
-    legs.push(['walk', [...approach].reverse()], ['dwell', 240]);
-    return buildTrack(legs);
+    return varyWalk(TRACKS['home-wander-home'](), seed);
   }
   if (kind !== 'deviation') throw new Error(`Unknown history track: ${kind}`);
   // Continue east on Beijing West Road past the south turn onto Ninghai Road, then walk back.
@@ -45,7 +71,7 @@ export function historyTrack(kind) {
   const corner = route[cornerIndex];
   const east = { latitude: corner.latitude - 0.00013, longitude: corner.longitude + 0.0053 };
   const outward = [...route.slice(0, cornerIndex + 1), east];
-  return buildTrack([['dwell', 120], ['walk', outward], ['walk', [...outward].reverse()], ['walk', [home, home]], ['dwell', 240]]);
+  return varyWalk(buildTrack([['dwell', 120], ['walk', outward], ['dwell', 10], ['walk', [...outward].reverse()], ['dwell', 240]]), seed);
 }
 
 export function generateHistory({ now = new Date(), timezone = JSON.parse(readFileSync(new URL('./demo-household.json', import.meta.url))).elder.timezone } = {}) {
@@ -65,7 +91,8 @@ export function generateHistory({ now = new Date(), timezone = JSON.parse(readFi
   const trips = outings.map((day, index) => {
     const kind = index === outings.length - 1 || index === 5 || index === 14 ? 'deviation' : index === 9 || index === 19 ? 'wandering' : 'normal';
     const start = localInstant(day, 9, index % 3 * 5, timezone);
-    const points = historyTrack(kind).map(({ offset, ...fix }) => ({ sampledAt: new Date(start + offset * 1000).toISOString(), ...fix }));
+    const seed = Number(day.replaceAll('-', '').slice(4));
+    const points = historyTrack(kind, seed).map(({ offset, ...fix }) => ({ sampledAt: new Date(start + offset * 1000).toISOString(), ...fix }));
     if (Date.parse(points.at(-1).sampledAt) >= now.getTime()) throw new Error('History must finish before now');
     return { day, kind, points };
   });

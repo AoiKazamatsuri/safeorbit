@@ -58,6 +58,19 @@ enum SafeZoneChange { case save(SafeZone), delete(SafeZone) }
     }
 }
 
+struct CaregiverPlacePin: View {
+    let symbol: String
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Image(systemName: symbol)
+                .font(.system(size: 21)).foregroundStyle(.white)
+                .frame(width: 39, height: 39).background(OrbitStyle.teal, in: Circle())
+            Circle().fill(OrbitStyle.teal).frame(width: 11, height: 11)
+        }
+    }
+}
+
 private struct SafeZoneEditorSelection: Identifiable {
     let zone: SafeZone?
     var id: String { zone?.id ?? "new" }
@@ -605,12 +618,7 @@ struct LocationPage: View {
         }.map { zone in
             AMapMarker(id: "zone-" + zone.renderKey, coordinate: zone.center.appleCoordinate,
                 anchor: .bottom, content: AnyView(Button { zoneEditor = SafeZoneEditorSelection(zone: zone) } label: {
-                    VStack(spacing: 2) {
-                        Image(systemName: zone.symbolName)
-                            .font(.system(size: 21)).foregroundStyle(.white)
-                            .frame(width: 39, height: 39).background(OrbitStyle.teal, in: Circle())
-                        Circle().fill(OrbitStyle.teal).frame(width: 11, height: 11)
-                    }
+                    CaregiverPlacePin(symbol: zone.symbolName)
                 }.accessibilityLabel("Edit \(zone.name) safe zone")))
         }
         if let snapshot, let point {

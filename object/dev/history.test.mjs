@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { generateHistory, historyTrack, localDay, localInstant } from './history.mjs';
 import { replayHistory } from './replay-history.mjs';
-import { TRACKS, toGpx } from './tracks.mjs';
+import { distance, TRACKS, toGpx } from './tracks.mjs';
 
 const require = createRequire(import.meta.url);
 const tripRules = require('../server/dist/src/care-agent/trip-recognition.js');
@@ -50,6 +50,22 @@ test('calendar month clamp and local clock across year, leap day and DST', () =>
   assert.equal(new Date(localInstant('2026-11-01', 9, 0, 'America/New_York')).toISOString(), '2026-11-01T14:00:00.000Z');
   assert.throws(() => generateHistory({ now: 'invalid' }), /Invalid/);
   assert.throws(() => historyTrack('unknown'), /Unknown/);
+});
+
+test('normal historical samples vary by day and pause within the street corridor', () => {
+  const route = routes[0];
+  const walk = historyTrack('normal', 1024);
+  const { distanceToPolylineMeters } = require('../server/dist/src/care-api/public/index.js');
+  const speeds = new Set(walk.filter(fix => fix.speed > 0).map(fix => fix.speed));
+  const intervals = new Set(walk.slice(1).map((fix, index) => fix.offset - walk[index].offset));
+  const midwalkStops = walk.filter(fix => fix.speed === 0
+    && distance(fix, route[0]) > 50 && distance(fix, route.at(-1)) > 50);
+  assert.ok(speeds.size >= 3);
+  assert.ok(intervals.size >= 3);
+  assert.ok(midwalkStops.length >= 4);
+  assert.ok(walk.every(fix => distanceToPolylineMeters(fix, route) < 6));
+  assert.ok(walk.some(fix => distanceToPolylineMeters(fix, route) > 4));
+  assert.notDeepEqual(walk, historyTrack('normal', 1023));
 });
 
 test('same sample-time rules derive completed normal, low-risk deviation and high-risk wandering trips', () => {

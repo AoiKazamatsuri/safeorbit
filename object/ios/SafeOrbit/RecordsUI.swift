@@ -620,21 +620,33 @@ struct TripDetailPage: View {
         let latitudes = points.map(\.latitude), longitudes = points.map(\.longitude)
         let south = latitudes.min() ?? first.latitude, north = latitudes.max() ?? first.latitude
         let west = longitudes.min() ?? first.longitude, east = longitudes.max() ?? first.longitude
-        return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: (south + north) / 2, longitude: (west + east) / 2),
-            span: MKCoordinateSpan(latitudeDelta: max(0.003, (north - south) * 1.35), longitudeDelta: max(0.003, (east - west) * 1.35)))
+        let latitudeDelta = max(0.003, (north - south) * 1.58)
+        // A place pin extends upward from its coordinate. Leave extra room above the trail.
+        return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: (south + north) / 2 + latitudeDelta * 0.05,
+                                                                  longitude: (west + east) / 2),
+            span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: max(0.003, (east - west) * 1.35)))
     }
     private var tripMarkers: [AMapMarker] {
         var markers: [AMapMarker] = []
         if let first = route.first {
-            markers.append(marker("start", first, symbol: trip.startKnown ? "house.fill" : "mappin"))
+            if !trip.startKnown {
+                markers.append(marker("start", first, symbol: "mappin"))
+            } else if !trip.returnedHome || route.count == 1 {
+                markers.append(homeMarker(first))
+            }
         }
         if let last = route.last, route.count > 1 {
-            markers.append(marker("end", last, symbol: trip.returnedHome ? "house.fill" : "flag.fill"))
+            // Returning to the same home needs one pin. The last fix is inside the home zone.
+            markers.append(trip.returnedHome ? homeMarker(last) : marker("end", last, symbol: "flag.fill"))
         }
         for (index, anomaly) in (store.detail?.anomalies ?? []).enumerated() where anomaly.point.isValid {
             markers.append(marker("anomaly-\(index)", anomaly.point.appleCoordinate, symbol: "exclamationmark", anomaly: true))
         }
         return markers
+    }
+    private func homeMarker(_ coordinate: CLLocationCoordinate2D) -> AMapMarker {
+        AMapMarker(id: "home", coordinate: coordinate, anchor: .bottom, content: AnyView(
+            CaregiverPlacePin(symbol: "house.fill").accessibilityLabel("Home")))
     }
     private func marker(_ id: String, _ coordinate: CLLocationCoordinate2D, symbol: String, anomaly: Bool = false) -> AMapMarker {
         AMapMarker(id: id, coordinate: coordinate, content: AnyView(
@@ -677,6 +689,8 @@ struct TripDetailPage: View {
             .onAppear { if let region { mapCamera = .region(region) } }
             .onChange(of: store.detail?.trip.id) { _, _ in if let region { mapCamera = .region(region) } }
             .frame(height: 280)
+            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
+            .background(alignment: .top) { OrbitStyle.teal.frame(height: 40) }
             .layoutProbe("trip-map")
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
