@@ -582,32 +582,14 @@ struct LocationPage: View {
     }
     private var mapLines: [AMapLine] {
         if navigation.isPresented {
-            return navigation.route.map { [
-                AMapLine(id: "navigation-border", coordinates: $0.coordinates,
-                         color: Color(red: 0.0, green: 0.32, blue: 0.72), width: 12),
-                AMapLine(id: "navigation", coordinates: $0.coordinates,
-                         color: Color(red: 0.0, green: 0.65, blue: 1.0), width: 8)
-            ] } ?? []
+            return WalkingRouteMap.lines(navigation.route?.coordinates ?? [])
         }
         let trail = snapshot?.trail.filter(\.isValid).map(\.appleCoordinate) ?? []
         return CaregiverTrailStyle.lines(coordinates: trail)
     }
     private var mapMarkers: [AMapMarker] {
         if navigation.isPresented {
-            var result: [AMapMarker] = []
-            if let route = navigation.route {
-                for index in stride(from: 1, to: route.coordinates.count, by: 2) {
-                    let a = route.coordinates[index - 1], b = route.coordinates[index]
-                    let bearing = atan2((b.longitude - a.longitude) * cos(a.latitude * .pi / 180),
-                                        b.latitude - a.latitude) * 180 / .pi
-                    let center = CLLocationCoordinate2D(latitude: (a.latitude + b.latitude) / 2,
-                                                        longitude: (a.longitude + b.longitude) / 2)
-                    result.append(AMapMarker(id: "route-direction-\(index)", coordinate: center,
-                        content: AnyView(Image(systemName: "chevron.up")
-                            .font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
-                            .rotationEffect(.degrees(bearing - visibleHeading)).accessibilityHidden(true))))
-                }
-            }
+            var result = WalkingRouteMap.arrows(navigation.route?.coordinates ?? [], heading: visibleHeading)
             result += CaregiverNavigationMarkers.make(route: navigation.route,
                 senior: navigation.destination.flatMap { $0.coordinate.isValid ? $0.coordinate.appleCoordinate : nil },
                 name: profile.name)
@@ -649,13 +631,7 @@ struct LocationPage: View {
         var coordinates = navigation.route?.coordinates ?? []
         if let point = navigation.fix?.point, point.isValid { coordinates.append(point.appleCoordinate) }
         if let point = navigation.destination?.coordinate, point.isValid { coordinates.append(point.appleCoordinate) }
-        guard !coordinates.isEmpty else { return }
-        let latitudes = coordinates.map(\.latitude), longitudes = coordinates.map(\.longitude)
-        camera = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(
-            latitude: (latitudes.min()! + latitudes.max()!) / 2,
-            longitude: (longitudes.min()! + longitudes.max()!) / 2),
-            span: MKCoordinateSpan(latitudeDelta: max(0.004, (latitudes.max()! - latitudes.min()!) * 1.8),
-                                   longitudeDelta: max(0.004, (longitudes.max()! - longitudes.min()!) * 1.8))))
+        if let region = WalkingRouteMap.overview(coordinates) { camera = .region(region) }
     }
     private func focusOnSenior() {
         guard let point, let homeMapFrame, let homeCardTop else { return }
@@ -1194,10 +1170,8 @@ struct NavigationGuidanceCard: View {
                     if elder { Text(title).elderText(.heading) }
                     else { Text(title).caregiverText() }
                 }.fixedSize(horizontal: false, vertical: true)
-                Group {
-                    if elder { Text(subtitle).elderText() }
-                    else { Text(subtitle).caregiverText(.secondary) }
-                }.foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(subtitle).modifier(NavigationText(elder: elder, secondary: true))
+                    .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }.frame(maxWidth: .infinity, alignment: .leading)
             Button(action: toggleVoice) {
                 Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
@@ -1208,7 +1182,7 @@ struct NavigationGuidanceCard: View {
                 .accessibilityLabel(muted ? "Unmute guidance" : "Mute guidance")
                 .accessibilityIdentifier(voiceIdentifier)
         }
-        .foregroundStyle(.black).padding(elder ? 16 : 12).frame(maxWidth: .infinity, minHeight: elder ? 108 : 0)
+        .foregroundStyle(.black).padding(12).frame(maxWidth: .infinity)
         .background {
             GeometryReader { geometry in
                 Color.clear.preference(key: NavigationGuidanceHeight.self, value: geometry.size.height)
@@ -1216,8 +1190,49 @@ struct NavigationGuidanceCard: View {
         }
         .onPreferenceChange(NavigationGuidanceHeight.self) { naturalHeight = $0 }
         // Keep the added height, sharing its space equally above and below caregiver content.
-        .padding(.vertical, elder ? 0 : naturalHeight * 0.10)
+        .padding(.vertical, naturalHeight * 0.10)
         .background(.white, in: RoundedRectangle(cornerRadius: 24))
+    }
+}
+
+enum WalkingRouteMap {
+    static func lines(_ coordinates: [CLLocationCoordinate2D], id: String = "navigation") -> [AMapLine] {
+        guard coordinates.count >= 2 else { return [] }
+        return [
+            AMapLine(id: "\(id)-border", coordinates: coordinates,
+                     color: Color(red: 0, green: 0.32, blue: 0.72), width: 12),
+            AMapLine(id: id, coordinates: coordinates,
+                     color: Color(red: 0, green: 0.65, blue: 1), width: 8)
+        ]
+    }
+
+    static func bearing(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D) -> Double {
+        let degrees = atan2((end.longitude - start.longitude) * cos(start.latitude * .pi / 180),
+                            end.latitude - start.latitude) * 180 / .pi
+        return degrees < 0 ? degrees + 360 : degrees
+    }
+
+    static func arrows(_ coordinates: [CLLocationCoordinate2D], heading: Double) -> [AMapMarker] {
+        stride(from: 1, to: coordinates.count, by: 2).map { index in
+            let start = coordinates[index - 1], end = coordinates[index]
+            let center = CLLocationCoordinate2D(latitude: (start.latitude + end.latitude) / 2,
+                                                longitude: (start.longitude + end.longitude) / 2)
+            return AMapMarker(id: "route-direction-\(index)", coordinate: center,
+                              content: AnyView(Image(systemName: "chevron.up")
+                                .font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                                .rotationEffect(.degrees(bearing(from: start, to: end) - heading))
+                                .accessibilityHidden(true)))
+        }
+    }
+
+    static func overview(_ coordinates: [CLLocationCoordinate2D]) -> MKCoordinateRegion? {
+        let latitudes = coordinates.map(\.latitude), longitudes = coordinates.map(\.longitude)
+        guard let south = latitudes.min(), let north = latitudes.max(),
+              let west = longitudes.min(), let east = longitudes.max() else { return nil }
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: (south + north) / 2, longitude: (west + east) / 2),
+            span: MKCoordinateSpan(latitudeDelta: max(0.004, (north - south) * 1.8),
+                                   longitudeDelta: max(0.004, (east - west) * 1.8)))
     }
 }
 
@@ -1229,30 +1244,26 @@ struct WalkingNavigationOverlay: View {
     let overview: () -> Void
     let end: () -> Void
     @State private var confirmingExit = false
+
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                ScrollView { overlayContent }
-            } else { overlayContent }
-        }
+        NavigationOverlay(
+            guidance: NavigationInstructionPanel(
+                card: NavigationGuidanceCard(title: instructionTitle,
+                    subtitle: (hasDirections ? "To senior · \(Int(ceil(model.remainingSeconds / 60))) min" : "Walking navigation")
+                        + (model.isDemoRoute ? " · Demo route" : ""),
+                    symbol: model.directionSymbol, muted: model.muted, elder: false, toggleVoice: model.toggleMuted),
+                loading: model.loading, message: refreshMessage, retry: model.issue != nil && !model.suspended ? retry : nil
+            ).accessibilityIdentifier("navigation-instruction"),
+            summary: NavigationSummaryCard(metrics: metrics, confirmingExit: $confirmingExit, end: end),
+            follow: follow, overview: overview)
     }
-    private var overlayContent: some View {
-        VStack(spacing: 12) {
-            instructionCard
-            Spacer(minLength: 8)
-            HStack {
-                Spacer()
-                VStack(spacing: 10) {
-                    navigationButton("location.fill", label: "Back to my location", action: follow)
-                    navigationButton("arrow.up.left.and.arrow.down.right", label: "Route overview", action: overview)
-                }
-            }
-            NavigationSummaryCard(model: model, confirmingExit: $confirmingExit, end: end)
-        }
-        .padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 8)
-        .tint(OrbitStyle.teal)
+
+    private var metrics: NavigationMetrics {
+        NavigationMetrics(distance: model.route == nil ? nil : "\(Int(model.remainingMeters.rounded())) m",
+                          duration: model.route == nil ? nil : "\(Int(ceil(model.remainingSeconds / 60))) min",
+                          arrival: model.estimatedArrival)
     }
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private var hasDirections: Bool { model.route != nil && model.issue == nil && !model.loading && !model.arrived && !model.suspended }
     private var instructionTitle: String {
         guard hasDirections else { return model.instruction }
@@ -1263,57 +1274,135 @@ struct WalkingNavigationOverlay: View {
         default: return "Continue for \(distance)"
         }
     }
-    private var instructionCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            NavigationGuidanceCard(title: instructionTitle,
-                subtitle: (hasDirections ? "To senior · \(Int(ceil(model.remainingSeconds / 60))) min" : "Walking navigation") + (model.isDemoRoute ? " · Demo route" : ""),
-                symbol: model.directionSymbol, muted: model.muted, elder: false,
-                toggleVoice: model.toggleMuted)
-            if model.loading { ProgressView().tint(OrbitStyle.teal) }
-            if let refreshMessage { Text(refreshMessage).caregiverText(.caption).foregroundStyle(.secondary) }
-            if model.issue != nil && !model.suspended {
-                Button("Try again", action: retry).caregiverText().disabled(model.loading).frame(minHeight: 44)
-            }
+}
+
+struct NavigationOverlay<Guidance: View, Summary: View>: View {
+    let guidance: Guidance
+    let summary: Summary
+    let follow: () -> Void
+    let overview: () -> Void
+    var callFamily: (() -> Void)? = nil
+    var canFollow = true
+    var canOverview = true
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                ScrollView { content }
+            } else if callFamily != nil {
+                ViewThatFits(in: .vertical) {
+                    content
+                    ScrollView { content }
+                }
+            } else { content }
         }
-        .padding(model.issue != nil || model.loading || refreshMessage != nil ? 12 : 0)
-        .background(.white, in: RoundedRectangle(cornerRadius: 24))
-        .caregiverCard(radius: 24)
-        .accessibilityIdentifier("navigation-instruction")
     }
-    private func navigationButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+
+    private var content: some View {
+        VStack(spacing: 12) {
+            guidance
+            Spacer(minLength: 8)
+            VStack(spacing: 10) {
+                mapButton("location.fill", label: "Back to my location", id: "navigation-follow", action: follow)
+                    .disabled(!canFollow)
+                mapButton("arrow.up.left.and.arrow.down.right", label: "Route overview", id: "navigation-overview", action: overview)
+                    .disabled(!canOverview)
+                if let callFamily {
+                    mapButton("phone.fill", label: "Call Family", id: "elder-call-family", action: callFamily)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            summary
+        }
+        .padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 8)
+        .tint(OrbitStyle.teal)
+    }
+
+    private func mapButton(_ symbol: String, label: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(.black).frame(width: 48, height: 48)
                 .background { Circle().fill(.white).shadow(color: .black.opacity(0.13), radius: 5, y: 2) }
-        }.accessibilityLabel(label)
+        }.accessibilityLabel(label).accessibilityIdentifier(id).layoutProbe(id)
     }
 }
 
+struct NavigationInstructionPanel: View {
+    let card: NavigationGuidanceCard
+    var loading = false
+    var message: String? = nil
+    var retry: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            card
+            if loading { ProgressView().tint(OrbitStyle.teal).accessibilityLabel("Planning walking route") }
+            if let message { Text(message).caregiverText(.caption).foregroundStyle(.secondary) }
+            if let retry {
+                Button("Try again", action: retry)
+                    .modifier(NavigationText(elder: card.elder))
+                    .disabled(loading).frame(minHeight: OrbitLayout.minimumHitSize)
+                    .accessibilityIdentifier("navigation-retry")
+            }
+        }
+        .padding(retry != nil || loading || message != nil ? 12 : 0)
+        .background(.white, in: RoundedRectangle(cornerRadius: 24))
+        .caregiverCard(radius: 24)
+    }
+}
+
+private struct NavigationText: ViewModifier {
+    let elder: Bool
+    var secondary = false
+
+    func body(content: Content) -> some View {
+        if elder {
+            content.orbitDisplayFont(ElderTextStyle.body.size, weight: secondary ? .regular : .medium)
+        } else {
+            content.caregiverText(secondary ? .secondary : .body)
+        }
+    }
+}
+
+struct NavigationMetrics {
+    var distance: String? = nil
+    var duration: String? = nil
+    var arrival: Date? = nil
+}
+
 struct NavigationSummaryCard: View {
-    @ObservedObject var model: WalkingNavigationModel
+    let metrics: NavigationMetrics
     @Binding var confirmingExit: Bool
     let end: () -> Void
+    var elder = false
 
     var body: some View {
         Group {
             if confirmingExit {
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 12) { exitButton; cancelButton }
-                    VStack(spacing: 10) { exitButton; cancelButton }
+                    HStack(spacing: 12) { exitButton(wrap: false); cancelButton(wrap: false) }
+                    VStack(spacing: 10) { exitButton(wrap: elder); cancelButton(wrap: elder) }
+                }
+            } else if elder {
+                if metrics.distance != nil {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 8) { exitControl; horizontalMetrics }
+                            .padding(.leading, 5).padding(.trailing, 18.5)
+                        VStack(alignment: .leading, spacing: 12) {
+                            exitControl
+                            verticalMetrics.frame(maxWidth: .infinity)
+                        }
+                    }
+                } else {
+                    exitControl.frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
                 HStack(spacing: 8) {
-                    Button { confirmingExit = true } label: {
-                        Image(systemName: "xmark").font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(OrbitStyle.teal).frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel("Exit navigation")
-                    .accessibilityIdentifier("request-exit-navigation")
+                    exitControl
                     ViewThatFits(in: .horizontal) {
-                        HStack(alignment: .firstTextBaseline, spacing: 0) {
-                            distance; Spacer(minLength: 8); duration; Spacer(minLength: 8); arrival
-                        }
-                        VStack(spacing: 12) { distance; duration; arrival }
+                        horizontalMetrics
+                        verticalMetrics
                     }.frame(maxWidth: .infinity)
                 }
                 .padding(.leading, 5).padding(.trailing, 18.5)
@@ -1323,36 +1412,63 @@ struct NavigationSummaryCard: View {
         .background { Capsule().fill(.white).shadow(color: .black.opacity(0.14), radius: 7, y: 3) }
         .accessibilityIdentifier("navigation-summary")
     }
-    private var distance: some View {
-        metric(model.route == nil ? "—" : "\(Int(model.remainingMeters.rounded())) m", label: "Remaining")
+
+    private var exitControl: some View {
+        Button { confirmingExit = true } label: {
+            Image(systemName: "xmark").font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(OrbitStyle.teal).frame(width: 44, height: 44)
+        }
+        .accessibilityLabel("Exit navigation")
+        .accessibilityIdentifier("request-exit-navigation")
+        .layoutProbe("request-exit-navigation")
     }
-    private var duration: some View {
-        metric(model.route == nil ? "—" : "\(Int(ceil(model.remainingSeconds / 60))) min", label: "To arrive")
-    }
-    private var arrival: some View {
-        metric(model.estimatedArrival?.formatted(date: .omitted, time: .shortened) ?? "—", label: "Arrival")
-    }
-    private func metric(_ value: String, label: String) -> some View {
-        VStack(spacing: 6) {
-            Text(value).font(.system(.title2, design: .default, weight: .bold)).foregroundStyle(OrbitStyle.teal).fixedSize()
-            Text(label).caregiverText(.secondary).foregroundStyle(.secondary).fixedSize()
+    private var arrivalTime: String? { metrics.arrival?.formatted(date: .omitted, time: .shortened) }
+    private var horizontalMetrics: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            metric(metrics.distance, label: "Remaining").fixedSize()
+            Spacer(minLength: 8)
+            metric(metrics.duration, label: "To arrive").fixedSize()
+            Spacer(minLength: 8)
+            metric(arrivalTime, label: "Arrival").fixedSize()
         }
     }
-    private var exitButton: some View {
-        Button("Exit navigation", action: end)
-            .caregiverText().fixedSize(horizontal: true, vertical: false)
+    private var verticalMetrics: some View {
+        VStack(spacing: 12) {
+            metric(metrics.distance, label: "Remaining")
+            metric(metrics.duration, label: "To arrive")
+            metric(arrivalTime, label: "Arrival")
+        }
+    }
+
+    private func metric(_ value: String?, label: String) -> some View {
+        VStack(spacing: 6) {
+            Group {
+                if elder { Text(value ?? "—").orbitDisplayFont(ElderTextStyle.heading.size, weight: .bold) }
+                else { Text(value ?? "—").font(.system(.title2, design: .default, weight: .bold)) }
+            }.foregroundStyle(OrbitStyle.teal).fixedSize(horizontal: !elder, vertical: true)
+            Text(label).modifier(NavigationText(elder: elder, secondary: true)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: !elder, vertical: true)
+        }.accessibilityElement(children: .combine)
+    }
+    private func exitButton(wrap: Bool) -> some View {
+        Button(elder ? "End navigation" : "Exit navigation", action: end)
+            .modifier(NavigationText(elder: elder)).multilineTextAlignment(.center)
+            .fixedSize(horizontal: !wrap, vertical: true)
             .frame(maxWidth: .infinity, minHeight: 56)
             .foregroundStyle(.white).background(OrbitStyle.teal, in: Capsule())
             .buttonStyle(.plain)
             .accessibilityIdentifier("end-navigation")
+            .layoutProbe("end-navigation")
     }
-    private var cancelButton: some View {
-        Button("Cancel") { confirmingExit = false }
-            .caregiverText().fixedSize(horizontal: true, vertical: false)
+    private func cancelButton(wrap: Bool) -> some View {
+        Button(elder ? "Keep navigating" : "Cancel") { confirmingExit = false }
+            .modifier(NavigationText(elder: elder)).multilineTextAlignment(.center)
+            .fixedSize(horizontal: !wrap, vertical: true)
             .frame(maxWidth: .infinity, minHeight: 56)
             .foregroundStyle(OrbitStyle.teal).background(OrbitStyle.teal.opacity(0.10), in: Capsule())
             .buttonStyle(.plain)
             .accessibilityIdentifier("cancel-exit-navigation")
+            .layoutProbe("cancel-exit-navigation")
     }
 }
 

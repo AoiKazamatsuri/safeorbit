@@ -640,12 +640,17 @@ final class ElderFrontendTests: XCTestCase {
             ("design", CGSize(width: 402, height: 874), .large),
             ("393", CGSize(width: 393, height: 852), .large),
             ("375", CGSize(width: 375, height: 812), .large),
-            ("compact-large", CGSize(width: 320, height: 568), .accessibility1)
+            ("compact-large", CGSize(width: 320, height: 568), .accessibility1),
+            ("compact-largest", CGSize(width: 320, height: 568), .accessibility5)
         ]
         for (sizeName, size, type) in sizes {
-            for state in ["home", "navigation", "call", "settings", "role"] {
+            let states = type == .accessibility5 ? ["navigation", "navigation-exit"] : ["home", "navigation", "call", "settings", "role"]
+            for state in states {
+                let navigates = state.hasPrefix("navigation")
+                LayoutProbe.frames = [:]
                 let session = ElderDemoSession(voice: ElderVoiceSpy())
-                if state == "navigation" { session.startNavigation(locale: Locale(identifier: "en")) }
+                if navigates { session.startNavigation(locale: Locale(identifier: "en")) }
+                if state == "navigation-exit" { session.requestEnd() }
                 if state == "call" { session.showCall() }
                 let window = UIWindow(windowScene: scene)
                 window.frame = CGRect(origin: .zero, size: size)
@@ -666,7 +671,7 @@ final class ElderFrontendTests: XCTestCase {
                 try await Task.sleep(for: .milliseconds(100))
                 print("Elder layout \(sizeName) \(state): \(frames)")
                 if state != "settings" && state != "role" {
-                    let expected = state == "home" ? ["go-home", "call-family"] : state == "navigation" ? ["guidance-card", "call-family"] : ["call-card"]
+                    let expected = state == "home" ? ["go-home", "call-family"] : navigates ? ["guidance-card", "navigation-summary"] : ["call-card"]
                     for name in expected {
                         let frame = try XCTUnwrap(frames[name])
                         XCTAssertGreaterThan(frame.width, 0)
@@ -677,13 +682,24 @@ final class ElderFrontendTests: XCTestCase {
                             XCTAssertLessThanOrEqual(frame.maxY, size.height + 0.5)
                         }
                     }
-                    if state == "navigation" {
-                        let guidance = try XCTUnwrap(frames[type.isAccessibilitySize ? "guidance-viewport" : "guidance-card"])
-                        let cancel = try XCTUnwrap(frames["cancel-navigation"])
-                        let call = try XCTUnwrap(frames["call-family"])
-                        XCTAssertLessThanOrEqual(guidance.maxY, cancel.minY + 0.5, "Top guidance must not overlap bottom actions")
-                        XCTAssertEqual(cancel.width, call.width, accuracy: 1)
-                        XCTAssertEqual(cancel.maxY, call.maxY, accuracy: 1)
+                    if navigates {
+                        let guidance = try XCTUnwrap(frames["guidance-card"])
+                        let summary = try XCTUnwrap(frames["navigation-summary"])
+                        let follow = try XCTUnwrap(LayoutProbe.frames["navigation-follow"])
+                        let overview = try XCTUnwrap(LayoutProbe.frames["navigation-overview"])
+                        let call = try XCTUnwrap(LayoutProbe.frames["elder-call-family"])
+                        let actionNames = state == "navigation-exit" ? ["end-navigation", "cancel-exit-navigation"] : ["request-exit-navigation"]
+                        let actions = try actionNames.map { try XCTUnwrap(LayoutProbe.frames[$0]) }
+                        XCTAssertLessThanOrEqual(guidance.maxY, follow.minY + 0.5)
+                        XCTAssertLessThanOrEqual(follow.maxY, overview.minY + 0.5)
+                        XCTAssertLessThanOrEqual(overview.maxY, call.minY + 0.5)
+                        XCTAssertLessThanOrEqual(call.maxY, summary.minY + 0.5)
+                        for control in [follow, overview, call] + actions {
+                            XCTAssertGreaterThanOrEqual(control.width, OrbitLayout.minimumHitSize - 0.5)
+                            XCTAssertGreaterThanOrEqual(control.height, OrbitLayout.minimumHitSize - 0.5)
+                            XCTAssertGreaterThanOrEqual(control.minX, -0.5)
+                            XCTAssertLessThanOrEqual(control.maxX, size.width + 0.5)
+                        }
                     }
                     if state == "call", let close = frames["dismiss-call"], let card = frames["call-card"] {
                         XCTAssertLessThanOrEqual(close.maxY, card.minY + 0.5, "Close button must remain above the call card")
@@ -702,6 +718,28 @@ final class ElderFrontendTests: XCTestCase {
                 try data.write(to: folder.appendingPathComponent("\(name).png"))
                 let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
                 attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+                if navigates && type.isAccessibilitySize {
+                    func overflowingScroll(in view: UIView) -> UIScrollView? {
+                        if let scroll = view as? UIScrollView, scroll.contentSize.height > scroll.bounds.height + 1 { return scroll }
+                        return view.subviews.lazy.compactMap { overflowingScroll(in: $0) }.first
+                    }
+                    let scroll = try XCTUnwrap(overflowingScroll(in: window.rootViewController!.view))
+                    let maxOffset = scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom
+                    let required = state == "navigation-exit" ? ["elder-call-family", "end-navigation", "cancel-exit-navigation"] : ["elder-call-family", "request-exit-navigation"]
+                    for id in required {
+                        let viewport = scroll.convert(scroll.bounds, to: nil)
+                        let rect = try XCTUnwrap(LayoutProbe.frames[id])
+                        let offset = scroll.contentOffset.y + rect.midY - viewport.midY
+                        scroll.setContentOffset(CGPoint(x: 0, y: min(maxOffset, max(0, offset))), animated: false)
+                        try await Task.sleep(for: .milliseconds(200))
+                        XCTAssertTrue(viewport.insetBy(dx: -0.5, dy: -0.5).contains(try XCTUnwrap(LayoutProbe.frames[id])),
+                                      "\(name) \(id) can be reached by scrolling")
+                    }
+                    let scrolled = UIGraphicsImageRenderer(size: size).image { _ in
+                        window.rootViewController!.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+                    }
+                    try XCTUnwrap(scrolled.pngData()).write(to: folder.appendingPathComponent("\(name)-scrolled.png"))
+                }
             }
         }
     }
@@ -710,8 +748,12 @@ final class ElderFrontendTests: XCTestCase {
 @MainActor private final class HomeRouteStub: WalkingRouteProvider {
     var routeCalls = 0
     var stops = 0
+    var locationIssue: NavigationIssue?
     var receive: ((Result<NavigationFix, NavigationIssue>) -> Void)?
-    func currentPoint() async throws -> GeoPoint { LocationPreviewData.startingPoint }
+    func currentPoint() async throws -> GeoPoint {
+        if let locationIssue { throw locationIssue }
+        return LocationPreviewData.startingPoint
+    }
     func route(from: GeoPoint, to: GeoPoint) async throws -> WalkingRoute {
         routeCalls += 1
         return WalkingRoute(coordinates: [from.appleCoordinate, to.appleCoordinate], distanceMeters: 210,
@@ -774,6 +816,29 @@ final class ElderLiveNavigationTests: XCTestCase {
         XCTAssertEqual(senior.issue, .staleDestination)
         XCTAssertNil(senior.route)
         senior.end()
+    }
+
+    @MainActor func testCanRetryHomeRouteAfterLocationRecovers() async {
+        let provider = HomeRouteStub()
+        let model = WalkingNavigationModel(provider: provider, destinationKind: .home)
+        let home = LocationPreviewData.snapshot()
+
+        XCTAssertFalse(ElderHomePage.canRetryNavigation(model))
+        provider.locationIssue = .locationUnavailable
+        await model.start(to: home)
+        XCTAssertEqual(model.issue, .locationUnavailable)
+        XCTAssertTrue(ElderHomePage.canRetryNavigation(model))
+
+        provider.locationIssue = nil
+        model.receive(NavigationFix(point: LocationPreviewData.startingPoint, accuracy: 5, timestamp: Date()))
+        XCTAssertNil(model.issue)
+        XCTAssertNil(model.route)
+        XCTAssertTrue(ElderHomePage.canRetryNavigation(model))
+
+        await model.plan(to: home)
+        XCTAssertNotNil(model.route)
+        XCTAssertFalse(ElderHomePage.canRetryNavigation(model))
+        model.end()
     }
 }
 
@@ -1638,8 +1703,8 @@ extension ElderFrontendTests {
                         }
                     case "navigation":
                         h.assertOuterEdges(try rect("guidance-card"), width: size.width, name + " guidance card")
-                        XCTAssertEqual(try rect("cancel-navigation").minX, h.margin, accuracy: 0.5, name)
-                        XCTAssertEqual(try rect("call-family").maxX, size.width - h.margin, accuracy: 0.5, name)
+                        h.assertOuterEdges(try rect("navigation-summary"), width: size.width, name + " navigation summary")
+                        XCTAssertEqual(try h.probe("elder-call-family", name).maxX, size.width - h.margin, accuracy: 0.5, name)
                     case "call":
                         h.assertOuterEdges(try rect("call-card"), width: size.width, name + " call card")
                         XCTAssertEqual(try rect("dismiss-call").maxX, size.width - h.margin, accuracy: 0.5, name)

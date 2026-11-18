@@ -144,12 +144,21 @@ final class LocationTests: XCTestCase {
         XCTAssertEqual(NavigationIssue.amapSearchError(code: 3001), .routeUnavailable)
     }
 
-    func testHomeRouteReusesTheSolidBlueLineWithWhiteEdge() {
+    func testHomeRouteReusesCaregiverNavigationLinesAndDirections() {
         let coordinates = LocationPreviewData.trail.map(\.appleCoordinate)
-        let route = CaregiverTrailStyle.lines(coordinates: coordinates, id: "home-route")
-        XCTAssertEqual(route.map(\.id), ["home-route-edge", "home-route"])
-        XCTAssertEqual(route.map(\.color), [.white, OrbitMapStyle.blue])
-        XCTAssertTrue(route.allSatisfy { $0.dash.isEmpty && $0.coordinates.count == coordinates.count })
+        let home = WalkingRouteMap.lines(coordinates, id: "home-route")
+        let caregiver = WalkingRouteMap.lines(coordinates)
+        XCTAssertEqual(home.map(\.id), ["home-route-border", "home-route"])
+        XCTAssertEqual(home.map(\.color), caregiver.map(\.color))
+        XCTAssertEqual(home.map(\.width), [12, 8])
+        XCTAssertTrue(home.allSatisfy { $0.dash.isEmpty && $0.coordinates.count == coordinates.count })
+        XCTAssertTrue(WalkingRouteMap.lines([]).isEmpty)
+
+        let arrows = WalkingRouteMap.arrows(coordinates, heading: 90)
+        let first = arrows.first?.coordinate
+        XCTAssertEqual(first?.latitude, (coordinates[0].latitude + coordinates[1].latitude) / 2)
+        XCTAssertEqual(first?.longitude, (coordinates[0].longitude + coordinates[1].longitude) / 2)
+        XCTAssertTrue(WalkingRouteMap.arrows([], heading: 0).isEmpty)
     }
 
     func testAMapManeuverUsesEnglishAndDoesNotGuessATurn() {

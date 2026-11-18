@@ -12,9 +12,13 @@ struct ElderHomePage: View {
     @State private var homeCamera: MapCameraPosition = .automatic
     @State private var selectedHome: GeoPoint?
     @State private var camera: MapCameraPosition = .region(ElderDemoMapData.region)
+    @State private var previousCamera: MapCameraPosition?
+    @State private var navigationCameraMode = NavigationCameraMode.follow
     @State private var visibleHeading = 0.0
+    @State private var demoArrival = Date()
     @State private var showingVolume = false
     @State private var overlayHeight: CGFloat = 70
+    private enum NavigationCameraMode { case follow, overview, manual }
     let chooseRole: () -> Void
     var onLayout: (([String: CGRect]) -> Void)? = nil
     /// Opens the voice volume page on appear (layout tests).
@@ -33,29 +37,19 @@ struct ElderHomePage: View {
         GeometryReader { geometry in
             ZStack(alignment: .topLeading) {
                 map
-                VStack(spacing: 16) {
-                    if session.navigating && !session.calling {
-                        if dynamicTypeSize.isAccessibilitySize {
-                            ScrollView { guidanceCard.padding(.horizontal, OrbitLayout.pageMargin).padding(.vertical, 8) }
-                                .frame(height: max(100, geometry.size.height - geometry.safeAreaInsets.top - overlayHeight - 130))
-                                .clipped().elderMeasured("guidance-viewport")
-                        } else { guidanceCard.padding(.horizontal, OrbitLayout.pageMargin) }
-                    } else {
-                        topControls.padding(.horizontal, OrbitLayout.pageMargin)
-                    }
-                }.padding(.top, session.navigating && !session.calling ? 8 : 2)
-                CaregiverBottomOverlay {
-                    Group {
-                        if dynamicTypeSize.isAccessibilitySize && session.calling {
-                            ScrollView { bottomContent(width: geometry.size.width) }
-                                .frame(height: max(160, geometry.size.height - 220))
-                                .scrollIndicators(.visible)
-                        } else { bottomContent(width: geometry.size.width) }
-                    }
-                    .background {
-                        GeometryReader { panel in
-                            Color.clear.preference(key: ElderOverlayHeight.self, value: panel.size.height)
+                if session.navigating && !session.calling {
+                    navigationOverlay
+                } else {
+                    topControls.padding(.horizontal, OrbitLayout.pageMargin).padding(.top, 2)
+                    CaregiverBottomOverlay {
+                        Group {
+                            if dynamicTypeSize.isAccessibilitySize && session.calling {
+                                ScrollView { bottomContent(width: geometry.size.width) }
+                                    .frame(height: max(160, geometry.size.height - 220))
+                                    .scrollIndicators(.visible)
+                            } else { bottomContent(width: geometry.size.width) }
                         }
+                        .modifier(ElderBottomHeight())
                     }
                 }
             }
@@ -65,12 +59,6 @@ struct ElderHomePage: View {
         .onPreferenceChange(ElderOverlayHeight.self) { overlayHeight = $0 }
         .settingsSidebar(isPresented: $session.showingSettings, widthFraction: 0.88) { settingsPage }
         .settingsSlide(isPresented: $showingVolume) { volumePage }
-        .alert(text("End navigation?", "结束导航？"), isPresented: Binding(
-            get: { session.confirmingEnd }, set: { if !$0 { session.cancelEnd() } }
-        )) {
-            Button(text("End navigation", "结束导航"), role: .destructive) { session.confirmEnd(); if session.usesLiveNavigation { live.cancel() } }
-            Button(text("Keep navigating", "继续导航"), role: .cancel) { session.cancelEnd() }
-        }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { session.suspendSpeech(); if session.usesLiveNavigation { live.pause() } }
             else if session.usesLiveNavigation { Task { await live.resume() } }
@@ -95,11 +83,26 @@ struct ElderHomePage: View {
         .onChange(of: session.voiceOn) { _, _ in updateLiveVoice() }
         .onChange(of: session.volume) { _, _ in updateLiveVoice() }
         .onChange(of: session.calling) { _, _ in updateLiveVoice() }
+        .onChange(of: session.navigating, initial: true) { _, navigating in
+            if navigating {
+                previousCamera = camera
+                navigationCameraMode = .follow
+                demoArrival = Date().addingTimeInterval(7 * 60)
+                updateNavigationCamera()
+            } else if let previousCamera {
+                camera = previousCamera
+                self.previousCamera = nil
+            }
+        }
         .onChange(of: live.point) { _, point in
-            if session.usesLiveNavigation, let point {
+            if session.navigating {
+                updateNavigationCamera()
+            } else if session.usesLiveNavigation, let point {
                 camera = .region(MKCoordinateRegion(center: point.appleCoordinate, latitudinalMeters: 750, longitudinalMeters: 750))
             }
         }
+        .onChange(of: live.navigation.fix?.timestamp) { _, _ in updateNavigationCamera() }
+        .onChange(of: live.navigation.routeVersion) { _, _ in updateNavigationCamera() }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
             if session.usesLiveNavigation { live.navigation.tick() }
         }
@@ -119,17 +122,7 @@ struct ElderHomePage: View {
         let rowWidth = width - OrbitLayout.pageMargin * 2
         return VStack(spacing: 20) {
             if session.calling { callCard.padding(.horizontal, OrbitLayout.pageMargin) }
-            else if session.navigating {
-                HStack(spacing: 14) {
-                    ElderActionButton(title: "Cancel", white: true, fillsRowHeight: true) {
-                        session.requestEnd()
-                    }.accessibilityLabel("Cancel navigation")
-                        .accessibilityIdentifier("elder-end-navigation").elderMeasured("cancel-navigation")
-                    ElderActionButton(title: "Call Family", symbol: "phone.fill", fillsRowHeight: true) {
-                        callFamily()
-                    }.elderMeasured("call-family").accessibilityIdentifier("elder-call-family")
-                }.fixedSize(horizontal: false, vertical: true).padding(.horizontal, OrbitLayout.pageMargin)
-            } else {
+            else {
                 if dynamicTypeSize.isAccessibilitySize || rowWidth < 302 {
                     VStack(spacing: 12) { goHomeButton; callButton }.padding(.horizontal, OrbitLayout.pageMargin)
                 } else {
@@ -145,12 +138,15 @@ struct ElderHomePage: View {
     private var map: some View {
         AMapConsentSurface {
             AMapCanvas(camera: $camera, markers: mapMarkers,
-                       lines: mapLines, bottomOverlayInset: overlayHeight + 36,
+                       lines: WalkingRouteMap.lines(routeCoordinates, id: "home-route"), bottomOverlayInset: overlayHeight + 36,
+                       onUserCameraMove: {
+                           if session.navigating { navigationCameraMode = .manual }
+                       },
                        onCameraChange: { visibleHeading = $0.heading })
         }.ignoresSafeArea().accessibilityIdentifier("elder-map")
     }
     private var mapMarkers: [AMapMarker] {
-        var markers: [AMapMarker] = []
+        var markers = WalkingRouteMap.arrows(routeCoordinates, heading: visibleHeading)
         let home = session.usesLiveNavigation ? live.home.point : ElderDemoMapData.home
         if let home {
             markers.append(AMapMarker(id: "home", coordinate: home.appleCoordinate, anchor: .bottom,
@@ -169,10 +165,38 @@ struct ElderHomePage: View {
         }
         return markers
     }
-    private var mapLines: [AMapLine] {
+    private var routeCoordinates: [CLLocationCoordinate2D] {
         guard session.navigating else { return [] }
-        let coordinates = session.usesLiveNavigation ? live.navigation.route?.coordinates ?? [] : ElderDemoMapData.route.map(\.appleCoordinate)
-        return CaregiverTrailStyle.lines(coordinates: coordinates, id: "home-route")
+        return session.usesLiveNavigation ? live.navigation.route?.coordinates ?? [] : ElderDemoMapData.route.map(\.appleCoordinate)
+    }
+
+    private var followCamera: MapCamera? {
+        if session.usesLiveNavigation { return live.navigation.followCamera }
+        let points = routeCoordinates
+        guard points.count >= 2 else { return nil }
+        return MapCamera(centerCoordinate: points[0], distance: 550,
+                         heading: WalkingRouteMap.bearing(from: points[0], to: points[1]), pitch: 0)
+    }
+
+    private func updateNavigationCamera() {
+        guard session.navigating else { return }
+        switch navigationCameraMode {
+        case .follow:
+            if let followCamera {
+                camera = .camera(followCamera)
+            } else if let region = WalkingRouteMap.overview(routeCoordinates) {
+                camera = .region(region)
+            } else if let point = live.point {
+                camera = .region(MKCoordinateRegion(center: point.appleCoordinate, latitudinalMeters: 750, longitudinalMeters: 750))
+            }
+        case .overview:
+            let location = session.usesLiveNavigation ? live.point : ElderDemoMapData.position
+            let home = session.usesLiveNavigation ? live.home.point : ElderDemoMapData.home
+            let coordinates = routeCoordinates + [location, home].compactMap { $0?.appleCoordinate }
+            if let region = WalkingRouteMap.overview(coordinates) { camera = .region(region) }
+        case .manual:
+            break
+        }
     }
     private func updateLiveVoice() {
         guard session.usesLiveNavigation else { return }
@@ -230,6 +254,7 @@ struct ElderHomePage: View {
     }
     /// The call card first (product design section 4), then the system dialler, which asks her to confirm.
     private func callFamily() {
+        session.cancelEnd()
         session.showCall()
         guard let phone = familyPhone, PhoneNumber.isValid(phone),
               let url = URL(string: "tel:\(PhoneNumber.normalized(phone))") else { return }
@@ -239,22 +264,65 @@ struct ElderHomePage: View {
         }
     }
 
-    private var guidanceCard: some View {
-        NavigationGuidanceCard(
-            title: session.usesLiveNavigation ? live.navigation.instruction : "Turn right in 80m",
-            subtitle: session.usesLiveNavigation ? liveSummary : "Going Home · 7min",
-            symbol: session.usesLiveNavigation ? live.navigation.directionSymbol : "arrow.turn.up.right",
-            muted: !session.voiceOn, elder: true,
-            toggleVoice: { session.setVoice(!session.voiceOn, locale: locale) },
-            voiceIdentifier: "elder-voice-toggle")
-        .caregiverCard(radius: 24)
-        .elderMeasured("guidance-card").accessibilityIdentifier("elder-guidance-card")
+    private var navigationOverlay: some View {
+        let model = live.navigation
+        let loading = session.usesLiveNavigation && (model.loading || !model.isPresented)
+        let retry = session.usesLiveNavigation && Self.canRetryNavigation(model)
+        let metrics = navigationMetrics
+        let subtitle = metrics.duration.map { "Going Home · \($0)" } ?? "Going Home"
+        let isDemo = !session.usesLiveNavigation || model.isDemoRoute
+        let confirmingExit = Binding(get: { session.confirmingEnd }, set: {
+            if $0 { session.requestEnd() } else { session.cancelEnd() }
+        })
+        return NavigationOverlay(
+            guidance: NavigationInstructionPanel(
+                card: NavigationGuidanceCard(
+                    title: session.usesLiveNavigation ? model.instruction : "Turn right in 80 m",
+                    subtitle: isDemo ? subtitle + " · Demo route" : subtitle,
+                    symbol: session.usesLiveNavigation ? model.directionSymbol : "arrow.turn.up.right",
+                    muted: !session.voiceOn, elder: true,
+                    toggleVoice: { session.setVoice(!session.voiceOn, locale: locale) },
+                    voiceIdentifier: "elder-voice-toggle"),
+                loading: loading, retry: retry ? retryNavigation : nil
+            ).elderMeasured("guidance-card").accessibilityIdentifier("elder-guidance-card"),
+            summary: NavigationSummaryCard(metrics: metrics, confirmingExit: confirmingExit, end: {
+                session.confirmEnd()
+                if session.usesLiveNavigation { live.cancel() }
+            }, elder: true)
+                .modifier(ElderBottomHeight()).elderMeasured("navigation-summary"),
+            follow: {
+                navigationCameraMode = .follow
+                updateNavigationCamera()
+            },
+            overview: {
+                navigationCameraMode = .overview
+                updateNavigationCamera()
+            },
+            callFamily: callFamily, canFollow: followCamera != nil, canOverview: !routeCoordinates.isEmpty)
     }
 
-    private var liveSummary: String {
-        guard live.navigation.route != nil else { return "Going Home" }
-        let summary = "Going Home · \(WalkingNavigationModel.distanceText(live.navigation.remainingMeters)) · \(Int(ceil(live.navigation.remainingSeconds / 60))) min"
-        return live.navigation.isDemoRoute ? summary + " · Demo route" : summary
+    private func retryNavigation() {
+        Task {
+            guard session.navigating, live.navigation.isPresented, !live.navigation.suspended else { return }
+            await live.navigation.plan(to: live.homeSnapshot)
+        }
+    }
+
+    static func canRetryNavigation(_ model: WalkingNavigationModel) -> Bool {
+        model.isPresented && !model.loading && !model.suspended && !model.arrived
+            && (model.issue != nil || model.route == nil)
+    }
+
+    private var navigationMetrics: NavigationMetrics {
+        if !session.usesLiveNavigation {
+            let points = routeCoordinates.map(MKMapPoint.init)
+            let distance = zip(points, points.dropFirst()).reduce(0.0) { $0 + $1.0.distance(to: $1.1) }
+            return NavigationMetrics(distance: WalkingNavigationModel.distanceText(distance), duration: "7 min", arrival: demoArrival)
+        }
+        let model = live.navigation
+        guard model.route != nil, model.issue == nil, !model.loading, !model.suspended else { return NavigationMetrics() }
+        return NavigationMetrics(distance: WalkingNavigationModel.distanceText(model.remainingMeters),
+                                 duration: "\(Int(ceil(model.remainingSeconds / 60))) min", arrival: model.estimatedArrival)
     }
     private var callCard: some View {
         (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16)) : AnyLayout(HStackLayout(spacing: 16))) {
@@ -357,7 +425,6 @@ private struct ElderActionButton: View {
     var symbol: String? = nil
     var white = false
     var tint: Color? = nil
-    var fillsRowHeight = false
     var action: () -> Void
     var body: some View {
         Button(action: action) {
@@ -366,7 +433,6 @@ private struct ElderActionButton: View {
                 Text(verbatim: title).elderText().fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity).padding(.horizontal, 16).padding(.vertical, 12).frame(minHeight: 56)
-            .frame(maxHeight: fillsRowHeight ? .infinity : nil)
             .foregroundStyle(white || tint != nil ? .black : .white)
             .background(tint ?? (white ? .white : OrbitStyle.teal), in: Capsule())
             .shadow(color: .black.opacity(0.16), radius: 4, y: 3)
@@ -390,6 +456,16 @@ private struct ElderPlaceMarker: View {
 private struct ElderOverlayHeight: PreferenceKey {
     static var defaultValue: CGFloat = 70
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+private struct ElderBottomHeight: ViewModifier {
+    func body(content: Content) -> some View {
+        content.background {
+            GeometryReader { panel in
+                Color.clear.preference(key: ElderOverlayHeight.self, value: panel.size.height)
+            }
+        }
+    }
 }
 
 private struct ElderControlFrames: PreferenceKey {
