@@ -14,7 +14,7 @@ extension TripRisk: Decodable {
 }
 
 struct RecordTrip: Decodable, Identifiable {
-    let id: String
+    var id: String
     let name: String
     let startedAt: Date
     let endedAt: Date?
@@ -26,6 +26,9 @@ struct RecordTrip: Decodable, Identifiable {
     let calls: Int
     let returnedHome: Bool
     var date: Date { startedAt }
+    func displayTimezone(household: String) -> String {
+        id.hasPrefix(OctoberRecords.idPrefix) ? OctoberRecords.timezone : household
+    }
     var anomalyLabels: String {
         anomalies.map { kind in
             switch kind {
@@ -47,6 +50,7 @@ struct RecordsResponse: Decodable {
 struct RecordComparison: Decodable { let current: Int; let previous: Int }
 struct RecordWeek: Decodable { let start: String; let deviations: Int }
 struct RecordTrends: Decodable {
+    struct Totals: Decodable { let tripCount: RecordComparison }
     struct Metrics: Decodable {
         let unusualMovement: RecordComparison
         let navigationAssistance: RecordComparison
@@ -56,6 +60,7 @@ struct RecordTrends: Decodable {
     let timezone: String
     let month: String
     let previousMonth: String
+    var totals: Totals? = nil
     let weeks: [RecordWeek]
     let deviations: RecordComparison
     let metrics: Metrics
@@ -70,7 +75,7 @@ struct RecordTripDetail: Decodable {
         var point: GeoPoint { GeoPoint(latitude: latitude, longitude: longitude) }
     }
     struct Event: Decodable, Identifiable { let id: String; let at: Date; let title: String }
-    let trip: RecordTrip
+    var trip: RecordTrip
     let trail: [GeoPoint]
     let anomalies: [Anomaly]
     let timeline: [Event]
@@ -102,6 +107,154 @@ extension RecordsServing {
     func prepareTimezone() async throws -> String? { nil }
 }
 
+struct OctoberRecords {
+    static let idPrefix = "october-"
+    static let month = "2026-10"
+    static let timezone = "Asia/Shanghai"
+    static let openingDay = "2026-10-24"
+    static let bundled = OctoberRecords()
+
+    private struct Snapshot: Decodable {
+        let days: [RecordsResponse.Day]
+        let trends: RecordTrends
+        var trips: [RecordTripDetail]
+    }
+
+    private let snapshot: Snapshot?
+    private init() {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let url = Bundle.main.url(forResource: "october-records", withExtension: "json"),
+              var decoded = try? decoder.decode(Snapshot.self, from: Data(contentsOf: url)) else {
+            snapshot = nil
+            return
+        }
+        for index in decoded.trips.indices {
+            decoded.trips[index].trip.id = Self.idPrefix + decoded.trips[index].trip.id
+        }
+        snapshot = decoded
+    }
+
+    func records(month: String, week: String) throws -> RecordsResponse {
+        guard let snapshot else { throw RecordsFailure.invalidResponse }
+        let calendar = RecordDates.calendar(Self.timezone)
+        guard let start = RecordDates.date(week, timezone: Self.timezone),
+              let weekEnd = calendar.date(byAdding: .day, value: 7, to: start) else {
+            throw RecordsFailure.invalidInput
+        }
+        return RecordsResponse(timezone: Self.timezone, month: month, weekStart: week,
+            days: month == Self.month ? snapshot.days : [],
+            trips: snapshot.trips.map(\.trip).filter { start <= $0.startedAt && $0.startedAt < weekEnd })
+    }
+
+    func trends(month: String) throws -> RecordTrends {
+        guard let snapshot else { throw RecordsFailure.invalidResponse }
+        guard month == Self.month else { throw RecordsFailure.invalidInput }
+        return snapshot.trends
+    }
+
+    func trip(id: String) throws -> RecordTripDetail {
+        guard let snapshot else { throw RecordsFailure.invalidResponse }
+        guard let detail = snapshot.trips.first(where: { $0.trip.id == id }) else { throw RecordsFailure.notFound }
+        return detail
+    }
+}
+
+/// The calendar month and selected week are independent controls on the same page.
+@MainActor final class FamilyRecords: RecordsServing {
+    private let remote: RecordsAPI
+    private let october = OctoberRecords.bundled
+    private var deniedEndpoints = Set<String>()
+
+    init(device: DemoDevice) { remote = RecordsAPI(device: device) }
+
+    private func checkDevice() throws {
+        guard remote.device.role == .caregiver else { throw RecordsFailure.forbidden }
+        if remote.device.isFamilySession && remote.device.token == nil { throw RecordsFailure.credentials }
+    }
+
+    private func checked<T>(_ endpoint: String, _ request: () async throws -> T) async throws -> T {
+        try checkDevice()
+        do {
+            let value = try await request()
+            try checkDevice()
+            deniedEndpoints.remove(endpoint)
+            return value
+        } catch let error as RecordsFailure {
+            if error == .forbidden || error == .credentials { deniedEndpoints.insert(endpoint) }
+            throw error
+        }
+    }
+
+    private func checkLocalAccess() throws {
+        try checkDevice()
+        guard deniedEndpoints.isEmpty else { throw RecordsFailure.forbidden }
+        try Task.checkCancellation()
+    }
+
+    func prepareTimezone() async throws -> String? {
+        do { return try await checked("timezone") { try await remote.prepareTimezone() } }
+        catch let error as RecordsFailure where error == .network || error == .unavailable {
+            // A demo handset can be offline before it has received its household timezone.
+            return remote.device.household?.elder.timezone
+        }
+    }
+
+    func records(month: String, week: String) async throws -> RecordsResponse {
+        let family: RecordsResponse
+        do { family = try await checked("records") { try await remote.records(month: month, week: week) } }
+        catch let error as RecordsFailure where error == .network || error == .unavailable {
+            try checkLocalAccess()
+            let local = try october.records(month: month, week: week)
+            guard month == OctoberRecords.month || !local.trips.isEmpty else { throw error }
+            return local
+        }
+
+        let local = try october.records(month: month, week: week)
+        guard !local.days.isEmpty || !local.trips.isEmpty else { return family }
+        try checkLocalAccess()
+        var risks: [String: TripRisk] = [:]
+        for day in family.days + local.days where day.risk.rawValue >= (risks[day.date] ?? .normal).rawValue {
+            risks[day.date] = day.risk
+        }
+        // The pre-seeded demo household can already contain this replay under different database IDs.
+        // A real family keeps every server record, including a coincident date, time or numeric ID.
+        let calendar = RecordDates.calendar(OctoberRecords.timezone)
+        let bundledTrips = local.trips.filter { bundled in
+            remote.device.isFamilySession || !family.trips.contains {
+                calendar.isDate($0.startedAt, inSameDayAs: bundled.startedAt)
+                    && abs($0.startedAt.timeIntervalSince(bundled.startedAt)) <= 5 * 60
+            }
+        }
+        return RecordsResponse(timezone: family.timezone, month: month, weekStart: week,
+            days: risks.sorted { $0.key < $1.key }.map { .init(date: $0.key, risk: $0.value) },
+            trips: (family.trips + bundledTrips).sorted {
+                if $0.startedAt != $1.startedAt { return $0.startedAt > $1.startedAt }
+                return $0.id < $1.id
+            })
+    }
+
+    func trends(month: String) async throws -> RecordTrends {
+        let family: RecordTrends
+        do { family = try await checked("trends") { try await remote.trends(month: month) } }
+        catch let error as RecordsFailure where month == OctoberRecords.month && (error == .network || error == .unavailable) {
+            try checkLocalAccess()
+            return try october.trends(month: month)
+        }
+        guard month == OctoberRecords.month, family.totals?.tripCount.current == 0 else { return family }
+        try checkLocalAccess()
+        return try october.trends(month: month)
+    }
+
+    func trip(id: String) async throws -> RecordTripDetail {
+        if id.hasPrefix(OctoberRecords.idPrefix) {
+            try checkLocalAccess()
+            return try october.trip(id: id)
+        }
+        return try await checked("trips") { try await remote.trip(id: id) }
+    }
+}
+
 @MainActor struct RecordsAPI: RecordsServing {
     let device: DemoDevice
     private let registration: RecordsRegistration
@@ -117,7 +270,7 @@ extension RecordsServing {
         try await request("trends", query: [URLQueryItem(name: "month", value: month)])
     }
     func trip(id: String) async throws -> RecordTripDetail {
-        guard !id.isEmpty, id.allSatisfy(\.isNumber) else { throw RecordsFailure.invalidInput }
+        guard !id.isEmpty, id.utf8.allSatisfy({ (48...57).contains($0) }) else { throw RecordsFailure.invalidInput }
         return try await request("trips/" + id)
     }
     private func request<T: Decodable>(_ path: String, query: [URLQueryItem] = [], retry: Bool = true) async throws -> T {
@@ -186,6 +339,7 @@ extension RecordsServing {
             catch let failure as APIError {
                 switch failure.kind {
                 case .unauthorized: throw RecordsFailure.credentials
+                case .forbidden: throw RecordsFailure.forbidden
                 case .network: throw RecordsFailure.network
                 case .unavailable: throw RecordsFailure.unavailable
                 default: throw RecordsFailure.invalidResponse
@@ -242,11 +396,18 @@ enum RecordDates {
     var weekKey: String { RecordDates.format(weekStart, "yyyy-MM-dd", timezone: timezone) }
     var queryKey: String { monthKey + ":" + weekKey }
     var currentWeekStart: Date { calendar.dateInterval(of: .weekOfYear, for: now())!.start }
-    init(service: (any RecordsServing)?, timezone: String, now: @escaping () -> Date = Date.init) {
+    init(service: (any RecordsServing)?, timezone: String, openingDay: String? = nil, now: @escaping () -> Date = Date.init) {
         self.service = service; self.timezone = timezone; self.now = now
         let calendar = RecordDates.calendar(timezone)
-        month = calendar.dateInterval(of: .month, for: now())!.start
-        weekStart = calendar.dateInterval(of: .weekOfYear, for: now())!.start
+        let initial = openingDay.flatMap { RecordDates.date($0, timezone: timezone) } ?? now()
+        month = calendar.dateInterval(of: .month, for: initial)!.start
+        weekStart = calendar.dateInterval(of: .weekOfYear, for: initial)!.start
+        selectedRange = openingDay != nil
+    }
+    static func forFamily(device: DemoDevice?) -> RecordsStore {
+        RecordsStore(service: device.map { FamilyRecords(device: $0) },
+            timezone: device?.household?.elder.timezone ?? OctoberRecords.timezone,
+            openingDay: OctoberRecords.openingDay)
     }
     func shiftMonth(_ amount: Int) {
         selectedRange = true
@@ -316,6 +477,12 @@ enum RecordDates {
         guard version == generation else { return }
         loading = false
         guard !Task.isCancelled else { return }
+        let errors = [record.failure, trend.failure].compactMap { $0 as? RecordsFailure }
+        if let denied = errors.first(where: { $0 == .credentials || $0 == .forbidden }) {
+            records = nil; trends = nil
+            recordsError = denied.localizedDescription; trendsError = recordsError
+            return
+        }
         switch record {
         case .success(let value): records = value; recordsError = nil
         case .failure(let error): records = nil; recordsError = error.localizedDescription
@@ -376,5 +543,12 @@ enum RecordDates {
             detail = nil; self.error = error.localizedDescription
         }
         loading = false
+    }
+}
+
+private extension Result {
+    var failure: Failure? {
+        if case .failure(let error) = self { return error }
+        return nil
     }
 }

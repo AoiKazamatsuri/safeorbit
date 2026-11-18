@@ -33,8 +33,7 @@ struct RecordsPage: View {
         self.isActive = isActive
         _requestedSection = requestedSection
         _section = State(initialValue: showTrendInitially ? .trend : .data)
-        _store = StateObject(wrappedValue: RecordsStore(service: device.map { RecordsAPI(device: $0) },
-            timezone: device?.household?.elder.timezone ?? "UTC"))
+        _store = StateObject(wrappedValue: RecordsStore.forFamily(device: device))
     }
 #if DEBUG
     init(showTrendInitially: Bool = false, requestedSection: Binding<RecordsSection?> = .constant(nil),
@@ -85,7 +84,7 @@ struct RecordsPage: View {
         .background(Color.white.ignoresSafeArea(edges: .bottom))
         .coordinateSpace(name: "RecordsPage")
         .onPreferenceChange(RecordsFrames.self) { onLayout?($0) }
-        .onChange(of: requestedSection) { _, next in
+        .onChange(of: requestedSection, initial: true) { _, next in
             guard let next else { return }
             section = next
             requestedSection = nil
@@ -122,10 +121,10 @@ struct RecordsPage: View {
             if store.isPreview, let sample = DemoRecords.trips.first(where: { $0.id == trip.id }) {
                 TripDetailPage(trip: sample) { selectedTrip = nil }
             } else {
-                TripDetailPage(trip: trip, timezone: store.timezone, service: store.service) { selectedTrip = nil }
+                TripDetailPage(trip: trip, timezone: trip.displayTimezone(household: store.timezone), service: store.service) { selectedTrip = nil }
             }
 #else
-            TripDetailPage(trip: trip, timezone: store.timezone, service: store.service) { selectedTrip = nil }
+            TripDetailPage(trip: trip, timezone: trip.displayTimezone(household: store.timezone), service: store.service) { selectedTrip = nil }
 #endif
         }
         .onChange(of: selectedTrip?.id) { _, id in onDetailPresentationChanged(id != nil) }
@@ -309,8 +308,8 @@ struct RecordsPage: View {
 
     private func tripDate(_ trip: RecordTrip) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(shortDate(trip.date)).caregiverText().foregroundStyle(.black)
-            Text(weekday(trip.date)).caregiverText(.caption).foregroundStyle(.secondary)
+            Text(RecordDates.format(trip.date, "MMM d", timezone: trip.displayTimezone(household: store.timezone))).caregiverText().foregroundStyle(.black)
+            Text(RecordDates.format(trip.date, "EEE", timezone: trip.displayTimezone(household: store.timezone))).caregiverText(.caption).foregroundStyle(.secondary)
         }.fixedSize().recordsFrame("date-\(trip.id)")
     }
     private func tripRisk(_ trip: RecordTrip) -> some View {
@@ -481,11 +480,6 @@ struct RecordsPage: View {
         return formatter.string(from: date)
     }
     private func dayTitle(_ date: Date) -> String { shortDate(date) }
-    private func weekday(_ date: Date) -> String {
-        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US")
-        formatter.timeZone = calendar.timeZone; formatter.dateFormat = "EEE"
-        return formatter.string(from: date)
-    }
     private func riskColor(_ risk: TripRisk?) -> Color {
         switch risk {
         case .normal: Color(red: 0.83, green: 0.91, blue: 0.78)

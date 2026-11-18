@@ -5,10 +5,74 @@ import { ChatController } from '../src/care-agent/chat-controller';
 import { ChatService } from '../src/care-agent/chat-service';
 import { verifyAnswer } from '../src/care-agent/grounded-response';
 import { ChatQueries, ChatQuery } from '../src/care-api/chat-queries';
+import october from '../src/care-api/october-records.json';
 
 const result = { facts: [{ id: '42', date: '2026-10-21', level: 'high' }], citations: [{ kind: 'riskEvent' as const, id: '42', date: '2026-10-21', label: 'Risk event 42' }] };
 const fake = (plan: any = [{ kind: 'events' }], answer: any = { paragraphs: ['On 2026-10-21 event 42 was high risk.'], citations: [{ kind: 'riskEvent', id: '42' }] }) => ({ plan: async () => plan, answer: async () => answer });
 const setup = (model: any = fake()) => { let calls = 0; return { chat: new ChatService({ localToday: async () => '2026-10-21', run: async () => { calls++; return result; } } as any, model), calls: () => calls }; };
+
+test('explicit October questions use the shared month, local dates, and existing iOS wire types', async () => {
+  const empty = { timezone: 'Asia/Shanghai', trips: [], risks: [], observations: [], actions: [], calls: [] };
+  const reads: number[] = [];
+  const chat = new ChatService(new ChatQueries({ data: async (id: number) => { reads.push(id); return empty; } } as any, {} as any),
+    { plan: async () => assert.fail('explicit October needs no model') } as any);
+  const ask = (q: string, lang: 'zh' | 'en' = 'zh') => chat.answer(29, q, lang, true);
+  const trained = october.trends;
+  const overview = await ask('十月的情况怎么样？');
+  assert.equal(overview.outcome, 'answered');
+  assert.match(overview.paragraphs[0], new RegExp(`${trained.totals.tripCount.current} 次出行、${trained.totals.riskEventCount.current} 次风险事件、${trained.metrics.highRisk.current} 次高风险事件、${trained.deviations.current} 次路线偏离`));
+  assert.deepEqual(overview.recordContext, [{ kind: 'compare', month: '2026-10' }]);
+  assert.deepEqual(overview.citations.map(c => [c.kind, c.startDate, c.endDate]), [['statistic', '2026-10-01', '2026-10-31']]);
+  const high = await ask('When were the high-risk events in October 2026?', 'en');
+  assert.match(high.paragraphs.join(' '), /2 high-risk events.*2026-10-09, 2026-10-21/);
+  const followup = await chat.answer(29, '其中哪些天有路线偏离？', 'zh', true, [], overview.recordContext);
+  assert.match(followup.paragraphs.join(' '), /3 次路线偏离.*2026-10-05、2026-10-15、2026-10-28/);
+  for (const q of ['十月九日的情况？', '10月9号的出行情况？', 'What happened on October 9th?', 'What happened on 2026-10-09?']) {
+    const day = await ask(q);
+    assert.equal(day.citations[0].startDate, '2026-10-09');
+    assert.equal(day.citations[0].endDate, '2026-10-09');
+    assert.equal(day.recordContext, undefined);
+    assert.match(day.paragraphs[0], /1 次出行、1 次风险事件、1 次高风险事件、0 次路线偏离/);
+  }
+  assert.match((await ask('2026 年 10 月 4 日有出行吗？')).paragraphs[0], /0 次出行/);
+  const before = reads.length;
+  assert.equal((await chat.answer(29, 'How many trips in October?', 'en', false)).outcome, 'historyDisabled');
+  assert.equal(reads.length, before);
+  assert.ok(reads.every(id => id === 29));
+});
+
+test('the October merge deduplicates the old demo replay only for its reserved household', async () => {
+  const start = new Date('2026-10-09T01:03:59Z'), end = new Date('2026-10-09T02:00:00Z');
+  const extra = new Date('2026-10-09T08:00:00Z');
+  const data = { timezone: 'Asia/Shanghai',
+    trips: [{ id: '81', startedAt: start, endedAt: end }, { id: '82', startedAt: extra, endedAt: extra }],
+    risks: [{ id: '201', tripId: '81', falseAlarm: false, openedAt: start, escalatedAt: end },
+      { id: '202', tripId: '82', falseAlarm: true, openedAt: extra }],
+    observations: [{ key: 'a', riskEventId: '201', kind: 'deviation', startedAt: start },
+      { key: 'b', riskEventId: '202', kind: 'deviation', startedAt: extra }],
+    actions: [], calls: [],
+  };
+  const access: number[] = [];
+  const queries = new ChatQueries({ data: async (id: number) => { access.push(id); return data; } } as any, {} as any);
+  const chat = new ChatService(queries, {} as any);
+  const demo = await chat.answer(1, '10月概况', 'zh', true);
+  assert.match(demo.paragraphs[0], /25 次出行、5 次风险事件、2 次高风险事件、3 次路线偏离/);
+  const ordinary = await chat.answer(8, '10月概况', 'zh', true);
+  assert.match(ordinary.paragraphs[0], /26 次出行、6 次风险事件、3 次高风险事件、4 次路线偏离/);
+  assert.deepEqual(access, [1, 8]);
+});
+
+test('other months, years, mixed periods and general topics stay on the existing query paths', async () => {
+  const calls: ChatQuery[] = [];
+  const queries = { localToday: async () => '2026-11-18', run: async (_: number, q: ChatQuery) => { calls.push(q); return result; } };
+  const chat = new ChatService(queries as any, fake() as any);
+  for (const question of ['How many trips in October 2025?', '去年十月的高风险情况', 'Which trips in November?',
+    'Compare risk in October and November', '今年十一月有几次风险？', 'Tell a joke about October']) {
+    assert.equal((await chat.answer(8, question, 'en', true)).outcome, 'answered');
+  }
+  assert.equal(calls.length, 6);
+  assert.ok(calls.every(query => query.kind === 'events'));
+});
 test('valid answer is grounded and all invented numbers and citations are rejected', async () => {
   assert.equal((await setup().chat.answer(1, 'What happened?', 'en', true)).outcome, 'answered');
   for (const answer of [
@@ -29,7 +93,7 @@ test('query limit, history setting and medical boundary precede access', async (
   assert.equal((await s.chat.answer(1, '是否患有痴呆？', 'zh', true)).outcome, 'medicalBoundary'); assert.equal(s.calls(), 0);
   assert.equal((await s.chat.answer(1, 'What happened near 31.2304, 121.4737?', 'en', true)).outcome, 'unverified');
   assert.equal(s.calls(), 0);
-  assert.equal((await s.chat.answer(1, 'What happened on 2026-10-21?', 'en', true)).outcome, 'answered');
+  assert.equal((await s.chat.answer(1, 'What happened on 2026-11-21?', 'en', true)).outcome, 'answered');
   assert.equal(s.calls(), 1);
 });
 test('controller enforces identity, validation and temporary failure', async () => {
@@ -188,7 +252,7 @@ test('cumulative risk count covers all matching events, excludes false alarms, a
   assert.deepEqual(calls, [{ kind: 'riskCount' }]);
   const month = await service.answer(1, '2026年10月有多少次出行、多少次风险事件？', 'zh', true);
   assert.deepEqual(month.citations.map(c => c.id), ['month-2026-10']);
-  assert.match(month.paragraphs[0], /0 次出行、25 次风险事件/);
+  assert.match(month.paragraphs[0], /24 次出行、30 次风险事件/);
   const november = await service.answer(1, '2026年11月有多少次出行、多少次风险事件？', 'zh', true);
   assert.deepEqual(november.citations.map(c => c.id), ['month-2026-11']);
   assert.match(november.paragraphs[0], /0 次出行、0 次风险事件/);

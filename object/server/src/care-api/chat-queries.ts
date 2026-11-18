@@ -1,11 +1,60 @@
 import { Injectable } from '@nestjs/common';
 import { CareStore } from './care-store';
 import { Records } from './records';
-import { addDays, buildTrends, localDate, monthAfter, summarizeTrip } from './records-view';
+import { addDays, buildTrends, localDate, monthAfter, RecordsData, summarizeTrip, validObservations } from './records-view';
+import october from './october-records.json';
 
-export type ChatQuery = { kind: 'current' | 'events' | 'trip' | 'compare' | 'riskCount' | 'safeZones' | 'activity'; id?: string; month?: string; from?: string; to?: string; level?: 'warning' | 'high'; latest?: boolean; metric?: 'riskEvents' };
+export type ChatQuery = { kind: 'current' | 'events' | 'trip' | 'compare' | 'riskCount' | 'safeZones' | 'activity' | 'october'; id?: string; month?: string; from?: string; to?: string; level?: 'warning' | 'high'; latest?: boolean; metric?: 'riskEvents' };
 export interface Citation { kind: 'riskEvent' | 'trip' | 'statistic'; id: string; label: string; date?: string; startDate?: string; endDate?: string }
 export interface QueryResult { facts: unknown; citations: Citation[]; evidence?: Record<string, unknown> }
+
+// Keep one date per occurrence so two trips or events on the same day still count twice.
+function octoberDates(data: RecordsData, elderId: number) {
+  const snapshotDate = (at: string) => localDate(new Date(at), october.trends.timezone);
+  const familyDate = (at: Date) => localDate(at, data.timezone);
+  const timeline = october.trips.flatMap(detail => detail.timeline);
+  const matching = (suffix: string) => timeline.filter(event => event.id.startsWith('risk-') && event.id.endsWith(suffix));
+  const high = matching('-high');
+  const escalated = new Set(high.map(event => event.id.replace(/-high$/, '-opened')));
+  const opened = matching('-opened');
+  const dates = {
+    trips: october.trips.map(({ trip }) => snapshotDate(trip.startedAt)),
+    risks: opened.map(event => snapshotDate(event.at)),
+    high: high.map(event => snapshotDate(event.at)),
+    warnings: opened.filter(event => !escalated.has(event.id)).map(event => snapshotDate(event.at)),
+    deviations: october.trips.flatMap(detail => detail.anomalies.filter(a => a.kind === 'deviation').map(a => snapshotDate(a.at))),
+  };
+  // Only the reserved demo household can contain the previous replay. Its recognition
+  // timestamps differ slightly because the current recording varies walking speed.
+  const replayTrips = new Set<string>();
+  if (elderId === 1) {
+    for (const { trip } of october.trips) {
+      const start = Date.parse(trip.startedAt);
+      const distance = (candidate: RecordsData['trips'][number]) => Math.abs(candidate.startedAt.getTime() - start);
+      const closest = data.trips.filter(t => distance(t) <= 5 * 60_000).sort((a, b) => distance(a) - distance(b))[0];
+      if (closest) replayTrips.add(closest.id);
+    }
+  }
+  for (const trip of data.trips) {
+    if (!replayTrips.has(trip.id)) dates.trips.push(familyDate(trip.startedAt));
+  }
+  const replayRisks = new Set(data.risks.filter(r => r.tripId && replayTrips.has(r.tripId)).map(r => r.id));
+  for (const risk of data.risks) {
+    if (risk.falseAlarm || replayRisks.has(risk.id)) continue;
+    const openedOn = familyDate(risk.openedAt);
+    dates.risks.push(openedOn);
+    if (risk.escalatedAt) dates.high.push(familyDate(risk.escalatedAt));
+    else dates.warnings.push(openedOn);
+  }
+  for (const observation of validObservations(data)) {
+    if (observation.kind !== 'deviation') continue;
+    if (observation.riskEventId ? replayRisks.has(observation.riskEventId)
+      : data.trips.some(t => replayTrips.has(t.id) && observation.startedAt >= t.startedAt &&
+        t.endedAt && observation.startedAt <= t.endedAt)) continue;
+    dates.deviations.push(familyDate(observation.startedAt));
+  }
+  return dates;
+}
 
 @Injectable()
 export class ChatQueries {
@@ -16,6 +65,15 @@ export class ChatQueries {
   async run(elderId: number, query: ChatQuery, now = new Date()): Promise<QueryResult> {
     const data = await this.records.data(elderId);
     const today = localDate(now, data.timezone);
+    if (query.kind === 'october') {
+      const startDate = query.from ?? '2026-10-01';
+      const endDate = query.to ?? '2026-10-31';
+      const allDates = octoberDates(data, elderId);
+      const facts = Object.fromEntries(Object.entries(allDates).map(([kind, dates]) =>
+        [kind, dates.filter(date => date.startsWith('2026-10-') && date >= startDate && date <= endDate).sort()]));
+      const id = startDate === endDate ? `day-${startDate}` : 'month-2026-10';
+      return { facts, citations: [{ kind: 'statistic', id, label: 'October 2026 records', startDate, endDate }] };
+    }
     if (query.kind === 'safeZones') {
       const zones = await this.store.safeZones(elderId);
       const facts = { count: zones.length, hasHome: zones.some(z => z.isHome) };

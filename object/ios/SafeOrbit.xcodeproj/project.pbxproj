@@ -11,6 +11,7 @@
 		296D77AE814D4D7DA49FEB17 /* SafeOrbit/FamilyUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA8A453D81C4E09B3E81A9B /* SafeOrbit/FamilyUI.swift */; };
 		6D1B0EEA464E40C689806B47 /* SafeOrbit/FamilySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2889120AC1E347D586BCF119 /* SafeOrbit/FamilySession.swift */; };
 		036000000000000000000001 /* demo-route.json in Resources */ = {isa = PBXBuildFile; fileRef = 036000000000000000000002 /* demo-route.json */; };
+		059000000000000000000001 /* october-records.json in Resources */ = {isa = PBXBuildFile; fileRef = 059000000000000000000002 /* october-records.json */; };
 		A04000000000000000000001 /* SafeOrbit/AgentChatAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A04000000000000000000002 /* SafeOrbit/AgentChatAPI.swift */; };
 		07847ED970BE051D143FB891 /* SafeOrbit/OnboardingAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38AD48EA6F376F2130580E69 /* SafeOrbit/OnboardingAPI.swift */; };
 		09A74B74C46451ABC6862DE0 /* SafeOrbit/ServerConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366EE99968210FA8F05B566B /* SafeOrbit/ServerConfiguration.swift */; };
@@ -79,6 +80,7 @@
 		4CA8A453D81C4E09B3E81A9B /* SafeOrbit/FamilyUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/FamilyUI.swift; sourceTree = "<group>"; };
 		2889120AC1E347D586BCF119 /* SafeOrbit/FamilySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/FamilySession.swift; sourceTree = "<group>"; };
 		036000000000000000000002 /* demo-route.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = "demo-route.json"; path = "../dev/demo-route.json"; sourceTree = "<group>"; };
+		059000000000000000000002 /* october-records.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "../server/src/care-api/october-records.json"; sourceTree = "<group>"; };
 		A04000000000000000000002 /* SafeOrbit/AgentChatAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/AgentChatAPI.swift; sourceTree = "<group>"; };
 		0ACB9C79C3916CFE444EAF9A /* SafeOrbit/SpeechInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/SpeechInput.swift; sourceTree = "<group>"; };
 		2079A8DCA3FF92477242FE6F /* SafeOrbit/CaregiverChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeOrbit/CaregiverChrome.swift; sourceTree = "<group>"; };
@@ -172,6 +174,7 @@
 				41BAA0B1DD9506A460A4794C /* home-market-home.gpx */,
 				6EF040A0B8B9106074AB84DD /* home-wander-home.gpx */,
 				036000000000000000000002 /* demo-route.json */,
+				059000000000000000000002 /* october-records.json */,
 				E397807D389B2F33A87A2AE1 /* SafeOrbit/RiskModels.swift */,
 				E6FD39DBB010B66206556044 /* SafeOrbit/ElderAutoNavigation.swift */,
 				0623A5611B0FB305DE175D8E /* SafeOrbit/PushNotifications.swift */,
@@ -339,6 +342,7 @@
 			files = (
 				D29418975E11D4FDE8DF2A91 /* SafeOrbit/Assets.xcassets in Resources */,
 				036000000000000000000001 /* demo-route.json in Resources */,
+				059000000000000000000001 /* october-records.json in Resources */,
 				FC08DB3F5DB0C0EDB56FAEB8 /* SafeOrbit/Localizable.xcstrings in Resources */,
 				D57BF325FD7BF54FFB25D23D /* SafeOrbit/InfoPlist.xcstrings in Resources */,
 				0F3C5D00B4AF4DC39AD5C8C8 /* AMap.bundle in Resources */,

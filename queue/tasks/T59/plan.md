@@ -1,0 +1,6 @@
+# 执行计划
+
+1. 共享资源正本为 object/server/src/care-api/october-records.json，来自 T58 隔离环境的虚构户。JSON 有 days、trends、trips 三个键。days 是 RecordsResponse.Day 数组，trends 是现有 GET /v1/trends 的十月回复（包括 totals），trips 是现有 GET /v1/trips/:id 的详情数组。时间为带 Z 的 ISO 8601 整秒，固定 Asia/Shanghai。有 24 次出行、5 次风险、2 次高风险、3 次偏离。App 直接打包资源 october-records.json。记录详情在 App 内使用 october- 前缀分流到本地资料，不提交给网络的数字 id 接口。库内已有照护记录保留。
+2. 普通家属 App 的原 Records 页面初始月份为 2026-10，初始周为 2026-10-19；保留正常月、周控制，不增加切换控件。GET /v1/records?month=2026-10&week=2026-10-19 与 GET /v1/trips/:id 都经既有家属设备令牌，字段、401/403/404 语义不变。App 合并当前户和内置月历及周行程，按日期及最高风险合并日色，详情读取所属来源。十月后台无数据或临时不可达时仍可使用内置资料；已知权限撤销仍按既有方式处理。已启用演示模式的预置户当前十月的同一天且出发时间相差五分钟内的同一批历史回放避免重复。现有其他月份保持服务器语义。十月后台本月没有出行时用内置趋势，有实际家庭出行时保留服务器趋势以免近似合并安全返回率。
+3. POST /v1/agent/chat 继续使用已认证家属及其原照护记录许可。请求示例 {"question":"十月有多少次出行和风险？","language":"zh","allowTripHistory":true}，回复沿用现有 outcome、paragraphs、citations、recordContext。明确问十月且未指明不同年份时查 2026-10；普通家庭在同一授权查询范围可计入自己的十月出行。用内置数据支持中英文的总数、风险、日期及概况，可独立于模型完成常见问法。内部 ChatQuery kind 可用 october，对外会话上下文仍使用 {"kind":"compare","month":"2026-10"} 以兼容已有客户端，HTTP 错误码、身份、推送载荷和本地化键均不改。未授权查询按现有拒绝回复。其他日期和实时位置、自动风险及跨家庭权限照常。
+4. 两端依据本约定独立实做和测试，合并后跑后端、iOS、实际模拟器正常家属和演示模式，核对原库，使用已有签名构建并在 iPhone 14 连接时安装和验屏。按实际结果交付、提交并推送。

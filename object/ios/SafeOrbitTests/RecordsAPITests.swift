@@ -6,6 +6,119 @@ final class RecordsAPITests: XCTestCase {
     private var session: URLSession!
     private var defaults: UserDefaults!
     private var suite: String!
+
+    @MainActor func testBundledOctoberLoadsAllDetailsAndKeepsOriginalMonthAndWeekControls() async throws {
+        let october = OctoberRecords.bundled
+        let store = RecordsStore.forFamily(device: familyDevice())
+        StubURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+        await store.reload()
+        XCTAssertEqual(store.monthKey, "2026-10")
+        XCTAssertEqual(store.weekKey, "2026-10-19")
+        XCTAssertEqual(store.records?.days.count, 24)
+        XCTAssertEqual(store.records?.trips.count, 6)
+        XCTAssertEqual(store.trends?.totals?.tripCount.current, 24)
+
+        var tripIDs = Set<String>()
+        for week in ["2026-09-28", "2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"] {
+            let records = try october.records(month: "2026-10", week: week)
+            for trip in records.trips {
+                XCTAssertTrue(trip.id.hasPrefix("october-"))
+                XCTAssertTrue(tripIDs.insert(trip.id).inserted)
+                let detail = try october.trip(id: trip.id)
+                XCTAssertEqual(trip.id, detail.trip.id)
+                XCTAssertGreaterThan(detail.trail.count, 100)
+                XCTAssertFalse(detail.timeline.isEmpty)
+                XCTAssertTrue(detail.trip.returnedHome)
+            }
+        }
+        XCTAssertEqual(tripIDs.count, 24)
+        store.shiftMonth(1)
+        XCTAssertEqual(store.monthKey, "2026-11")
+        XCTAssertEqual(store.weekKey, "2026-10-19")
+        store.shiftWeek(2)
+        XCTAssertEqual(store.weekKey, "2026-11-02")
+        await store.reload()
+        XCTAssertNil(store.records)
+        XCTAssertNil(store.trends)
+    }
+
+    @MainActor private func familyDevice() -> DemoDevice {
+        let household = try! JSONDecoder().decode(DeviceRegistration.self, from: Self.registration).household
+        return DemoDevice(role: .caregiver, api: OnboardingAPI(baseURL: URL(string: "http://records.test")!, session: session),
+            familyToken: "family-token", household: household, onInvalidation: {})
+    }
+
+    @MainActor func testFamilyAndBundledTripsWithSameNumericIDKeepTheirDetailsAndHighestDayRisk() async throws {
+        let service = FamilyRecords(device: familyDevice())
+        let familyTrip = Self.tripJSON.replacingOccurrences(of: #""81""#, with: #""26""#)
+        let records = Self.recordsJSON.replacingOccurrences(of: Self.tripJSON, with: familyTrip)
+        var detailRequests = [String]()
+        StubURLProtocol.handler = { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer family-token")
+            if request.url!.path == "/v1/records" { return (200, Data(records.utf8)) }
+            if request.url!.path == "/v1/trends" { return (200, Data(Self.trendsJSON.utf8)) }
+            detailRequests.append(request.url!.path)
+            return (200, Data(#"{"trip":\#(familyTrip),"trail":[],"anomalies":[],"timeline":[]}"#.utf8))
+        }
+        let merged = try await service.records(month: "2026-10", week: "2026-10-26")
+        let local = try OctoberRecords.bundled.records(month: "2026-10", week: "2026-10-26")
+        XCTAssertEqual(merged.trips.count, local.trips.count + 1)
+        XCTAssertEqual(merged.days.filter { $0.date == "2026-10-26" }.map(\.risk), [.high])
+        XCTAssertEqual(merged.trips.map(\.startedAt), merged.trips.map(\.startedAt).sorted(by: >))
+        XCTAssertTrue(merged.trips.contains { $0.id == "26" })
+        XCTAssertTrue(merged.trips.contains { $0.id == "october-26" })
+        let builtIn = try await service.trip(id: "october-26")
+        XCTAssertFalse(builtIn.trail.isEmpty)
+        let family = try await service.trip(id: "26")
+        XCTAssertTrue(family.trail.isEmpty)
+        XCTAssertEqual(detailRequests, ["/v1/trips/26"])
+        let trend = try await service.trends(month: "2026-10")
+        XCTAssertEqual(trend.metrics.safeReturnRate.current, 67)
+    }
+
+    @MainActor func testLegacyReplayDeduplicatesOnlyDemoDeviceAndUsesTotalsForEmptyMonth() async throws {
+        let records = Self.recordsJSON
+            .replacingOccurrences(of: "2026-10-26T01:00:00.123Z", with: "2026-10-28T01:10:00.123Z")
+        let emptyTrends = Self.trendsJSON.replacingOccurrences(of: #""weeks":"#,
+            with: #""totals":{"tripCount":{"current":0,"previous":2}},"weeks":"#)
+        StubURLProtocol.handler = { request in
+            switch request.url!.path {
+            case "/v1/devices": return (200, Self.registration)
+            case "/v1/trends": return (200, Data(emptyTrends.utf8))
+            default: return (200, Data(records.utf8))
+            }
+        }
+        let demo = FamilyRecords(device: api().device)
+        let family = FamilyRecords(device: familyDevice())
+        let replay = try await demo.records(month: "2026-10", week: "2026-10-26")
+        let household = try await family.records(month: "2026-10", week: "2026-10-26")
+        XCTAssertFalse(replay.trips.contains { $0.id == "october-26" })
+        XCTAssertTrue(replay.trips.contains { $0.id == "81" })
+        XCTAssertEqual(household.trips.count, replay.trips.count + 1)
+        let trend = try await family.trends(month: "2026-10")
+        XCTAssertEqual(trend.totals?.tripCount.current, 24)
+    }
+
+    @MainActor func testBundledRecordsRespectForbiddenAndRevokedDevices() async throws {
+        for status in [403, 401] {
+            let service = FamilyRecords(device: familyDevice())
+            StubURLProtocol.handler = { _ in (status, Data()) }
+            do {
+                _ = try await service.records(month: "2026-10", week: "2026-10-19")
+                XCTFail("Expected authorization error")
+            } catch let failure as RecordsFailure {
+                XCTAssertEqual(failure, status == 401 ? .credentials : .forbidden)
+            }
+            StubURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+            do {
+                _ = try await service.trip(id: "october-26")
+                XCTFail("A rejected device cannot read a bundled detail")
+            } catch let failure as RecordsFailure {
+                XCTAssertEqual(failure, status == 401 ? .credentials : .forbidden)
+            }
+        }
+    }
+
     override func setUp() {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubURLProtocol.self]
@@ -130,7 +243,7 @@ final class RecordsAPITests: XCTestCase {
             return (200, Data(#"{"trip":\#(Self.tripJSON),"trail":[],"anomalies":[],"timeline":[]}"#.utf8))
         }
         let api = api()
-        for id in ["", "../records", "1?month=2026-10"] {
+        for id in ["", "../records", "1?month=2026-10", "²", "october-26"] {
             do { _ = try await api.trip(id: id); XCTFail("Expected invalid ID") }
             catch let error as RecordsFailure { XCTAssertEqual(error, .invalidInput) }
         }

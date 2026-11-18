@@ -64,6 +64,75 @@ function questionPhrase(question: string): string {
   return question.normalize('NFKC').replace(/[.!?。]+$/u, '').trim();
 }
 
+const octoberSubjects = {
+  trips: /出行|行程|出门|外出|\b(?:trips?|outings?|walks?)\b/i,
+  risks: /风险|\brisks?\b/i,
+  high: /高(?:等级)?风险|严重风险|\bhigh[- ]risks?\b/i,
+  warnings: /低风险|预警|\b(?:low[- ]risk|warnings?)\b/i,
+  deviations: /偏离|偏航|偏移|偏轨|偏路|\b(?:deviat\w*|off[- ]route|went off (?:the )?route)\b/i,
+};
+const octoberOverview = /概况|情况|总体|总结|小结|总览|概览|怎么样|如何|发生了什么|有[哪些什么]+记录|\b(?:summary|summari[sz]e|overview|what happened|how (?:was|did)|records?|tell me about)\b/i;
+
+function octoberQuery(question: string): ChatQuery | undefined {
+  const phrase = questionPhrase(question);
+  const month = /(?<![\d一二三四五六七八九十])(?:10|十)\s*月份?|\boctober\b|(?<!\d)2026-10(?!\d)/i;
+  if (!month.test(phrase)) return undefined;
+  // Keep comparisons, other years/months and real-time requests on their original routes.
+  const remaining = phrase.replace(month, '');
+  if ([...phrase.matchAll(/\d{4}/g)].some(([year]) => year !== '2026') ||
+      /(?:\d{1,2}|[一二三四五六七八九十]+)\s*月|\b(?:january|february|march|april|may|june|july|august|september|november|december)\b/i.test(remaining) ||
+      /去年|明年|前年|上旬|中旬|下旬|上半月|下半月|第.{1,2}周|今天|现在|实时|比较|相比|对比|\b(?:last year|next year|today|now|current location|compar\w*|versus|weeks?|first half|second half)\b/i.test(phrase)) return undefined;
+  if (!octoberOverview.test(phrase) && !Object.values(octoberSubjects).some(topic => topic.test(phrase)) &&
+      !/^(?:2026\s*年\s*)?(?:10|十)\s*月份?$|^october(?: 2026)?$/i.test(phrase)) return undefined;
+  const day = /(?:10|十)\s*月\s*(\d{1,2})(?:\s*[日号]|(?!\d))|\boctober\s+(\d{1,2})(?:st|nd|rd|th)?\b|\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?october\b|2026-10-(\d{2})\b|(?:10|十)月([一二三四五六七八九十]{1,3})[日号]/i.exec(phrase);
+  if (!day) return { kind: 'october' };
+  const digits = '零一二三四五六七八九';
+  const [tens, ones] = (day[5] ?? '').split('十');
+  const number = day[5] ? (ones === undefined ? digits.indexOf(tens)
+    : (tens ? digits.indexOf(tens) : 1) * 10 + digits.indexOf(ones)) : Number(day.slice(1).find(Boolean));
+  if (number < 1 || number > 31 || /(?:至|到|–|through|until)\s*\d/i.test(phrase)) return undefined;
+  const date = `2026-10-${String(number).padStart(2, '0')}`;
+  return { kind: 'october', from: date, to: date };
+}
+
+function octoberReply(query: ChatQuery, result: QueryResult, question: string, language: Language): string[] {
+  type Subject = keyof typeof octoberSubjects;
+  const dates = result.facts as Record<Subject, string[]>;
+  const zh = language === 'zh';
+  const interests = (Object.keys(octoberSubjects) as Subject[]).filter(key => octoberSubjects[key].test(question));
+  if (interests.includes('high') || interests.includes('warnings')) {
+    // In “high-risk events”, “risk” is part of the qualifier. Keep the total only when asked separately.
+    const rest = question.replace(/高(?:等级)?风险|严重风险|低风险|(?:high|low)[- ]risk/gi, '');
+    if (interests.includes('risks') && !octoberSubjects.risks.test(rest)) interests.splice(interests.indexOf('risks'), 1);
+  }
+  const overview = interests.length === 0 || (interests.length === 1 && interests[0] === 'trips' &&
+    /概况|情况|总体|总结|总览|概览|summary|overview/i.test(question));
+  const subjects: Subject[] = overview ? ['trips', 'risks', 'high', 'deviations'] : interests;
+  const labels: Record<Subject, [string, string]> = {
+    trips: ['出行', 'trip'], risks: ['风险事件', 'risk event'], high: ['高风险事件', 'high-risk event'],
+    warnings: ['低风险事件', 'low-risk event'], deviations: ['路线偏离', 'route deviation'],
+  };
+  const counts = subjects.map(key => {
+    const n = dates[key].length;
+    return zh ? `${n} 次${labels[key][0]}` : `${n} ${labels[key][1]}${n === 1 ? '' : 's'}`;
+  });
+  const period = query.from ?? (zh ? '2026 年 10 月' : 'October 2026');
+  const paragraphs = [zh ? `${period}记录了 ${counts.join('、')}。` : `Records for ${period} show ${new Intl.ListFormat('en').format(counts)}.`];
+  const asksDates = /哪[一几些天]|哪日|几号|几日|日期|什么时候|何时|最近|最后|最早|首次|列出|\b(?:when|dates?|days?|last|first|latest|list)\b/i.test(question);
+  if (!query.from && (overview || asksDates)) {
+    for (const key of subjects) {
+      if ((overview && key !== 'high') || !dates[key].length) continue;
+      const first = /首次|最早|第一次|\b(?:first|earliest)\b/i.test(question);
+      const last = /最近|最后|最晚|\b(?:last|latest|most recent)\b/i.test(question);
+      const days = [...new Set(dates[key])];
+      const selected = first ? days.slice(0, 1) : last ? days.slice(-1) : days;
+      paragraphs.push(zh ? `${labels[key][0]}${first ? '首次记录于' : last ? '最后一次记录于' : '记录于'} ${selected.join('、')}。`
+        : `${first ? 'First recorded' : last ? 'Last recorded' : 'Recorded'} ${labels[key][1]} date${selected.length === 1 ? '' : 's'}: ${selected.join(', ')}.`);
+    }
+  }
+  return paragraphs;
+}
+
 function asksMonthlyRiskComparison(question: string): boolean {
   const phrase = questionPhrase(question).replace(/^(?:那(?:么)?|请问)[, ]*/u, '');
   return /^(?:这个月|本月)(?:的)?风险(?:事件(?:次数|数|数量)?)?(?:比|相比|相较于)上(?:个)?月(?:的风险(?:事件(?:次数|数|数量)?)?)?(?:更|要)?(?:高|低|多|少)(?:了)?(?:吗|么)?$/u.test(phrase)
@@ -81,10 +150,18 @@ function asksForComparisonMeaning(question: string): boolean {
 function directPlan(question: string, recordContext: ChatQuery[]): Plan | undefined {
   const care = (queries: ChatQuery[], localRequests: LocalRequest[] = []): Plan =>
     ({ intent: 'care', queries, localRequests, paragraphs: [] });
+  const october = octoberQuery(question);
+  if (october) return care([october]);
   const latestRisk = latestRiskQuery(question);
   if (latestRisk) return care([latestRisk]);
   if (asksMonthlyRiskComparison(question)) return care([{ kind: 'compare', metric: 'riskEvents' }]);
   const [scope] = recordContext;
+  if (recordContext.length === 1 && scope.kind === 'compare' && scope.month === '2026-10' && !scope.metric &&
+      /^(?:那|其中|这些|这些记录中|what about|which|how many|when were)\s*/i.test(question) &&
+      !/\d{4}|\d\s*月|[一二三四五六七八九十上本下]月|上个?月|本周|今天|昨天|最近|\b(?:month|year|week|today|yesterday|recent|last)\b/i.test(question)) {
+    const followUp = octoberQuery(`October ${question}`);
+    if (followUp) return care([followUp]);
+  }
   if (recordContext.length === 1 && scope.kind === 'compare' && scope.metric === 'riskEvents' && asksForComparisonMeaning(question)) {
     return care([scope]);
   }
@@ -183,6 +260,7 @@ function directAnswer(query: ChatQuery, result: QueryResult, question: string, l
     return { paragraphs: [zh ? '目前还没有位置记录。' : 'No location has been reported yet.'], citations };
   }
   if (!facts || !citations.length) return undefined;
+  if (query.kind === 'october') return { paragraphs: octoberReply(query, result, question, language), citations };
   if (query.kind === 'riskCount') {
     const { count, level } = facts as { count: number; level: ChatQuery['level'] };
     const risk = level === 'high' ? (zh ? '高风险' : 'high-risk') : level === 'warning' ? (zh ? '低风险' : 'low-risk') : (zh ? '风险' : 'risk');
@@ -272,7 +350,7 @@ export class ChatService {
         ...('error' in answer ? { retryable: true as const } : {}) };
     }
 
-    if (plan.queries.length < 3 && /pattern|routine|规律|习惯/i.test(question) && !plan.queries.some(query => query.kind === 'compare')) {
+    if (plan.queries.length < 3 && /pattern|routine|规律|习惯/i.test(question) && !plan.queries.some(query => query.kind === 'compare' || query.kind === 'october')) {
       plan.queries = [...plan.queries, { kind: 'compare' }];
     }
     const results = await Promise.allSettled(plan.queries.map(async query => ({ query, result: await this.queries.run(elderId, query) })));
@@ -326,7 +404,11 @@ export class ChatService {
       return notice('unverified', language);
     }
     if (plan.localRequests.length) response.localRequests = plan.localRequests;
-    if (covered.length) response.recordContext = covered;
+    // The installed app decodes a fixed set of query kinds. Reuse its month scope for
+    // follow-ups, and leave day-specific October replies scoped to their citation.
+    const context = covered.flatMap((query): ChatQuery[] => query.kind !== 'october' ? [query]
+      : query.from ? [] : [{ kind: 'compare', month: '2026-10' }]);
+    if (context.length) response.recordContext = context;
     if (failure) {
       response.retryable = true;
       response.paragraphs.push(language === 'zh' ? '部分资料暂时无法获取，可以重试。' : 'Some information is temporarily unavailable. You can retry.');
