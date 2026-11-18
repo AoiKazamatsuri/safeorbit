@@ -137,22 +137,27 @@ test('query filtering excludes false alarms and respects local dates', async () 
   assert.doesNotMatch(JSON.stringify(current), /latitude|longitude|31\.2304|121\.4737/);
 });
 test('latest risk date questions keep older history and only apply an explicitly requested risk level', async () => {
-  const risk = (id: string, day: string, high = false, falseAlarm = false) => {
+  const risk = (id: string, day: string, high = false, falseAlarm = false, tripId: string | null = null) => {
     const openedAt = new Date(day + 'T10:00:00Z');
-    return { id, openedAt, escalatedAt: high ? openedAt : null, resolvedAt: null, falseAlarm };
+    return { id, openedAt, escalatedAt: high ? openedAt : null, resolvedAt: null, falseAlarm, tripId };
   };
+  const now = new Date('2026-11-18T10:00:00Z');
+  const tripId = '17';
   const data = { timezone: 'Asia/Shanghai', risks: [
-    risk('41', '2026-10-20', true), risk('42', '2026-10-21'), risk('43', '2026-11-01', true, true),
-  ], actions: [], observations: [] };
+    risk('41', '2026-11-10', true), risk('42', '2026-11-12', false, false, tripId), risk('43', '2026-11-13', true, true),
+  ], trips: [{ id: tripId, startedAt: new Date('2026-11-11T14:30:00Z') }], actions: [], observations: [] };
   const queries = new ChatQueries({ data: async () => data } as any,
     { household: async () => ({ elder: { timezone: data.timezone } }) } as any);
-  const chat = new ChatService(queries, {
+  const chat = new ChatService({
+    run: (id: number, query: ChatQuery) => queries.run(id, query, now),
+    localToday: (id: number) => queries.localToday(id, now),
+  } as ChatQueries, {
     plan: async () => [{ kind: 'events', from: '2026-11-01', to: '2026-11-09', level: 'high' }],
     answer: async () => assert.fail('Latest risk date should be read from the matching record'),
   } as any);
   const recent = await chat.answer(1, '最近一次风险事件是什么时候', 'zh', true);
   assert.equal(recent.outcome, 'answered');
-  assert.deepEqual(recent.paragraphs, ['最近一次风险事件发生在2026-10-21。']);
+  assert.deepEqual(recent.paragraphs, ['最近一次风险事件发生在2026-11-12。']);
   assert.deepEqual(recent.citations.map(c => c.id), ['42']);
   assert.equal(verifyAnswer({
     paragraphs: ['最近一次风险事件发生在2026-10-21。同日还发生了两次事件。'],
@@ -160,8 +165,42 @@ test('latest risk date questions keep older history and only apply an explicitly
   }, [result], 'zh').outcome, 'unverified');
   const high = await chat.answer(1, 'When was the last high-risk event?', 'en', true);
   assert.equal(high.outcome, 'answered');
+  assert.deepEqual(high.paragraphs, ['The last high-risk event occurred on 2026-11-10.']);
   assert.deepEqual(high.citations.map(c => c.id), ['41']);
+  const trip = await chat.answer(1, '最近一次风险出行是什么时候？', 'zh', true);
+  assert.deepEqual(trip.paragraphs, ['最近一次风险出行开始于2026-11-11。']);
+  assert.deepEqual(trip.citations.map(c => [c.kind, c.id]), [['trip', tripId]]);
   assert.equal((await chat.answer(1, '11月最近一次高风险事件是什么时候？', 'zh', true)).outcome, 'unverified');
+});
+
+test('latest questions include the shared October records for a family without risk history', async () => {
+  let reads = 0;
+  const data = { timezone: 'Asia/Shanghai', trips: [], risks: [], observations: [], actions: [], calls: [] };
+  const queries = new ChatQueries({ data: async () => { reads++; return data; } } as any, {} as any);
+  const now = new Date('2026-11-18T10:00:00Z');
+  const chat = new ChatService({
+    run: (id: number, query: ChatQuery) => queries.run(id, query, now),
+  } as ChatQueries, { plan: async () => assert.fail('Use the literal latest-risk question') } as any);
+  const high = await chat.answer(29, 'When was the last high-risk event?', 'en', true);
+  assert.deepEqual(high.paragraphs, ['The last high-risk event occurred on 2026-10-21.']);
+  assert.deepEqual(high.recordContext, [{ kind: 'events', latest: true, level: 'high' }]);
+  assert.deepEqual(high.citations.map(c => [c.kind, c.startDate, c.endDate]), [['statistic', '2026-10-21', '2026-10-21']]);
+  const trip = await chat.answer(29, '最近一次风险出行是什么时候？', 'zh', true);
+  assert.deepEqual(trip.paragraphs, ['最近一次风险出行开始于2026-10-28。']);
+  assert.equal(trip.recordContext, undefined);
+  assert.equal((await chat.answer(29, '最近一次风险出行是什么时候？', 'zh', false)).outcome, 'historyDisabled');
+  assert.equal(reads, 2);
+});
+
+test('the assistant introduces its care role in both languages without querying records', async () => {
+  const chat = new ChatService({ run: async () => assert.fail('Identity needs no records') } as any,
+    { plan: async () => assert.fail('Identity needs no model') } as any);
+  const zh = await chat.answer(29, '你是谁？', 'zh', false);
+  assert.equal(zh.outcome, 'general');
+  assert.match(zh.paragraphs[0], /^我是 SafeOrbit 的照护助手/);
+  assert.deepEqual(zh.citations, []);
+  const en = await chat.answer(29, 'Who are you?', 'en', true);
+  assert.match(en.paragraphs[0], /^I’m SafeOrbit’s care assistant/);
 });
 test('grouped records allow one citation without borrowing another record number', () => {
   const grouped = { facts: [{ id: '42', count: 1 }, { id: '99', count: 9 }], citations: [result.citations[0], { kind: 'riskEvent' as const, id: '99', label: '99' }], evidence: { 'riskEvent:42': { id: '42', count: 1 }, 'riskEvent:99': { id: '99', count: 9 } } };

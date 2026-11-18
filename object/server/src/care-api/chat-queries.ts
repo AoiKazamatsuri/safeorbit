@@ -4,24 +4,24 @@ import { Records } from './records';
 import { addDays, buildTrends, localDate, monthAfter, RecordsData, summarizeTrip, validObservations } from './records-view';
 import october from './october-records.json';
 
-export type ChatQuery = { kind: 'current' | 'events' | 'trip' | 'compare' | 'riskCount' | 'safeZones' | 'activity' | 'october'; id?: string; month?: string; from?: string; to?: string; level?: 'warning' | 'high'; latest?: boolean; metric?: 'riskEvents' };
+export type ChatQuery = { kind: 'current' | 'events' | 'trip' | 'compare' | 'riskCount' | 'safeZones' | 'activity' | 'october' | 'latestRisk' | 'latestRiskTrip'; id?: string; month?: string; from?: string; to?: string; level?: 'warning' | 'high'; latest?: boolean; metric?: 'riskEvents' };
 export interface Citation { kind: 'riskEvent' | 'trip' | 'statistic'; id: string; label: string; date?: string; startDate?: string; endDate?: string }
 export interface QueryResult { facts: unknown; citations: Citation[]; evidence?: Record<string, unknown> }
+
+const octoberEvents = october.trips.flatMap(detail => detail.timeline).filter(event => event.id.startsWith('risk-'));
+const octoberOpened = octoberEvents.filter(event => event.id.endsWith('-opened'));
+const octoberHigh = octoberEvents.filter(event => event.id.endsWith('-high'));
 
 // Keep one date per occurrence so two trips or events on the same day still count twice.
 function octoberDates(data: RecordsData, elderId: number) {
   const snapshotDate = (at: string) => localDate(new Date(at), october.trends.timezone);
   const familyDate = (at: Date) => localDate(at, data.timezone);
-  const timeline = october.trips.flatMap(detail => detail.timeline);
-  const matching = (suffix: string) => timeline.filter(event => event.id.startsWith('risk-') && event.id.endsWith(suffix));
-  const high = matching('-high');
-  const escalated = new Set(high.map(event => event.id.replace(/-high$/, '-opened')));
-  const opened = matching('-opened');
+  const escalated = new Set(octoberHigh.map(event => event.id.replace(/-high$/, '-opened')));
   const dates = {
     trips: october.trips.map(({ trip }) => snapshotDate(trip.startedAt)),
-    risks: opened.map(event => snapshotDate(event.at)),
-    high: high.map(event => snapshotDate(event.at)),
-    warnings: opened.filter(event => !escalated.has(event.id)).map(event => snapshotDate(event.at)),
+    risks: octoberOpened.map(event => snapshotDate(event.at)),
+    high: octoberHigh.map(event => snapshotDate(event.at)),
+    warnings: octoberOpened.filter(event => !escalated.has(event.id)).map(event => snapshotDate(event.at)),
     deviations: october.trips.flatMap(detail => detail.anomalies.filter(a => a.kind === 'deviation').map(a => snapshotDate(a.at))),
   };
   // Only the reserved demo household can contain the previous replay. Its recognition
@@ -56,6 +56,38 @@ function octoberDates(data: RecordsData, elderId: number) {
   return dates;
 }
 
+function latestRisk(data: RecordsData, query: ChatQuery, now: Date): QueryResult {
+  const highOnly = query.level === 'high';
+  const isTrip = query.kind === 'latestRiskTrip';
+  const riskTime = (risk: RecordsData['risks'][number]) => highOnly ? risk.escalatedAt : risk.openedAt;
+  const risks = data.risks.filter(risk => {
+    const at = riskTime(risk);
+    return !risk.falseAlarm && at && at <= now;
+  });
+  const tripIds = new Set(risks.map(risk => risk.tripId));
+  const family = isTrip
+    ? data.trips.filter(trip => tripIds.has(trip.id))
+      .map(trip => ({ at: trip.startedAt, kind: 'trip' as const, id: trip.id, label: `Trip ${trip.id}` }))
+    : risks.map(risk => ({ at: riskTime(risk)!, kind: 'riskEvent' as const, id: risk.id, label: `Risk event ${risk.id}` }));
+  const bundled = isTrip
+    ? october.trips.filter(({ trip }) => highOnly ? trip.risk === 'high' : trip.risk !== 'normal')
+      .map(({ trip }) => trip.startedAt)
+    : (highOnly ? octoberHigh : octoberOpened).map(event => event.at);
+  const current = family.filter(record => record.at <= now).sort((a, b) => +b.at - +a.at)[0];
+  const historical = bundled.map(value => new Date(value)).filter(at => at <= now).sort((a, b) => +b - +a)[0];
+  if (current && (!historical || current.at >= historical)) {
+    const { at, ...citation } = current;
+    const date = localDate(at, data.timezone);
+    return { facts: { date }, citations: [{ ...citation, date }] };
+  }
+  if (historical) {
+    const date = localDate(historical, october.trends.timezone);
+    return { facts: { date }, citations: [{ kind: 'statistic', id: `day-${date}`,
+      label: 'October 2026 records', startDate: date, endDate: date }] };
+  }
+  return { facts: null, citations: [] };
+}
+
 @Injectable()
 export class ChatQueries {
   constructor(private readonly records: Records, private readonly store: CareStore) {}
@@ -64,6 +96,7 @@ export class ChatQueries {
   }
   async run(elderId: number, query: ChatQuery, now = new Date()): Promise<QueryResult> {
     const data = await this.records.data(elderId);
+    if (query.kind === 'latestRisk' || query.kind === 'latestRiskTrip') return latestRisk(data, query, now);
     const today = localDate(now, data.timezone);
     if (query.kind === 'october') {
       const startDate = query.from ?? '2026-10-01';

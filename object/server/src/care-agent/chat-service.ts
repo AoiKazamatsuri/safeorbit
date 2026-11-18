@@ -41,11 +41,11 @@ function parsePlan(value: unknown): Plan | undefined {
 }
 
 function latestRiskQuery(question: string): ChatQuery | undefined {
-  const match = /^(?:请问[，,]?\s*)?(?:最近一次|上一次|上次)(高风险|风险)事件(?:是|在|发生在|发生于)?(?:什么时候|什么时间|哪天|哪一天)(?:发生的?)?[?？。]?$/u.exec(question)
-    ?? /^when (?:was|did) the (?:last|most recent) (high[- ]risk|risk) event(?: (?:happen|occur))?[?.]?$/i.exec(question);
+  const match = /^(?:请问[，,]?\s*)?(?:最近一次|上一次|上次)(高风险|风险)(事件|出行|行程)(?:是|在|发生在|发生于)?(?:什么时候|什么时间|哪天|哪一天)(?:发生的?)?[?？。]?$/u.exec(question)
+    ?? /^when (?:was|did) the (?:last|most recent) (high[- ]risk|risk|risky) (event|trip|outing)(?: (?:happen|occur))?[?.]?$/i.exec(question);
   if (!match) return undefined;
-  return /^(?:高风险|high[- ]risk)$/i.test(match[1])
-    ? { kind: 'events', latest: true, level: 'high' } : { kind: 'events', latest: true };
+  const kind = /^(?:事件|event)$/i.test(match[2]) ? 'latestRisk' : 'latestRiskTrip';
+  return /^(?:高风险|high[- ]risk)$/i.test(match[1]) ? { kind, level: 'high' } : { kind };
 }
 
 function monthlyQuestion(question: string): { trip: boolean; risk: boolean; month?: string } | undefined {
@@ -62,6 +62,11 @@ function monthlyQuestion(question: string): { trip: boolean; risk: boolean; mont
 
 function questionPhrase(question: string): string {
   return question.normalize('NFKC').replace(/[.!?。]+$/u, '').trim();
+}
+
+function asksIdentity(question: string): boolean {
+  const phrase = questionPhrase(question).replace(/^(?:请问[，, ]*|please\s+)/iu, '');
+  return /^(?:你是谁|你是什么(?:助手|智能体)?|你能帮我做什么|(?:请)?介绍一下你自己|who are you|what are you|what can you (?:help me )?do|introduce yourself|tell me about yourself)$/iu.test(phrase);
 }
 
 const octoberSubjects = {
@@ -286,9 +291,15 @@ function directAnswer(query: ChatQuery, result: QueryResult, question: string, l
     return { paragraphs: [zh ? `已设置 ${count} 个安全区。${hasHome ? '其中包括家。' : ''}`
       : `${count} safe zone${count === 1 ? ' is' : 's are'} configured.${hasHome ? ' Home is among them.' : ''}`], citations };
   }
-  if (query.kind === 'events' && latestRiskQuery(question) && citations[0].date) {
-    const risk = query.level === 'high' ? (zh ? '高风险' : 'high-risk') : (zh ? '风险' : 'risk');
-    return { paragraphs: [zh ? `最近一次${risk}事件发生在${citations[0].date}。` : `The last ${risk} event occurred on ${citations[0].date}.`], citations };
+  if (query.kind === 'latestRisk' || query.kind === 'latestRiskTrip') {
+    const { date } = facts as { date: string };
+    const trip = query.kind === 'latestRiskTrip';
+    if (zh) {
+      const risk = query.level === 'high' ? '高风险' : '风险';
+      return { paragraphs: [`最近一次${risk}${trip ? '出行开始于' : '事件发生在'}${date}。`], citations };
+    }
+    const risk = query.level === 'high' ? 'high-risk' : trip ? 'risky' : 'risk';
+    return { paragraphs: [`The last ${risk} ${trip ? 'trip began' : 'event occurred'} on ${date}.`], citations };
   }
   if (query.kind === 'compare') {
     const { periods } = facts as { periods?: MonthlyPeriod[] };
@@ -319,6 +330,12 @@ export class ChatService {
     history: ChatTurn[] = [], recordContext: ChatQuery[] = []): Promise<ChatResponse> {
     if (hasPrivateText(question)) return notice('unverified', language);
     if (medical.test(question)) return notice('medicalBoundary', language);
+    if (asksIdentity(question)) {
+      const introduction = language === 'zh'
+        ? '我是 SafeOrbit 的照护助手。我可以帮你查看已授权的出行和风险记录，了解近期照护情况。'
+        : 'I’m SafeOrbit’s care assistant. I can help you review the trip and risk records you have access to and understand recent changes.';
+      return { outcome: 'general', paragraphs: [introduction], citations: [] };
+    }
 
     const safeHistory = history.some(turn => hasPrivateText(turn.text)) ? [] : history;
     let plan = directPlan(question, recordContext);
@@ -406,8 +423,11 @@ export class ChatService {
     if (plan.localRequests.length) response.localRequests = plan.localRequests;
     // The installed app decodes a fixed set of query kinds. Reuse its month scope for
     // follow-ups, and leave day-specific October replies scoped to their citation.
-    const context = covered.flatMap((query): ChatQuery[] => query.kind !== 'october' ? [query]
-      : query.from ? [] : [{ kind: 'compare', month: '2026-10' }]);
+    const context = covered.flatMap((query): ChatQuery[] => {
+      if (query.kind === 'october') return query.from ? [] : [{ kind: 'compare', month: '2026-10' }];
+      if (query.kind === 'latestRisk') return [{ kind: 'events', latest: true, ...(query.level ? { level: query.level } : {}) }];
+      return query.kind === 'latestRiskTrip' ? [] : [query];
+    });
     if (context.length) response.recordContext = context;
     if (failure) {
       response.retryable = true;
