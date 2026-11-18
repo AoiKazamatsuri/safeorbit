@@ -1145,6 +1145,8 @@ private struct DestinationBubbleOutline: Shape {
     }
 }
 
+private let navigationCardCornerRadius: CGFloat = 24
+
 private struct NavigationGuidanceHeight: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
@@ -1191,7 +1193,7 @@ struct NavigationGuidanceCard: View {
         .onPreferenceChange(NavigationGuidanceHeight.self) { naturalHeight = $0 }
         // Keep the added height, sharing its space equally above and below caregiver content.
         .padding(.vertical, naturalHeight * 0.10)
-        .background(.white, in: RoundedRectangle(cornerRadius: 24))
+        .background(.white, in: RoundedRectangle(cornerRadius: navigationCardCornerRadius))
     }
 }
 
@@ -1347,8 +1349,8 @@ struct NavigationInstructionPanel: View {
             }
         }
         .padding(retry != nil || loading || message != nil ? 12 : 0)
-        .background(.white, in: RoundedRectangle(cornerRadius: 24))
-        .caregiverCard(radius: 24)
+        .background(.white, in: RoundedRectangle(cornerRadius: navigationCardCornerRadius))
+        .caregiverCard(radius: navigationCardCornerRadius)
     }
 }
 
@@ -1409,7 +1411,12 @@ struct NavigationSummaryCard: View {
             }
         }
         .padding(16).frame(maxWidth: .infinity, minHeight: 88)
-        .background { Capsule().fill(.white).shadow(color: .black.opacity(0.14), radius: 7, y: 3) }
+        .background {
+            let shape = elder
+                ? AnyShape(RoundedRectangle(cornerRadius: navigationCardCornerRadius))
+                : AnyShape(Capsule())
+            shape.fill(.white).shadow(color: .black.opacity(0.14), radius: 7, y: 3)
+        }
         .accessibilityIdentifier("navigation-summary")
     }
 
