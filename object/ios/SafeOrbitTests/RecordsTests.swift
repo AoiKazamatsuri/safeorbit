@@ -1883,7 +1883,7 @@ extension RecordsTests {
                     XCTAssertLessThanOrEqual(bar.maxY, try h.probe("trip-map", name).minY + 0.5, name + " bar above the map")
                     if type <= .accessibility1 {
                         f.assertText(title, "\(trip.month == 8 ? "Aug" : "Jul") \(trip.day)",
-                                     font: f.font(25, .semibold, type), name + " title")
+                                     font: f.font(20, .medium, type), name + " title")
                         let pillFrames = try pills.keys.sorted().map { try h.probe("trip-pill-" + $0, name) }
                         for (key, text) in pills {
                             f.assertText(try h.probe("trip-pill-text-" + key, name), text, font: f.caregiver(.secondary, type),

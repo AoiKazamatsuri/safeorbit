@@ -661,7 +661,7 @@ struct TripDetailPage: View {
                     }
                     .accessibilityLabel("Back to records").layoutProbe("trip-back")
                     Text(RecordDates.format(trip.startedAt, "MMM d", timezone: timezone))
-                        .recordingFont(25, weight: .semibold)
+                        .orbitDisplayFont(20)
                         .fixedSize(horizontal: false, vertical: true)
                         .layoutProbe("trip-title")
                     Spacer()
