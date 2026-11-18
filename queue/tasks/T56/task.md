@@ -3,12 +3,12 @@
 ```json
 {
   "id": "T56",
-  "revision": 831,
-  "assignee": "Codex",
+  "revision": 832,
+  "assignee": null,
   "parent": null,
   "deps": [],
   "round": 6,
-  "status": "交付"
+  "status": "通过"
 }
 ```
 
@@ -50,6 +50,7 @@ T56 已统一老人回家和家属步行导航的布局，并修正老人端底�
 - #829｜rework｜Codex｜{"basis": "用户要求继续调整截图中的老人端导航统计卡，移除预计到达时刻、并排显示剩余距离和所需时间并收低卡片。", "expect": 822, "id": "T56"}
 - #830｜amend｜Codex｜{"authority": {"basis": "用户明确要求老人端导航底卡去掉预计到达时刻，剩余距离和所需时间同一行，卡片收低，上下留白相同。", "by": "用户"}, "expect": 829, "id": "T56", "proposal": {"criteria": "| 编号 | 可观察的结果 | 验证方法 | 通过条件 |\n| --- | --- | --- | --- |\n| A1 | 两端导航布局、路线样式一致 | 对比普通、窄屏和超大字号的模拟器截图，检查回归用例 | 剩余距离与所需时间并排、白卡、地图按钮和路线符合要求，老人字号可缩放，按钮可触达 |\n| A2 | 老人端导航控件可用 | 在模拟器复测静音、地图拖动和跟随、全览、重试、联系家人、退出及撤销退出 | 交互与真实导航状态一致，呼叫返回不丢导航，定位和路线错误能重试 |\n| A3 | 既有检查通过 | 跑全套 iOS 检查、Git 差异及队列暂存检查。真机可用时验证 Go Home，回执说明验证范围 | 项目检查退出码 0；据实记录真机结果 |\n| A4 | 老人端底部两种状态的白卡圆角一致 | 核对普通和大字号的模拟器截图及现有布局回归 | 白卡和顶部指引卡同为 24 点圆角，确认退出及继续导航按钮在卡片内可达 |\n| A5 | 老人端统计白卡收低 | 核对普通、窄屏及大字号的导航布局与模拟器截图 | 只显示剩余距离和所需时间，两项并排，统计行上下留白一致，退出按钮可达 |\n\n执行者代跑验证并写回执，标未独立验证；用户决定最终验收。", "origin": "T56 已统一老人回家和家属步行导航的布局，并修正老人端底卡圆角。用户本轮提供现状截图，要求缩短老人端导航底卡，移除预计到达时刻，剩余距离和所需时间同一行，上下留白相同。", "plan": "1. 将家属端布局和路线绘制提取为两端共用组件，使用既有老人导航数据和调用链。\n2. 实现地图跟随/全览及可达的呼叫、重试、退出操作，修订确认过的产品文档与相关回归。\n3. 收小老人端底部白卡圆角，核对统计与退出确认截图并同步说明。\n4. 核对两端截图和交互，运行全套检查，按可用条件复测真机并交付。\n5. 只缩短老人端导航统计卡，核对常用宽度和大字号，更新产品设计和 iOS 说明，运行全套 iOS 和提交检查后交付。", "scope": "- 要交付：老人端复用顶部指引卡、右侧定位与全览圆钮、底部同一行的剩余距离与所需时间、上下等距的紧凑统计卡及行内退出确认。保留 24/20 点动态字号，窄屏和超大字号下保持控件可达。右侧加同款电话圆钮，沿用既有呼叫预览和电话确认。\n- 两端共用蓝色实线、深蓝描边和白色方向箭头。老人端保留 Home 终点，默认跟随当前位置并让路线向上，手动拖动暂停跟随。规划中显示进度，失败可重试，仅有效路线显示统计。手动和自动回家继续共用入口，保留真实高德步行路线、已验证的语言配置和英文指引及语音。\n- 老人端底部统计和退出确认两种状态的白卡使用固定圆角，与顶部指引卡对齐；家属侧沿用原有形状。同步更新产品描述和 iOS 说明。\n- 不包含：服务端、地图账号或 Key、地图 SDK 设置、依赖、家属布局及功能改版。\n- 允许修改的位置：object/ios/SafeOrbit/{LocationUI,ElderHomeUI,AMapCanvas}.swift，object/ios/SafeOrbitTests/{LocationTests,RecordsTests}.swift，object/ios/README.md，truth/产品设计.md。任务记录由工具维护。", "title": "统一老人回家与家属步行导航布局"}}
 - #831｜deliver｜Codex｜{"artifacts": [{"path": "object/ios/SafeOrbit/ElderHomeUI.swift", "sha256": "baf117c336440f9c11fe2086ccb992e61306c4a9d2b7da88664e2f0b3aef94df"}, {"path": "object/ios/SafeOrbit/LocationUI.swift", "sha256": "90313e4f2b63cfcb9a6bf6657c86e94d3aec397bd6331fb300506ccad5648f90"}, {"path": "object/ios/SafeOrbitTests/RecordsTests.swift", "sha256": "8653da086597b43a396d10c4a6bdb40b4d0f5ca173daf0a4588fdf756da3e2e8"}, {"path": "object/ios/README.md", "sha256": "1fe1d0e544b697417a42edce39883145e403990da22cc2266084cff0b3118c8d"}, {"path": "truth/产品设计.md", "sha256": "bd1e8e7b219779bf407bf1f582f7015846a20ea4eb7e8173e036e689dc8b24bf"}], "expect": 830, "id": "T56", "receipt": "# T56 第六轮交付回执\n\n执行者自验，未独立验证。\n\n老人端回家导航底卡移除了预计到达时刻。剩余距离和所需时间始终左右并排，内容在同样的上、下内边距之间居中。普通字号下退出叉号与统计同行，卡片实测高约 89 点。窄屏使用较大辅助字号时，叉号移到两项上方，统计仍并排，超出屏幕的内容可滚动查看。家属端的预计到达时刻沿用原显示。产品设计和 iOS 说明已同步。\n\n在 iPhone 模拟器核对了 375 点宽普通字号，以及 320 点宽的第 1 档与第 5 档辅助字号截图。两项可完整阅读，退出入口及确认按钮可触达。家属端导航及退出由原有测试覆盖。本轮使用模拟器内的演示路线，未安装到真机。\n\n## 检查\n\n`env -u SAFEORBIT_ONLY_TESTING sh object/dev/ios-check.sh > /tmp/safeorbit-t56-summary-ios.log 2>&1` 退出 0。原样输出摘录：\n\n```text\nExecuted 197 tests, with 0 failures (0 unexpected) in 600.443 (600.498) seconds\n** TEST SUCCEEDED **\n```\n\n`git diff --check` 与 `git diff --cached --check` 退出 0，输出为空。`node --experimental-strip-types --disable-warning=ExperimentalWarning tool/diagram/check.mts --staged` 退出 0，输出 `无红。`。`sh object/dev/queue.sh check --staged` 交付前退出 0，输出 `{\"ok\": true, \"checked\": \"staged\", \"seq\": 830}`。\n", "summary": "老人端导航底卡在同一行显示剩余距离和所需时间，移除到达时刻，普通字号实测约 89 点且上下留白等宽。iOS 197 项测试全部通过。", "verification": "passed"}
+- #832｜close｜Codex｜{"authority": {"basis": "新版 SafeOrbit（本地提交 ca3e63e）已安装到 iPhone 14。安装命令退出 0，输出 App installed:，设备查询确认本次安装。用户随后明确确认老人端导航底卡验收通过。", "by": "用户"}, "expect": 831, "id": "T56"}
 
 ## 接手说明
 
