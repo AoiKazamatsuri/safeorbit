@@ -22,7 +22,9 @@ import AMapSearchKit
         let services = AMapServices.shared()!
         services.apiKey = Bundle.main.object(forInfoDictionaryKey: "AMapAPIKey") as? String
         services.enableHTTPS = true
-        services.regionLanguageType = .en
+        // Search reads this setting asynchronously when it assembles the request.
+        // Mainland walking requests for this app require the simplified Chinese region.
+        services.regionLanguageType = .zhHans
         services.analysisAgree = false
         MAMapView.updatePrivacyShow(.didShow, privacyInfo: .didContain)
         MAMapView.updatePrivacyAgree(.didAgree)

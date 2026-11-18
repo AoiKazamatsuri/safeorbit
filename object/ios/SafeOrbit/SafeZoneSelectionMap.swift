@@ -105,6 +105,7 @@ struct SafeZoneMapView: UIViewRepresentable {
             return surface
         }
         let map = MAMapView(frame: surface.bounds)
+        map.mapLanguage = 1 // English labels on the standard basemap.
         map.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         surface.addSubview(map)
         map.overrideUserInterfaceStyle = .light

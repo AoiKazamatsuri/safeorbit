@@ -144,6 +144,26 @@ final class LocationTests: XCTestCase {
         XCTAssertEqual(NavigationIssue.amapSearchError(code: 3001), .routeUnavailable)
     }
 
+    func testHomeRouteReusesTheSolidBlueLineWithWhiteEdge() {
+        let coordinates = LocationPreviewData.trail.map(\.appleCoordinate)
+        let route = CaregiverTrailStyle.lines(coordinates: coordinates, id: "home-route")
+        XCTAssertEqual(route.map(\.id), ["home-route-edge", "home-route"])
+        XCTAssertEqual(route.map(\.color), [.white, OrbitMapStyle.blue])
+        XCTAssertTrue(route.allSatisfy { $0.dash.isEmpty && $0.coordinates.count == coordinates.count })
+    }
+
+    func testAMapManeuverUsesEnglishAndDoesNotGuessATurn() {
+        let right = WalkingManeuver.fromAMap(action: "右转", auxiliary: nil, instruction: "向东步行52米右转")
+        XCTAssertEqual(right.text(distance: 52), "Turn right in 52 m")
+        XCTAssertEqual(right.text(distance: 18, spoken: true), "Turn right in 18 meters")
+        XCTAssertEqual(right.text(distance: 3), "Turn right")
+
+        XCTAssertEqual(WalkingManeuver.fromAMap(action: nil, auxiliary: nil, instruction: "步行68米后左转。"), .left)
+        XCTAssertEqual(WalkingManeuver.fromAMap(action: "进入环岛", auxiliary: nil, instruction: nil), .roundabout)
+        let unknown = WalkingManeuver.fromAMap(action: nil, auxiliary: nil, instruction: "沿左家巷步行")
+        XCTAssertEqual(unknown.text(distance: 35), "Follow the highlighted route")
+    }
+
     func testReferenceMapScaleStaysCenteredOnSelectedPlace() {
         let center = LocationPreviewData.campus.appleCoordinate
         let region = OrbitMapScale.region(center: center, viewportHeight: 874)

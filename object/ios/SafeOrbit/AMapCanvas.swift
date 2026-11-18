@@ -38,10 +38,10 @@ enum CaregiverTrailStyle {
     static let width: CGFloat = 6
     static let edgeWidth: CGFloat = 9
 
-    static func lines(coordinates: [CLLocationCoordinate2D]) -> [AMapLine] {
+    static func lines(coordinates: [CLLocationCoordinate2D], id: String = "senior-trail") -> [AMapLine] {
         guard coordinates.count > 1 else { return [] }
-        return [AMapLine(id: "senior-trail-edge", coordinates: coordinates, color: .white, width: edgeWidth),
-                AMapLine(id: "senior-trail", coordinates: coordinates, color: OrbitMapStyle.blue, width: width)]
+        return [AMapLine(id: "\(id)-edge", coordinates: coordinates, color: .white, width: edgeWidth),
+                AMapLine(id: id, coordinates: coordinates, color: OrbitMapStyle.blue, width: width)]
     }
 }
 struct AMapCameraContext {
@@ -176,6 +176,7 @@ struct NativeAMapCanvas: UIViewRepresentable {
         surface.backgroundColor = .systemGroupedBackground
         guard AMapRuntime.prepare() else { return surface }
         let map = MAMapView(frame: surface.bounds)
+        map.mapLanguage = 1 // English labels on the standard basemap.
         map.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         map.overrideUserInterfaceStyle = .light
         map.showsCompass = false
@@ -347,7 +348,7 @@ struct NativeAMapCanvas: UIViewRepresentable {
                 renderer.lineCapType = MALineCapType(rawValue: 3)
                 renderer.lineJoinType = MALineJoinType(rawValue: 2)
                 if !style.dash.isEmpty { renderer.lineDashType = MALineDashType(rawValue: 1) }
-                if style.id.hasPrefix("senior-trail") { renderer.reducePoint = false }
+                if style.id.hasPrefix("senior-trail") || style.id.hasPrefix("home-route") { renderer.reducePoint = false }
                 return renderer
             }
         }

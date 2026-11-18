@@ -18,7 +18,7 @@ enum NavigationIssue: Error, LocalizedError, Equatable {
         case .locationDenied: return "Allow location access in Settings to plan a route."
         case .locationUnavailable: return "Waiting for an accurate, current location."
         case .routeUnavailable: return "A walking route is unavailable. Try again."
-        case .routeConfiguration: return "Walking routes are not enabled for this map key. Check its iOS app binding, then try again."
+        case .routeConfiguration: return "The map service couldn’t start walking directions. Try again."
         case .routeTimedOut: return "The walking route request timed out. Try again."
         case .routeNetworkUnavailable: return "Connect to the internet to get a walking route, then try again."
         case .routeServiceUnavailable: return "Walking route service is temporarily unavailable. Try again."
@@ -59,10 +59,67 @@ struct NavigationHeading {
         && (-5...15).contains(now.timeIntervalSince(timestamp))
     }
 }
+enum WalkingManeuver: Equatable {
+    case left, right, bearLeft, bearRight, uTurn, straight
+    case crossStreet, footbridge, underpass, stairs, roundabout, exitRoundabout, destination, followRoute
+
+    static func fromAMap(action: String?, auxiliary: String?, instruction: String?) -> Self {
+        let phrases: [(Self, [String])] = [
+            (.exitRoundabout, ["退出环岛", "驶出环岛", "离开环岛", "exit the roundabout"]),
+            (.roundabout, ["进入环岛", "enter the roundabout"]),
+            (.crossStreet, ["过马路", "穿过马路", "通过人行横道", "cross the street"]),
+            (.footbridge, ["过街天桥", "上天桥", "take the footbridge"]),
+            (.underpass, ["地下通道", "地下人行通道", "take the underpass"]),
+            (.stairs, ["上楼梯", "下楼梯", "take the stairs"]),
+            (.destination, ["到达目的地", "到达终点", "arrive at your destination"]),
+            (.uTurn, ["调头", "掉头", "u-turn"]),
+            (.bearLeft, ["左前方转弯", "向左前方转弯", "向左前方行走", "向左前方", "bear left"]),
+            (.bearRight, ["右前方转弯", "向右前方转弯", "向右前方行走", "向右前方", "bear right"]),
+            (.left, ["左转", "向左转", "左转弯", "turn left"]),
+            (.right, ["右转", "向右转", "右转弯", "turn right"]),
+            (.straight, ["直行", "continue straight"])
+        ]
+        let trim = CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
+        for value in [action, auxiliary].compactMap({ $0 }) {
+            let normalized = value.lowercased().trimmingCharacters(in: trim)
+            if let match = phrases.first(where: { $0.1.contains(normalized) }) { return match.0 }
+        }
+        if let instruction {
+            let normalized = instruction.lowercased().trimmingCharacters(in: trim)
+            if let match = phrases.first(where: { $0.1.contains(where: normalized.hasSuffix) }) { return match.0 }
+        }
+        return .followRoute
+    }
+
+    func text(distance: Double, spoken: Bool = false) -> String {
+        let action: String
+        switch self {
+        case .left: action = "Turn left"
+        case .right: action = "Turn right"
+        case .bearLeft: action = "Bear left"
+        case .bearRight: action = "Bear right"
+        case .uTurn: action = "Make a U-turn"
+        case .straight: return "Continue straight"
+        case .crossStreet: action = "Cross the street"
+        case .footbridge: action = "Take the footbridge"
+        case .underpass: action = "Take the underpass"
+        case .stairs: action = "Take the stairs"
+        case .roundabout: action = "Enter the roundabout"
+        case .exitRoundabout: action = "Exit the roundabout"
+        case .destination: return "Continue to your destination"
+        case .followRoute: return "Follow the highlighted route"
+        }
+        guard distance.isFinite, distance > 5 else { return action }
+        let meters = Int(min(distance, 100_000).rounded())
+        return "\(action) in \(meters) \(spoken ? "meters" : "m")"
+    }
+}
+
 struct WalkingStep {
     let instruction: String
     let coordinates: [CLLocationCoordinate2D]
     let distanceMeters: Double
+    var maneuver: WalkingManeuver? = nil
 }
 struct WalkingRoute {
     let coordinates: [CLLocationCoordinate2D]
@@ -214,14 +271,21 @@ enum NavigationDestinationKind { case senior, home }
         if arrived { return arrivalInstruction }
         if suspended { return "Navigation paused" }
         if let issue { return issue.localizedDescription }
-        if loading { return "Finding a walking route…" }
+        if loading || !isPresented { return "Finding a walking route…" }
         if needsReplan { return destinationKind == .home ? "Updating route home…" : "Updating route to the senior’s latest location…" }
-        guard let route, route.steps.indices.contains(stepIndex) else { return "Follow the highlighted route" }
+        guard let route else { return NavigationIssue.routeUnavailable.localizedDescription }
+        if let maneuver = currentManeuver { return maneuver.text(distance: turnMeters) }
+        guard route.steps.indices.contains(stepIndex) else { return "Follow the highlighted route" }
         return route.steps[stepIndex]
+    }
+    private var currentManeuver: WalkingManeuver? {
+        guard let route, route.segments.indices.contains(stepIndex) else { return nil }
+        return route.segments[stepIndex].maneuver
     }
     var directionSymbol: String {
         if arrived { return "checkmark.circle.fill" }
         if issue != nil || suspended { return "exclamationmark.circle" }
+        if currentManeuver == .uTurn { return "arrow.uturn.up" }
         let text = instruction.lowercased()
         if text.contains("left") || text.contains("左") { return "arrow.turn.up.left" }
         if text.contains("right") || text.contains("右") { return "arrow.turn.up.right" }
@@ -360,8 +424,13 @@ enum NavigationDestinationKind { case senior, home }
         while stepEnds.indices.contains(stepIndex), stepIndex < route.steps.count - 1,
               projection.along >= stepEnds[stepIndex] - 5 { stepIndex += 1 }
         turnMeters = stepEnds.indices.contains(stepIndex) ? max(0, stepEnds[stepIndex] - projection.along) : remainingMeters
-        announce(key: "\(routeVersion)-\(stepIndex)-start", text: instruction)
-        if turnMeters <= 30 { announce(key: "\(routeVersion)-\(stepIndex)-near", text: "In \(Int(turnMeters.rounded())) meters. \(instruction)") }
+        if let maneuver = currentManeuver {
+            let timing = turnMeters <= 30 ? "near" : "start"
+            announce(key: "\(routeVersion)-\(stepIndex)-\(timing)", text: maneuver.text(distance: turnMeters, spoken: true))
+        } else {
+            announce(key: "\(routeVersion)-\(stepIndex)-start", text: instruction)
+            if turnMeters <= 30 { announce(key: "\(routeVersion)-\(stepIndex)-near", text: "In \(Int(turnMeters.rounded())) meters. \(instruction)") }
+        }
     }
     private func announce(key: String, text: String) {
         guard !muted, !spoken.contains(key) else { return }

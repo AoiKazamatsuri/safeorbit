@@ -172,7 +172,7 @@ struct ElderHomePage: View {
     private var mapLines: [AMapLine] {
         guard session.navigating else { return [] }
         let coordinates = session.usesLiveNavigation ? live.navigation.route?.coordinates ?? [] : ElderDemoMapData.route.map(\.appleCoordinate)
-        return coordinates.count > 1 ? [AMapLine(id: "home-route", coordinates: coordinates, color: OrbitStyle.teal, width: 4, dash: [8, 6])] : []
+        return CaregiverTrailStyle.lines(coordinates: coordinates, id: "home-route")
     }
     private func updateLiveVoice() {
         guard session.usesLiveNavigation else { return }

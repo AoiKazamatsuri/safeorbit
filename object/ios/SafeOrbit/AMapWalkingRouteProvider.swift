@@ -229,10 +229,11 @@ import AMapSearchKit
             var segments = (path.steps ?? []).compactMap { step -> WalkingStep? in
                 let coordinates = Self.coordinates(step.polyline)
                 guard coordinates.count > 1 else { return nil }
-                let instruction = step.instruction?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 let distance = step.distance > 0 ? Double(step.distance) : Self.length(of: coordinates)
-                return WalkingStep(instruction: instruction.isEmpty ? "Continue along the route" : instruction,
-                                   coordinates: coordinates, distanceMeters: distance)
+                let maneuver = WalkingManeuver.fromAMap(action: step.action, auxiliary: step.assistantAction,
+                                                       instruction: step.instruction)
+                return WalkingStep(instruction: maneuver.text(distance: distance),
+                                   coordinates: coordinates, distanceMeters: distance, maneuver: maneuver)
             }
             var geometry = Self.coordinates(path.polyline)
             if geometry.count < 2 { geometry = (path.steps ?? []).flatMap { Self.coordinates($0.polyline) } }
@@ -243,8 +244,8 @@ import AMapSearchKit
             let distance = path.distance > 0 ? Double(path.distance) : Self.length(of: geometry)
             guard distance > 0 else { self.finish(.failure(NavigationIssue.routeUnavailable)); return }
             if segments.isEmpty {
-                segments = [WalkingStep(instruction: "Continue along the route", coordinates: geometry,
-                                        distanceMeters: distance)]
+                segments = [WalkingStep(instruction: WalkingManeuver.followRoute.text(distance: distance),
+                                        coordinates: geometry, distanceMeters: distance, maneuver: .followRoute)]
             }
             let duration = path.duration > 0 ? Double(path.duration) : distance / 1.25
             self.finish(.success(.route(WalkingRoute(coordinates: geometry, distanceMeters: distance,
