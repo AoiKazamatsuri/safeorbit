@@ -15,7 +15,6 @@ struct ElderHomePage: View {
     @State private var previousCamera: MapCameraPosition?
     @State private var navigationCameraMode = NavigationCameraMode.follow
     @State private var visibleHeading = 0.0
-    @State private var demoArrival = Date()
     @State private var showingVolume = false
     @State private var overlayHeight: CGFloat = 70
     private enum NavigationCameraMode { case follow, overview, manual }
@@ -87,7 +86,6 @@ struct ElderHomePage: View {
             if navigating {
                 previousCamera = camera
                 navigationCameraMode = .follow
-                demoArrival = Date().addingTimeInterval(7 * 60)
                 updateNavigationCamera()
             } else if let previousCamera {
                 camera = previousCamera
@@ -317,12 +315,12 @@ struct ElderHomePage: View {
         if !session.usesLiveNavigation {
             let points = routeCoordinates.map(MKMapPoint.init)
             let distance = zip(points, points.dropFirst()).reduce(0.0) { $0 + $1.0.distance(to: $1.1) }
-            return NavigationMetrics(distance: WalkingNavigationModel.distanceText(distance), duration: "7 min", arrival: demoArrival)
+            return NavigationMetrics(distance: WalkingNavigationModel.distanceText(distance), duration: "7 min")
         }
         let model = live.navigation
         guard model.route != nil, model.issue == nil, !model.loading, !model.suspended else { return NavigationMetrics() }
         return NavigationMetrics(distance: WalkingNavigationModel.distanceText(model.remainingMeters),
-                                 duration: "\(Int(ceil(model.remainingSeconds / 60))) min", arrival: model.estimatedArrival)
+                                 duration: "\(Int(ceil(model.remainingSeconds / 60))) min")
     }
     private var callCard: some View {
         (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16)) : AnyLayout(HStackLayout(spacing: 16))) {

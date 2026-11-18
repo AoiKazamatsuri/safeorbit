@@ -690,6 +690,17 @@ final class ElderFrontendTests: XCTestCase {
                         let call = try XCTUnwrap(LayoutProbe.frames["elder-call-family"])
                         let actionNames = state == "navigation-exit" ? ["end-navigation", "cancel-exit-navigation"] : ["request-exit-navigation"]
                         let actions = try actionNames.map { try XCTUnwrap(LayoutProbe.frames[$0]) }
+                        if state == "navigation" {
+                            let distance = try XCTUnwrap(LayoutProbe.frames["elder-navigation-distance"])
+                            let duration = try XCTUnwrap(LayoutProbe.frames["elder-navigation-duration"])
+                            XCTAssertEqual(distance.minY, duration.minY, accuracy: 0.5)
+                            XCTAssertLessThan(distance.maxX, duration.minX)
+                            if !type.isAccessibilitySize {
+                                let row = distance.union(duration).union(actions[0])
+                                XCTAssertEqual(row.minY - summary.minY, summary.maxY - row.maxY, accuracy: 0.5)
+                                XCTAssertLessThanOrEqual(summary.height, 96)
+                            }
+                        }
                         XCTAssertLessThanOrEqual(guidance.maxY, follow.minY + 0.5)
                         XCTAssertLessThanOrEqual(follow.maxY, overview.minY + 0.5)
                         XCTAssertLessThanOrEqual(overview.maxY, call.minY + 0.5)
@@ -723,9 +734,15 @@ final class ElderFrontendTests: XCTestCase {
                         if let scroll = view as? UIScrollView, scroll.contentSize.height > scroll.bounds.height + 1 { return scroll }
                         return view.subviews.lazy.compactMap { overflowingScroll(in: $0) }.first
                     }
-                    let scroll = try XCTUnwrap(overflowingScroll(in: window.rootViewController!.view))
-                    let maxOffset = scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom
                     let required = state == "navigation-exit" ? ["elder-call-family", "end-navigation", "cancel-exit-navigation"] : ["elder-call-family", "request-exit-navigation"]
+                    guard let scroll = overflowingScroll(in: window.rootViewController!.view) else {
+                        for id in required {
+                            XCTAssertTrue(window.bounds.contains(try XCTUnwrap(LayoutProbe.frames[id])),
+                                          "\(name) \(id) is visible without scrolling")
+                        }
+                        continue
+                    }
+                    let maxOffset = scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom
                     for id in required {
                         let viewport = scroll.convert(scroll.bounds, to: nil)
                         let rect = try XCTUnwrap(LayoutProbe.frames[id])

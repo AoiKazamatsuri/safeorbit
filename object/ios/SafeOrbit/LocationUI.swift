@@ -1389,11 +1389,13 @@ struct NavigationSummaryCard: View {
             } else if elder {
                 if metrics.distance != nil {
                     ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 8) { exitControl; horizontalMetrics }
-                            .padding(.leading, 5).padding(.trailing, 18.5)
-                        VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 8) {
                             exitControl
-                            verticalMetrics.frame(maxWidth: .infinity)
+                            elderMetrics(useIdealWidth: true)
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            exitControl
+                            elderMetrics(useIdealWidth: false)
                         }
                     }
                 } else {
@@ -1429,6 +1431,20 @@ struct NavigationSummaryCard: View {
         .accessibilityIdentifier("request-exit-navigation")
         .layoutProbe("request-exit-navigation")
     }
+
+    private func elderMetrics(useIdealWidth: Bool) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            metric(metrics.distance, label: "Remaining")
+                .fixedSize(horizontal: useIdealWidth, vertical: false)
+                .frame(minWidth: 0, maxWidth: .infinity)
+                .layoutProbe("elder-navigation-distance")
+            metric(metrics.duration, label: "To arrive")
+                .fixedSize(horizontal: useIdealWidth, vertical: false)
+                .frame(minWidth: 0, maxWidth: .infinity)
+                .layoutProbe("elder-navigation-duration")
+        }
+    }
+
     private var arrivalTime: String? { metrics.arrival?.formatted(date: .omitted, time: .shortened) }
     private var horizontalMetrics: some View {
         HStack(alignment: .firstTextBaseline, spacing: 0) {
@@ -1448,14 +1464,17 @@ struct NavigationSummaryCard: View {
     }
 
     private func metric(_ value: String?, label: String) -> some View {
-        VStack(spacing: 6) {
+        VStack(spacing: elder ? 4 : 6) {
             Group {
                 if elder { Text(value ?? "—").orbitDisplayFont(ElderTextStyle.heading.size, weight: .bold) }
                 else { Text(value ?? "—").font(.system(.title2, design: .default, weight: .bold)) }
             }.foregroundStyle(OrbitStyle.teal).fixedSize(horizontal: !elder, vertical: true)
             Text(label).modifier(NavigationText(elder: elder, secondary: true)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: !elder, vertical: true)
-        }.accessibilityElement(children: .combine)
+        }
+        .lineLimit(elder ? 1 : nil)
+        .minimumScaleFactor(elder ? 0.35 : 1)
+        .accessibilityElement(children: .combine)
     }
     private func exitButton(wrap: Bool) -> some View {
         Button(elder ? "End navigation" : "Exit navigation", action: end)
