@@ -1,12 +1,14 @@
 import { StoredFix, SafeZone } from './care-store';
 import { bearingDegrees, distanceMeters, GeoPoint } from './geo';
 
+export interface PossibleDestination { zoneId: string; expiresAt: string }
+
 // Shape decoded by the App as ElderLocationSnapshot; extra keys are ignored by the App.
 export interface LocationSnapshot {
   coordinate: GeoPoint; recordedAt: string; heading: number | null; status: string;
   batteryPercent: number | null; address: null; trail: GeoPoint[];
   safeZones: Array<{ id: string; name: string; isHome: boolean; center: GeoPoint; radiusMeters: number }>;
-  phase: string; tripName: string | null;
+  phase: string; tripName: string | null; possibleDestination?: PossibleDestination;
   // T38: risk as decided by the care agent, and the agent status line under her name.
   riskLevel: 'normal' | 'warning' | 'high';
   riskHeadline: string | null;            // e.g. "Wandering for 7 minutes"; null while normal

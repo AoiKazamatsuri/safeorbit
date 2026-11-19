@@ -1,6 +1,6 @@
 # 执行计划
 
-1. T50 通过且本任务获准后，核对范围；固定起终点、有效轨迹窗口、切换条件、可选接口字段和旧版本兼容方式。
-2. 复用已有规划路线和定位质量判断，实现按轨迹顺序和行进方向匹配。先用共线分岔与返程轨迹验证，再接入位置接口和家属端显示。
-3. 用自动化回放和模拟器核对几类状态；对照回放确认 T38 的风险结果；执行后端检查与 iOS 全套检查。
-4. 整理回执，记录测试结果和待真机核对项，交用户验收。
+1. 验证并复用家庭内已保存的家至各安全区规划步行路线。路线两端须与当前家和该安全区吻合，去程终点为安全区，反向终点为家，多条返家路线按同一去向归并。只用当前出行已处理、按采样时间排列的实时点，排除历史回放并复用定位质量与速度检查。最近证据窗口为 120 秒；初始阈值为至少四个有效点、跨度至少 20 秒、沿线净推进至少 35 米，路线走廊 25 米。用行进方向、横向距离及持续推进排除横穿、抖动、停留和明显折返；短暂抖动容差不超过 12 米。近期定位超过 45 秒或距最后一次有意义的行进超过 60 秒时失去资格。分岔后须累积足够的区分证据；候选并列或证据接近保持未知。旧去向在证据被推翻时立即撤下，新去向取得稳定证据后再显示。到达已知地点优先，风险文案沿用现有优先级。
+2. 接口约定：家属用现有家庭设备令牌调用 `GET /v1/location`，例如 `Authorization: Bearer <家庭设备令牌>`，无请求体、无新参数。成功仍为 HTTP 200，原有字段及语义保留；有推断时在原快照附加例如 `{"status":"Out","possibleDestination":{"zoneId":"a4c4db9b-9d33-48ba-ae81-6e761eb0936a","expiresAt":"2026-11-19T08:30:45.000Z"}}`，`zoneId` 对应同一快照的 `safeZones[].id`，有效期固定在支撑证据的采样时间上。未知时省略 `possibleDestination`，例如 `{"status":"Out"}`；到达仍返回例如 `{"status":"At Market"}`。旧客户端忽略新增字段，旧服务回复缺字段时新版照常显示位置状态。无新错误码，沿用现有设备认证、身份限制和无位置时的 404。无推送载荷和通知文案变更。界面使用本地化键 `Possibly heading to %@` 和 `Possibly heading home`，证据不足沿用现有 `Out` 文案；已缓存推断过期时恢复普通状态。
+3. 实施边界：后端 `object/server/src/care-agent/destination-inference.ts`、`care-agent.service.ts`，`object/server/src/care-api/care-events.ts`、`controllers.ts`、`location-view.ts`、`risk-records.ts`、`public/index.ts`，以及 `object/server/test/destination-inference.test.ts` 和 `care-api.test.ts`；App `object/ios/SafeOrbit/LocationModels.swift`、`LocationUI.swift`、`Localizable.xcstrings` 及 `object/ios/SafeOrbitTests/LocationTests.swift`；回放 `object/dev/check-destination.mjs`；文档 `truth/产品设计.md` 的位置显示规则、`truth/goals.md` 的旧 T44 链接。照护接口复用已有出行轨迹，照护智能体经接口提供只读匹配，不在位置请求写数据；原风险规则与动作各走原有路径。两端按此约定并行实现，以替身对照请求和展示。
+4. 用共线分岔、改向、返程、证据过期及到达场景回放，核对同一组轨迹的风险读数。再用实际位置接口与 iPhone 模拟器联调，运行后端检查、iOS 全套检查和适用的提交检查；写回执并按仓库约定同批提交推送，等用户验收。

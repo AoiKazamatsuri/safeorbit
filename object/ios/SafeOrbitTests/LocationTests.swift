@@ -524,6 +524,58 @@ final class LocationTests: XCTestCase {
     private func snapshot(age: TimeInterval = 0) -> ElderLocationSnapshot {
         LocationPreviewData.snapshot(recordedAt: Date().addingTimeInterval(-age))
     }
+
+    func testPossibleDestinationFromLocationAPIRespectsExpiryAndStatusPriority() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubURLProtocol.self]
+        let network = URLSession(configuration: config)
+        defer { network.invalidateAndCancel(); StubURLProtocol.handler = nil }
+        let api = OnboardingAPI(baseURL: URL(string: "http://localhost")!, session: network)
+        func fetch(status: String = "Out", zoneID: String? = nil) async throws -> ElderLocationSnapshot {
+            let destination = zoneID.map {
+                #","possibleDestination":{"zoneId":"\#($0)","expiresAt":"2026-11-19T08:30:45.000Z"}"#
+            } ?? ""
+            StubURLProtocol.handler = { request in
+                XCTAssertEqual(request.httpMethod, "GET")
+                XCTAssertEqual(request.url?.path, "/v1/location")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+                let json = #"""
+                {"coordinate":{"latitude":32,"longitude":118},"recordedAt":"2026-11-19T08:30:00.000Z",
+                 "status":"\#(status)","trail":[],"safeZones":[
+                   {"id":"42","name":"Riverside Market","center":{"latitude":32,"longitude":118},"radiusMeters":100},
+                   {"id":"7","name":"Residence","isHome":true,"center":{"latitude":32,"longitude":118},"radiusMeters":100}
+                 ]\#(destination)}
+                """#
+                return (200, Data(json.utf8))
+            }
+            return try await api.request("location", token: "test-token")
+        }
+        let legacy = try await fetch()
+        let now = legacy.recordedAt, locale = Locale(identifier: "en")
+        func headline(_ snapshot: ElderLocationSnapshot, after seconds: Double = 0) -> String? {
+            snapshot.markerHeadline(at: now.addingTimeInterval(seconds), risk: snapshot.riskState, locale: locale)
+        }
+        XCTAssertNil(legacy.possibleDestination)
+        XCTAssertEqual(headline(legacy), "Out")
+        let market = try await fetch(zoneID: "42")
+        XCTAssertEqual(headline(market, after: 44.9), "Possibly heading to Riverside Market")
+        XCTAssertEqual(headline(market, after: 45), "Out")
+        XCTAssertNil(headline(market, after: 301), "Stale positions keep their dot without a bubble")
+        let unknown = try await fetch(zoneID: "missing")
+        XCTAssertEqual(headline(unknown), "Out")
+        let home = try await fetch(zoneID: "7")
+        XCTAssertEqual(headline(home), "Possibly heading home")
+        let arrived = try await fetch(status: "At Riverside Market", zoneID: "7")
+        XCTAssertEqual(headline(arrived), "At Riverside Market")
+        var risk = market
+        risk.riskLevel = "warning"
+        risk.riskHeadline = "Off route for 4 minutes"
+        XCTAssertEqual(headline(risk), "Off route for 4 minutes")
+        risk.riskLevel = "high"
+        risk.riskHeadline = nil
+        XCTAssertEqual(headline(risk), CaregiverRiskState.high.headline)
+    }
+
     func testCoordinatesAndFreshness() {
         let nanjing = LocationPreviewData.campus
         XCTAssertTrue(nanjing.isValid)
@@ -1158,6 +1210,46 @@ extension LocationTests {
             XCTAssertEqual(refreshes, 0)
         }
     }
+
+    #if targetEnvironment(simulator)
+    @MainActor func testCachedDestinationBubbleShrinksToOutWithoutARefresh() async throws {
+        let sample = LocationPreviewData.snapshot()
+        let expiry = Date.now.addingTimeInterval(5)
+        let snapshot = ElderLocationSnapshot(coordinate: sample.coordinate, recordedAt: sample.recordedAt,
+            heading: nil, status: "Out", batteryPercent: nil, address: nil, trail: [], safeZones: sample.safeZones,
+            possibleDestination: .init(zoneId: "campus", expiresAt: expiry))
+        let (window, previous) = try hostLocationPage(snapshot: snapshot, refresh: {
+            XCTFail("The cached marker should expire without requesting another snapshot")
+            return nil
+        })
+        defer { window.isHidden = true; previous?.makeKeyAndVisible() }
+
+        func mapView(in view: UIView) -> MKMapView? {
+            if let map = view as? MKMapView { return map }
+            return view.subviews.lazy.compactMap { mapView(in: $0) }.first
+        }
+        func seniorMarkerSize() -> CGSize? {
+            guard let map = mapView(in: window) else { return nil }
+            let position = snapshot.coordinate.appleCoordinate
+            let senior = map.annotations.first {
+                abs($0.coordinate.latitude - position.latitude) < 0.000001
+                    && abs($0.coordinate.longitude - position.longitude) < 0.000001
+            }
+            return senior.flatMap { map.view(for: $0)?.bounds.size }
+        }
+        while Date.now < expiry && (seniorMarkerSize()?.width ?? 0) < 150 {
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let inferred = try XCTUnwrap(seniorMarkerSize())
+        XCTAssertGreaterThan(inferred.width, 150)
+        while Date.now < expiry.addingTimeInterval(3) && (seniorMarkerSize()?.width ?? inferred.width) >= inferred.width - 50 {
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let out = try XCTUnwrap(seniorMarkerSize())
+        XCTAssertEqual(out.height, inferred.height, accuracy: 1, "The one-line bubble remains above the dot")
+        XCTAssertLessThan(out.width, inferred.width - 50, "Out replaces the longer destination text")
+    }
+    #endif
 
     @MainActor private func hostLocationPage(snapshot: ElderLocationSnapshot?, agent: @escaping () -> Void = {},
                                              navigate: @escaping () -> Void = {},

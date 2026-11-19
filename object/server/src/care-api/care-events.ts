@@ -1,5 +1,13 @@
 import { Injectable } from '@nestjs/common';
 
+import type { SafeZone, StoredFix } from './care-store';
+import type { PossibleDestination } from './location-view';
+
+export interface DestinationRequest {
+  elderId: number; trail: StoredFix[]; zones: SafeZone[]; riskState: unknown; now: number;
+}
+type DestinationReader = (request: DestinationRequest) => Promise<PossibleDestination | undefined>;
+
 // Event port owned by the care API; consumers subscribe, so the care API never imports them (C2 edges 7, 10).
 export interface LocationsStored { elderId: number; replay?: boolean }
 export interface DispositionSubmitted { elderId: number; riskEventId: string; kind: 'met' | 'falseAlarm' }
@@ -12,6 +20,14 @@ export class CareEvents {
   private readonly locations: Handler<LocationsStored>[] = [];
   private readonly dispositions: Handler<DispositionSubmitted>[] = [];
   private readonly states: Handler<StateChanged>[] = [];
+
+  private destinationReader?: DestinationReader;
+
+  onDestinationRequest(reader: DestinationReader): void { this.destinationReader = reader; }
+  async readDestination(request: DestinationRequest): Promise<PossibleDestination | undefined> {
+    try { return await this.destinationReader?.(request); }
+    catch (error) { console.error('Destination read failed:', (error as Error).message); return undefined; }
+  }
 
   onLocationsStored(handler: Handler<LocationsStored>): void { this.locations.push(handler); }
   onDispositionSubmitted(handler: Handler<DispositionSubmitted>): void { this.dispositions.push(handler); }

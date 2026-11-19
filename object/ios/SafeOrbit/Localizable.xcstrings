@@ -360,6 +360,12 @@
     "Phone number" : {
 
     },
+    "Possibly heading home" : {
+      "comment" : "Caregiver map marker when the walking trail suggests the senior is heading home."
+    },
+    "Possibly heading to %@" : {
+      "comment" : "Caregiver map marker when the walking trail suggests a destination. The argument is the saved place name."
+    },
     "Previous month" : {
 
     },

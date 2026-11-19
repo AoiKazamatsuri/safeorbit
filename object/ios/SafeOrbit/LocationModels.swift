@@ -119,6 +119,11 @@ struct SafeZone: Decodable, Identifiable {
 }
 
 struct ElderLocationSnapshot: Decodable {
+    struct PossibleDestination: Decodable {
+        let zoneId: String
+        let expiresAt: Date
+    }
+
     let coordinate: GeoPoint
     let recordedAt: Date
     let heading: Double?
@@ -127,6 +132,7 @@ struct ElderLocationSnapshot: Decodable {
     let address: String?
     let trail: [GeoPoint]
     let safeZones: [SafeZone]
+    var possibleDestination: PossibleDestination? = nil
     // Task T38: decided by the care agent. Optional so older replies and the fixed sample still decode.
     var riskLevel: String? = nil
     /// e.g. "Wandering for 7 minutes"; null while normal.
@@ -139,7 +145,20 @@ struct ElderLocationSnapshot: Decodable {
     /// "Monitoring" or "Learning daily routes (n/5 trips)", shown under her name.
     var agentStatus: String? = nil
 
-    var isCurrent: Bool { coordinate.isValid && recordedAt <= Date().addingTimeInterval(60) && Date().timeIntervalSince(recordedAt) <= 300 }
+    var isCurrent: Bool { isCurrent(at: .now) }
+    private func isCurrent(at now: Date) -> Bool {
+        coordinate.isValid && (-60...300).contains(now.timeIntervalSince(recordedAt))
+    }
+
+    func markerHeadline(at now: Date, risk: CaregiverRiskState, locale: Locale) -> String? {
+        guard isCurrent(at: now) else { return nil }
+        guard risk == .normal else { return riskHeadline ?? risk.headline }
+        guard status == "Out", let possibleDestination, now < possibleDestination.expiresAt,
+              let zone = safeZones.first(where: { $0.id == possibleDestination.zoneId }) else { return status }
+        if zone.isHomeZone { return String(localized: "Possibly heading home", locale: locale) }
+        return String(localized: "Possibly heading to \(zone.name)", locale: locale)
+    }
+
     var validHeading: Double? { guard let heading, heading.isFinite, (0..<360).contains(heading) else { return nil }; return heading }
     var riskState: CaregiverRiskState { riskLevel.flatMap(CaregiverRiskState.init(rawValue:)) ?? .normal }
 }

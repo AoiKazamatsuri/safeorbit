@@ -117,11 +117,21 @@ export class LocationsController {
       this.store.tracker(elderId), this.store.activeTrip(elderId), this.store.safeZones(elderId), this.store.elderDevice(elderId),
       this.risks.currentRiskEvent(elderId, RESOLVED_EVENT_WINDOW_SECONDS), this.risks.riskFreeTripCount(elderId),
     ]);
-    return buildSnapshot({
+    const trail = trip ? await this.store.pointsSince(elderId, trip.startedAt, TRAIL_LIMIT) : [];
+    const now = new Date();
+    const snapshot = buildSnapshot({
       latest, phase: tracker?.phase ?? 'unknown', tripStops: trip?.stops ?? null,
-      trail: trip ? await this.store.pointsSince(elderId, trip.startedAt, TRAIL_LIMIT) : [],
-      zones, batteryPercent: phone?.batteryPercent ?? null, risk, riskFreeTrips, now: new Date(),
+      trail, zones, batteryPercent: phone?.batteryPercent ?? null, risk, riskFreeTrips, now,
     });
+    // Separate reads can straddle an upload. Wait for a consistent live trip before adding a hint.
+    if (snapshot.status === 'Out' && tracker?.phase === 'trip' && trip && tracker.activeTripId === trip.id
+      && !tracker.historyReplay && !latest[0].historyReplay
+      && tracker.processedThrough?.getTime() === latest[0].sampledAt.getTime()
+      && trail.at(-1)?.sampledAt.getTime() === latest[0].sampledAt.getTime()) {
+      const destination = await this.events.readDestination({ elderId, zones, trail, riskState: tracker.riskState, now: now.getTime() });
+      if (destination) snapshot.possibleDestination = destination;
+    }
+    return snapshot;
   }
 
   @Get('trips')

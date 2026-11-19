@@ -9,6 +9,7 @@ import { agentStatusLine, buildSnapshot, riskHeadline } from '../src/care-api/lo
 import { parseSeed } from '../src/care-api/reset-cli';
 import { ActionRecord, RiskActivity, RiskEventRecord } from '../src/care-api/risk-records';
 import { buildRiskDetail } from '../src/care-api/risk-view';
+import { CareAgentRunner } from '../src/care-agent/care-agent.service';
 import { explainRisk } from '../src/care-agent/risk-explanation';
 import {
   InputError, isHomeName, parseActionResult, parseCallRecord, parseDeviceRegistration, parseLocationBatch, parseReferenceRoute,
@@ -127,6 +128,67 @@ test('the location snapshot says where she is in the shape the App decodes', () 
   assert.equal(buildSnapshot({ ...base, latest: [fix(32.06, 118.7665, NOW, 45)], phase: 'home' }).status, 'At Home');
   assert.equal(buildSnapshot({ ...base, latest: [fix(32.06, 118.7665, NOW, 45)], phase: 'home' }).heading, 45);
   assert.equal(buildSnapshot({ ...base, latest: [fix(32.07, 118.78, NOW)], phase: 'trip' }).status, 'Out');
+});
+
+test('the family snapshot adds a read-only hint only for a consistent live trip outside all visited zones', async t => {
+  const end = Math.floor(Date.now() / 1000) * 1000;
+  const start = end - 40_000;
+  const destination = { ...MARKET, center: { latitude: HOME.center.latitude, longitude: HOME.center.longitude + 0.012 } };
+  const trail = Array.from({ length: 5 }, (_, i) =>
+    fix(HOME.center.latitude, HOME.center.longitude + 0.003 + i * 0.0002, start + i * 10_000));
+  const latest = trail.at(-1)!;
+  const tracker = { phase: 'trip', activeTripId: '8', processedThrough: latest.sampledAt, historyReplay: false,
+    riskState: { window: trail.map(f => ({ ...f, t: f.sampledAt.getTime() })) } };
+  const store = {
+    deviceByToken: async (token: string) => ({ id: '01', elderId: 42, accountSessionId: 'session', role: token === 'family' ? 'caregiver' : 'elder' }),
+    latestPoints: async () => [latest], tracker: async () => tracker,
+    activeTrip: async () => ({ id: '8', startedAt: new Date(start), stops: ['Home'] }), safeZones: async () => [HOME, destination],
+    elderDevice: async () => ({ batteryPercent: 82 }), pointsSince: async () => trail,
+  };
+  let routeReads = 0;
+  const risks = {
+    currentRiskEvent: async () => ({ id: '4', level: 'high', status: 'active', anomaly: 'wandering', anomalyStartedAt: new Date(start) }),
+    riskFreeTripCount: async () => 5,
+    destinationRoutes: async (elderId: number) => {
+      assert.equal(elderId, 42);
+      routeReads++;
+      return [{ zoneId: destination.id, points: [HOME.center, destination.center] }];
+    },
+  };
+  const events = new CareEvents();
+  const controller = new LocationsController(store as any, risks as any, new DeviceAuth(store as any), events);
+  const read = () => controller.current('Bearer family');
+  assert.ok(!('possibleDestination' in await read())); // optional reader and old data
+  const runner = new CareAgentRunner(store as any, risks as any, events);
+  runner.onModuleInit();
+  t.after(() => runner.onModuleDestroy());
+  await assert.rejects(controller.current('Bearer elder'), ForbiddenException);
+  const matched = await read();
+  assert.equal(matched.status, 'Out');
+  assert.equal(matched.riskLevel, 'high');
+  assert.equal(matched.riskEventId, '4');
+  assert.deepEqual(matched.possibleDestination, { zoneId: destination.id, expiresAt: new Date(end + 45_000).toISOString() });
+  assert.deepEqual((await read()).possibleDestination, matched.possibleDestination);
+  assert.equal(routeReads, 2);
+  tracker.processedThrough = trail[2].sampledAt;
+  assert.ok(!('possibleDestination' in await read())); // latest is not processed yet
+  tracker.processedThrough = latest.sampledAt;
+  tracker.activeTripId = '7';
+  assert.ok(!('possibleDestination' in await read())); // trip changed between the reads
+  tracker.activeTripId = '8';
+  tracker.historyReplay = true;
+  assert.ok(!('possibleDestination' in await read()));
+  tracker.historyReplay = false;
+  latest.historyReplay = true;
+  assert.ok(!('possibleDestination' in await read()));
+  latest.historyReplay = false;
+  tracker.riskState.window = [];
+  assert.ok(!('possibleDestination' in await read()));
+  latest.longitude = destination.center.longitude;
+  const arrived = await read();
+  assert.equal(arrived.status, 'At Market');
+  assert.ok(!('possibleDestination' in arrived));
+  assert.equal(routeReads, 2);
 });
 
 test('the snapshot adds risk level, headline, agent status and the current risk event, keeping the old fields', () => {

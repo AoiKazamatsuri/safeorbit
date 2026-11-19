@@ -386,6 +386,7 @@ struct LocationPage: View {
     var refreshDestination: (() async -> ElderLocationSnapshot?)? = nil
     var onEditorPresentationChanged: (Bool) -> Void = { _ in }
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.locale) private var locale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var seniorMotion = SeniorMapMotion()
     @State private var previousCamera: MapCameraPosition?
@@ -399,6 +400,7 @@ struct LocationPage: View {
     @State private var homeMapFrame: CGRect?
     @State private var homeCardTop: CGFloat?
     @State private var zoneEditor: SafeZoneEditorSelection?
+    @State private var markerRefreshDate = Date.distantPast
 
     private var point: CLLocationCoordinate2D? {
         seniorMotion.position?.appleCoordinate
@@ -408,25 +410,7 @@ struct LocationPage: View {
         GeometryReader { geometry in
         ZStack(alignment: .top) {
             AMapConsentSurface {
-                AMapCanvas(camera: $camera, markers: mapMarkers, circles: mapCircles,
-                           lines: mapLines, onUserCameraMove: {
-                if navigation.isPresented { followsUser = false; showsOverview = false }
-                else { mapFollow.pause() }
-            }, onCameraChange: { context in
-                if context.wasUserAction { visibleRegion = context.region }
-                visibleHeading = context.heading
-                if navigation.isPresented {
-                    if context.wasUserAction { followsUser = false; showsOverview = false }
-                    return
-                }
-                if context.wasUserAction { mapFollow.userMoved(to: context.region) }
-            })
-                .background {
-                    GeometryReader { mapGeometry in
-                        Color.clear.preference(key: HomeMapFramePreference.self,
-                                               value: mapGeometry.frame(in: .global))
-                    }
-                }
+                locationMap(at: max(markerRefreshDate, .now))
             }
             .ignoresSafeArea()
             if !navigation.isPresented {
@@ -498,6 +482,13 @@ struct LocationPage: View {
         }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .task(id: snapshot?.possibleDestination?.expiresAt) {
+            guard let expiry = snapshot?.possibleDestination?.expiresAt else { return }
+            let remaining = expiry.timeIntervalSinceNow
+            guard remaining > 0 else { return }
+            do { try await Task.sleep(for: .seconds(remaining)) } catch { return }
+            markerRefreshDate = expiry
+        }
         .onChange(of: snapshot?.recordedAt) { _, _ in
             if navigation.isPresented { navigation.updateDestination(snapshot) }
         }
@@ -583,6 +574,26 @@ struct LocationPage: View {
             )
         }
     }
+    private func locationMap(at now: Date) -> some View {
+        AMapCanvas(camera: $camera, markers: mapMarkers(at: now), circles: mapCircles,
+                   lines: mapLines, onUserCameraMove: {
+            if navigation.isPresented { followsUser = false; showsOverview = false }
+            else { mapFollow.pause() }
+        }, onCameraChange: { context in
+            if context.wasUserAction { visibleRegion = context.region }
+            visibleHeading = context.heading
+            if navigation.isPresented {
+                if context.wasUserAction { followsUser = false; showsOverview = false }
+                return
+            }
+            if context.wasUserAction { mapFollow.userMoved(to: context.region) }
+        })
+        .background {
+            GeometryReader { mapGeometry in
+                Color.clear.preference(key: HomeMapFramePreference.self, value: mapGeometry.frame(in: .global))
+            }
+        }
+    }
     private var mapCircles: [AMapCircle] {
         guard !navigation.isPresented else { return [] }
         return zoneStore.visibleZones(in: snapshot).filter {
@@ -600,7 +611,7 @@ struct LocationPage: View {
         let trail = snapshot?.trail.filter(\.isValid).map(\.appleCoordinate) ?? []
         return CaregiverTrailStyle.lines(coordinates: trail)
     }
-    private var mapMarkers: [AMapMarker] {
+    private func mapMarkers(at now: Date) -> [AMapMarker] {
         if navigation.isPresented {
             var result = WalkingRouteMap.arrows(navigation.route?.coordinates ?? [], heading: visibleHeading)
             result += CaregiverNavigationMarkers.make(route: navigation.route,
@@ -622,12 +633,12 @@ struct LocationPage: View {
                 }.accessibilityLabel("Edit \(zone.name) safe zone")))
         }
         if let snapshot, let point {
-            // The care agent's reason while at risk (e.g. "Wandering for 7 minutes"), else where she is.
-            let headline = riskState == .normal ? snapshot.status : (snapshot.riskHeadline ?? riskState.headline)
-            result.append(AMapMarker(id: "senior", coordinate: point, content: AnyView(SeniorMapMarker(
+            let headline = snapshot.markerHeadline(at: now, risk: riskState, locale: locale)
+            // MapKit measures a new annotation when the text changes. Coordinate-only updates keep its identity.
+            result.append(AMapMarker(id: "senior:\(headline ?? "")", coordinate: point, content: AnyView(SeniorMapMarker(
                 heading: snapshot.validHeading.map { $0 - visibleHeading },
-                headline: snapshot.isCurrent ? headline : nil, riskState: riskState, openRiskEvent: openRiskEvent)),
-                contentKey: "\(snapshot.validHeading.map { $0 - visibleHeading } ?? -360):\(snapshot.isCurrent ? headline ?? "" : ""):\(riskState):\(snapshot.riskEventId ?? "")"))
+                headline: headline, riskState: riskState, openRiskEvent: openRiskEvent)),
+                contentKey: "\(snapshot.validHeading.map { $0 - visibleHeading } ?? -360):\(headline ?? ""):\(riskState):\(snapshot.riskEventId ?? "")"))
         }
         return result
     }

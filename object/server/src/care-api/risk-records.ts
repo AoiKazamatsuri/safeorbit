@@ -85,10 +85,14 @@ export class RiskRecords {
 
   // ---- reference routes and caregiver settings
 
+  async destinationRoutes(elderId: number): Promise<{ zoneId: string; points: GeoPoint[] }[]> {
+    return this.db.query<{ zoneId: string; points: GeoPoint[] }>(
+      `SELECT r.zone_id AS "zoneId", r.points FROM reference_routes r JOIN safe_zones z
+       ON z.id = r.zone_id AND z.elder_id = r.elder_id WHERE r.elder_id = $1 AND NOT z.is_home ORDER BY z.created_at`, [elderId]);
+  }
+
   async referenceRoutes(elderId: number): Promise<GeoPoint[][]> {
-    return (await this.db.query<{ points: GeoPoint[] }>(
-      `SELECT r.points FROM reference_routes r JOIN safe_zones z ON z.id = r.zone_id
-       WHERE r.elder_id = $1 AND NOT z.is_home ORDER BY z.created_at`, [elderId])).map(r => r.points);
+    return (await this.destinationRoutes(elderId)).map(route => route.points);
   }
 
   async zonesWithRoute(elderId: number): Promise<Set<string>> {

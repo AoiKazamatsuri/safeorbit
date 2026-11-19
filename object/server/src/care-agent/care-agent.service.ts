@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/com
 import {
   CareEvents, CareStore, CaregiverSettings, GeoPoint, RiskEventRecord, RiskRecords, RiskWrite, SafeZone, StoredFix, TripChange,
 } from '../care-api/public';
+import { inferDestination, recentDestinationFixes } from './destination-inference';
 import { navigationAction, navigationReissue, planActions } from './risk-actions';
 import { LanguageModel } from './language-model';
 import { explainRisk } from './risk-explanation';
@@ -63,6 +64,11 @@ export class CareAgentRunner implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly store: CareStore, private readonly risks: RiskRecords, private readonly events: CareEvents, @Optional() private readonly model?: LanguageModel) {}
 
   onModuleInit(): void {
+    this.events.onDestinationRequest(async ({ elderId, zones, trail, riskState, now }) => {
+      const fixes = recentDestinationFixes(trail, (riskState as RiskState | null)?.window, now);
+      if (!fixes.length) return undefined;
+      return inferDestination(fixes, zones, await this.risks.destinationRoutes(elderId), now);
+    });
     this.events.onLocationsStored(({ elderId, replay }) => this.enqueue(() => this.processFixes(elderId, replay)));
     this.events.onDispositionSubmitted(e => (e.kind === 'met' ? this.enqueue(() => this.resolveMet(e.elderId, e.riskEventId)) : Promise.resolve()));
     this.timer = setInterval(() => void this.enqueue(() => this.checkClock(Date.now())).catch(() => undefined), CLOCK_CHECK_MS);
