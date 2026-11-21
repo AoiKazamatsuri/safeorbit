@@ -166,22 +166,39 @@ import AMapSearchKit
 }
 
 @MainActor enum AMapGeocoder {
-    static func address(at point: GeoPoint) async -> String? {
-        guard point.isValid, AMapRuntime.prepare(), !Task.isCancelled else { return nil }
+    private static func lookup(_ point: GeoPoint, streets: Bool) async throws -> AMapSearchOperation.Value {
         let operation = AMapSearchOperation()
         let request = AMapReGeocodeSearchRequest()
         request.location = AMapWalkingRouteProvider.searchPoint(point)
-        request.radius = 100; request.requireExtension = false
+        request.radius = streets ? Int(streetRadius) : 100
+        request.requireExtension = streets
+        return try await operation.perform(request)
+    }
+
+    static func address(at point: GeoPoint) async -> String? {
+        guard point.isValid, AMapRuntime.prepare(), !Task.isCancelled else { return nil }
+        guard case let .address(formatted, _) = try? await lookup(point, streets: false),
+              !Task.isCancelled else { return nil }
+        return formatted
+    }
+
+    static func street(at point: GeoPoint) async -> String? {
+        guard point.isValid, !Task.isCancelled else { return nil }
+        guard AMapRuntime.hasKey else { return await systemStreet(at: point) }
+        guard AMapRuntime.prepare() else { return nil }
         do {
-            guard case .address(let address) = try await operation.perform(request) else { return nil }
-            return address
+            guard case let .address(_, street) = try await lookup(point, streets: true),
+                  !Task.isCancelled else { return nil }
+            return street
+        } catch NavigationIssue.sdkNotReady {
+            return await systemStreet(at: point)
         } catch { return nil }
     }
 }
 
 /// One SDK search instance per request makes cancellation and late delegates independent.
 @MainActor private final class AMapSearchOperation: NSObject, AMapSearchDelegate {
-    enum Value { case route(WalkingRoute), address(String?) }
+    enum Value { case route(WalkingRoute), address(String?, String?) }
     private var api: AMapSearchAPI?
     private var request: NSObject?
     private var continuation: CheckedContinuation<Value, Error>?
@@ -255,9 +272,21 @@ import AMapSearchKit
     nonisolated func onReGeocodeSearchDone(_ request: AMapReGeocodeSearchRequest!, response: AMapReGeocodeSearchResponse!) {
         Task { @MainActor [weak self] in
             guard let self, request === self.request, !self.finished else { return }
-            let address = response?.regeocode?.formattedAddress?.trimmingCharacters(in: .whitespacesAndNewlines)
-            self.finish(.success(.address(address?.isEmpty == false ? address : nil)))
+            let result = response?.regeocode
+            let address = result?.formattedAddress?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let street = request.requireExtension ? Self.street(in: result) : nil
+            self.finish(.success(.address(address?.isEmpty == false ? address : nil, street)))
         }
+    }
+
+    private static func street(in result: AMapReGeocode?) -> String? {
+        if let roads = result?.roads, !roads.isEmpty {
+            return AMapGeocoder.nearestRoadName(roads.map { ($0.name, $0.distance) })
+        }
+        // A building may have its postal address on the next street. Use the address component
+        // only if the SDK supplied no road geometry and the senior is right at the address point.
+        guard let address = result?.addressComponent?.streetNumber, (0...5).contains(address.distance) else { return nil }
+        return AMapGeocoder.englishStreetName(address.street)
     }
     private static func coordinates(_ polyline: String?) -> [CLLocationCoordinate2D] {
         guard let polyline else { return [] }
@@ -285,5 +314,95 @@ import AMapSearchKit
 }
 @MainActor enum AMapGeocoder {
     static func address(at point: GeoPoint) async -> String? { nil }
+    static func street(at point: GeoPoint) async -> String? { await systemStreet(at: point) }
 }
 #endif
+
+extension AMapGeocoder {
+    /// A placemark or road beyond this distance may belong to a different street.
+    fileprivate static let streetRadius: CLLocationDistance = 30
+
+    static func nearestRoadName(_ roads: [(name: String?, distance: Int)]) -> String? {
+        let nearby = roads.filter { (0...Int(streetRadius)).contains($0.distance) }.sorted { $0.distance < $1.distance }
+        guard let first = nearby.first, let name = englishStreetName(first.name) else { return nil }
+        // Roads within five metres of each other at a junction cannot be distinguished reliably.
+        for road in nearby.dropFirst() where road.distance <= first.distance + 5 {
+            guard let other = englishStreetName(road.name), other.caseInsensitiveCompare(name) == .orderedSame else { return nil }
+        }
+        return name
+    }
+
+    /// A dedicated street field can also carry a verified English landmark such as "Near …".
+    /// Translate only a recognised Chinese road type; romanise the proper name using Mandarin pinyin.
+    static func englishStreetName(_ value: String?) -> String? {
+        guard let name = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              name.rangeOfCharacter(from: .letters) != nil,
+              !["null", "(null)", "n/a", "unknown", "unknown street", "unknown road", "unnamed", "unnamed street", "unnamed road", "address unavailable"].contains(name.lowercased())
+        else { return nil }
+        guard name.range(of: #"\p{Han}"#, options: .regularExpression) != nil else { return name }
+        guard !["无名", "未命名", "未知", "暂无"].contains(where: name.hasPrefix) else { return nil }
+        let types = [("大道", "Avenue"), ("大街", "Street"), ("道路", "Road"), ("胡同", "Lane"),
+                     ("路", "Road"), ("巷", "Lane"), ("弄", "Lane"), ("街", "Street")]
+        guard let (suffix, type) = types.first(where: { name.hasSuffix($0.0) }) else { return nil }
+        let stem = String(name.dropLast(suffix.count))
+        // Tokenise whole names before transcription: 长江 and 厦门 use readings that differ from
+        // the default character-by-character Mandarin transform.
+        let original = stem as NSString
+        guard original.length > 0, let tokenizer = CFStringTokenizerCreate(nil, stem as CFString,
+            CFRange(location: 0, length: original.length), kCFStringTokenizerUnitWord,
+            Locale(identifier: "zh_CN") as CFLocale) else { return nil }
+        var latin = ""
+        while !CFStringTokenizerAdvanceToNextToken(tokenizer).isEmpty {
+            let range = CFStringTokenizerGetCurrentTokenRange(tokenizer)
+            latin += CFStringTokenizerCopyCurrentTokenAttribute(tokenizer, kCFStringTokenizerAttributeLatinTranscription) as? String
+                ?? original.substring(with: NSRange(location: range.location, length: range.length))
+        }
+        let plain = latin.folding(options: .diacriticInsensitive, locale: Locale(identifier: "en_US_POSIX"))
+        let joined = plain.components(separatedBy: .whitespacesAndNewlines).joined()
+        guard !joined.isEmpty, joined.unicodeScalars.allSatisfy({ $0.isASCII }) else { return nil }
+        return joined.prefix(1).uppercased() + joined.dropFirst() + " " + type
+    }
+
+    private static func hasRoadEnding(_ name: String) -> Bool {
+        let ending = #"\b(road|rd|street|st|avenue|ave|lane|ln|alley|drive|dr|boulevard|blvd|way|court|ct|terrace|place|highway|parkway|circle|trail)\.?$"#
+        return name.range(of: ending, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    /// Older servers put a complete address in this unstructured field.
+    static func legacyStreetName(_ raw: String?) -> String? {
+        guard let raw, let name = appleStreetName(raw, houseNumber: nil), hasRoadEnding(name),
+              raw.range(of: #"^\s*(near|opposite)\b|\b(district|province|county|township)\s+\w|\p{Han}{2,}(?:省|市|区|县)\p{Han}{2,}"#,
+                        options: [.regularExpression, .caseInsensitive]) == nil else { return nil }
+        return name
+    }
+
+    /// CLPlacemark sometimes puts the entire numbered address or campus name in thoroughfare.
+    /// A separate house number is fine when the thoroughfare itself is a clearly named road.
+    static func appleStreetName(_ thoroughfare: String?, houseNumber: String?) -> String? {
+        guard let raw = thoroughfare, let name = englishStreetName(raw),
+              raw.range(of: #"[,;，；()（）\n]|^\s*\d+(?:[-/]\d+)?\s+\p{L}|\b(?:no\.?\s*\d|unit\s+\d|suite\s+\d)|\d+号|校区|园区"#,
+                         options: [.regularExpression, .caseInsensitive]) == nil else { return nil }
+        if hasRoadEnding(name) { return name }
+        guard houseNumber?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false,
+              name.range(of: #"\b(campus|university|building|park|district|estate|apartment|residence|complex)\b"#,
+                         options: [.regularExpression, .caseInsensitive]) == nil else { return nil }
+        return name
+    }
+
+    fileprivate static func systemStreet(at point: GeoPoint) async -> String? {
+        guard point.isValid, !Task.isCancelled else { return nil }
+        // Mainland Apple Maps geocoding uses the same display coordinates as the map. Outside
+        // mainland China appleCoordinate preserves the original WGS-84 fix.
+        let coordinate = point.appleCoordinate
+        let target = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        let geocoder = CLGeocoder()
+        return await withTaskCancellationHandler {
+            let places = try? await geocoder.reverseGeocodeLocation(target, preferredLocale: Locale(identifier: "en_US"))
+            guard !Task.isCancelled, let place = places?.first, let location = place.location,
+                  location.distance(from: target) <= streetRadius else { return nil }
+            return appleStreetName(place.thoroughfare, houseNumber: place.subThoroughfare)
+        } onCancel: {
+            Task { @MainActor in geocoder.cancelGeocode() }
+        }
+    }
+}

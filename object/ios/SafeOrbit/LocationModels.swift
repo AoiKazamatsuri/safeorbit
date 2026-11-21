@@ -132,6 +132,8 @@ struct ElderLocationSnapshot: Decodable {
     let address: String?
     let trail: [GeoPoint]
     let safeZones: [SafeZone]
+    // A verified short street or road segment, when supplied with this fix.
+    var streetName: String? = nil
     var possibleDestination: PossibleDestination? = nil
     // Task T38: decided by the care agent. Optional so older replies and the fixed sample still decode.
     var riskLevel: String? = nil
@@ -146,6 +148,9 @@ struct ElderLocationSnapshot: Decodable {
     var agentStatus: String? = nil
 
     var isCurrent: Bool { isCurrent(at: .now) }
+    @MainActor var suppliedStreetName: String? {
+        AMapGeocoder.englishStreetName(streetName) ?? AMapGeocoder.legacyStreetName(address)
+    }
     private func isCurrent(at now: Date) -> Bool {
         coordinate.isValid && (-60...300).contains(now.timeIntervalSince(recordedAt))
     }
@@ -191,6 +196,7 @@ enum LocationPreviewData {
         ElderLocationSnapshot(coordinate: campus, recordedAt: recordedAt, heading: 120,
             status: "At Nanjing University", batteryPercent: 45, address: address,
             trail: trail,
-            safeZones: [.init(id: "campus", name: "Campus", center: startingPoint, radiusMeters: 200)])
+            safeZones: [.init(id: "campus", name: "Campus", center: startingPoint, radiusMeters: 200)],
+            streetName: "Ninghai Road")
     }
 }

@@ -161,6 +161,7 @@ struct CaregiverHomePage: View {
     @ObservedObject var store: OnboardingStore
     let chooseRole: (() -> Void)?
     @StateObject private var zoneStore: SafeZoneSessionStore
+    @StateObject private var streets: CaregiverStreetLookup
     @StateObject private var settingsStore: CaregiverSettingsStore
     @StateObject private var agentSessions: AgentSessionStore
     @State private var selectedSettings: CaregiverSettingsGroup?
@@ -179,6 +180,8 @@ struct CaregiverHomePage: View {
         self.store = store
         let settings = CaregiverSettingsStore()
         let zones = SafeZoneSessionStore()
+        let streetLookup = CaregiverStreetLookup()
+        _streets = StateObject(wrappedValue: streetLookup)
         _settingsStore = StateObject(wrappedValue: settings)
         _zoneStore = StateObject(wrappedValue: zones)
         _agentSessions = StateObject(wrappedValue: AgentSessionStore(
@@ -187,7 +190,8 @@ struct CaregiverHomePage: View {
             sessionIsValid: { [device = store.device] in device?.isFamilySession != true || device?.token != nil },
             additionalPrivacyValues: {
                 let names = [store.elder.name, store.elder.callName]
-                let addresses = [store.location?.address].compactMap { $0 }
+                let addresses = [store.location?.address, store.location?.streetName, store.location?.suppliedStreetName,
+                                 streetLookup.street(at: store.location?.coordinate)].compactMap { $0 }
                 let zoneNames = zones.visibleZones(in: store.location).map(\.name)
                     .filter { SafeZonePlaceTag.matching($0) == nil }
                 return (names, [store.elder.phone, store.caregiverPhone] + addresses + zoneNames)
@@ -257,7 +261,7 @@ struct CaregiverHomePage: View {
                              agent: { agentSessions.showList(); tab = .agent }, navigate: startNavigation,
                              settings: { setSettings(true) }, riskState: riskState,
                              openRiskEvent: openRiskEvent, recordCall: { await store.recordCall() },
-                             zoneStore: zoneStore,
+                             zoneStore: zoneStore, streets: streets,
                              navigation: navigation, refreshDestination: { await store.refreshLocation(); return store.location },
                              onEditorPresentationChanged: { zoneEditorPresented = $0 })
                     .opacity(tab == .location ? 1 : 0)
@@ -382,6 +386,7 @@ struct LocationPage: View {
     /// Records "Call" with the care API before the system dialler opens.
     var recordCall: () async -> Void = {}
     @ObservedObject var zoneStore = SafeZoneSessionStore()
+    var streets = CaregiverStreetLookup()
     @ObservedObject var navigation = WalkingNavigationModel()
     var refreshDestination: (() async -> ElderLocationSnapshot?)? = nil
     var onEditorPresentationChanged: (Bool) -> Void = { _ in }
@@ -450,7 +455,7 @@ struct LocationPage: View {
                         .background(.white, in: RoundedRectangle(cornerRadius: 16))
                         .padding(.bottom, 8)
                 }
-                SeniorLocationCard(profile: profile, snapshot: snapshot, navigate: navigate, riskState: riskState,
+                SeniorLocationCard(profile: profile, snapshot: snapshot, navigate: navigate, streets: streets, riskState: riskState,
                                    openRiskEvent: openRiskEvent, recordCall: recordCall)
                     .background {
                         GeometryReader { cardGeometry in
@@ -1021,14 +1026,78 @@ private struct FloatingMapButton: View {
     }
 }
 
+/// Keep one lookup for nearby GPS samples. A late result belongs to the fix that requested it.
+@MainActor final class CaregiverStreetLookup: ObservableObject {
+    @Published private var street: String?
+    private var anchor: CLLocation?
+    private var lastAttempt = Date.distantPast
+    private var pending: Task<Void, Never>?
+    private let resolve: (GeoPoint) async -> String?
+
+    init(resolve: @escaping (GeoPoint) async -> String? = AMapGeocoder.street) {
+        self.resolve = resolve
+    }
+
+    private func nearby(_ point: GeoPoint) -> Bool {
+        guard point.isValid, let anchor else { return false }
+        return anchor.distance(from: CLLocation(latitude: point.latitude, longitude: point.longitude)) < 10
+    }
+
+    func street(at point: GeoPoint?) -> String? {
+        guard let point, nearby(point) else { return nil }
+        return street
+    }
+
+    @discardableResult
+    func update(_ point: GeoPoint?, now: Date = .now) -> Task<Void, Never>? {
+        guard let point, point.isValid else { reset(); return nil }
+        if nearby(point) {
+            if pending != nil || now.timeIntervalSince(lastAttempt) < (street == nil ? 60 : 180) { return pending }
+        } else {
+            reset()
+        }
+        anchor = CLLocation(latitude: point.latitude, longitude: point.longitude)
+        lastAttempt = now
+        pending = Task { [weak self, resolve] in
+            let result = await resolve(point)
+            guard !Task.isCancelled, let self else { return }
+            self.street = AMapGeocoder.englishStreetName(result)
+            self.pending = nil
+        }
+        return pending
+    }
+
+    func reset() {
+        pending?.cancel()
+        pending = nil
+        anchor = nil
+        if street != nil { street = nil }
+    }
+}
+
 private struct SeniorLocationCard: View {
     let profile: ElderProfile
     let snapshot: ElderLocationSnapshot?
     let navigate: () -> Void
+    @ObservedObject var streets: CaregiverStreetLookup
     var riskState: CaregiverRiskState = .normal
     var openRiskEvent: (() -> Void)? = nil
     var recordCall: () async -> Void = {}
     @Environment(\.openURL) private var openURL
+    @AppStorage(AMapRuntime.consentKey) private var mapConsent = false
+    private var currentPoint: GeoPoint? { snapshot?.isCurrent == true ? snapshot?.coordinate : nil }
+    private var suppliedStreet: String? {
+        currentPoint == nil ? nil : snapshot?.suppliedStreetName
+    }
+    private struct StreetRequest: Equatable {
+        let point: GeoPoint?
+        let recordedAt: Date?
+        let consent: Bool
+    }
+    private var streetRequest: StreetRequest {
+        StreetRequest(point: suppliedStreet == nil ? currentPoint : nil,
+                      recordedAt: snapshot?.recordedAt, consent: mapConsent)
+    }
     private var canCall: Bool { PhoneNumber.isValid(profile.phone) }
     private var agentStatus: String? { snapshot?.agentStatus.flatMap { $0.isEmpty ? nil : $0 } }
     var body: some View {
@@ -1073,10 +1142,13 @@ private struct SeniorLocationCard: View {
             }
             Rectangle().fill(.black.opacity(0.1)).frame(height: 1)
             HStack(spacing: 10) {
-                Image(systemName: "mappin.and.ellipse").font(.system(size: 20)).foregroundStyle(.secondary)
-                Text(snapshot?.address.flatMap { $0.isEmpty ? nil : $0 } ?? "Address unavailable")
-                    .caregiverText(.caption).foregroundStyle(.secondary).lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let street = suppliedStreet ?? streets.street(at: currentPoint) {
+                    Image(systemName: "mappin.and.ellipse").font(.system(size: 20)).foregroundStyle(.secondary)
+                    Text(verbatim: street)
+                        .caregiverText(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        .accessibilityIdentifier("senior-street")
+                }
+                Spacer(minLength: 0)
                 Button(action: navigate) {
                     Label("Navigate", systemImage: "arrow.up.right")
                         .labelStyle(.titleAndIcon).caregiverText(.secondary)
@@ -1093,6 +1165,18 @@ private struct SeniorLocationCard: View {
         // Buttons inside keep their own taps; the rest of the card opens the risk event.
         .contentShape(RoundedRectangle(cornerRadius: 24))
         .onTapGesture { openRiskEvent?() }
+        .task(id: streetRequest) {
+            #if !targetEnvironment(simulator)
+            guard mapConsent || !AMapRuntime.hasKey else { streets.reset(); return }
+            #endif
+            // Identical fixes do not trigger onChange. Retry while this fix is still current.
+            while !Task.isCancelled {
+                guard let point = streetRequest.point else { streets.reset(); return }
+                await streets.update(point)?.value
+                do { try await Task.sleep(for: .seconds(60)) } catch { return }
+            }
+        }
+        .onDisappear { streets.reset() }
     }
 }
 

@@ -18,6 +18,152 @@ import SwiftUI
 }
 
 final class LocationTests: XCTestCase {
+    @MainActor func testEnglishStreetNamesKeepTheProperNameTogetherAndTranslateTheRoadType() {
+        let names = [
+            ("平仓巷", "Pingcang Lane"),
+            ("  汉口路  ", "Hankou Road"),
+            ("汇文路", "Huiwen Road"),
+            ("中山路", "Zhongshan Road"),
+            ("人民大道", "Renmin Avenue"),
+            ("玉兰街", "Yulan Street"),
+            ("槐树巷", "Huaishu Lane"),
+            ("Hankou Road", "Hankou Road"),
+        ]
+        for (input, expected) in names {
+            XCTAssertEqual(AMapGeocoder.englishStreetName(input), expected, input)
+        }
+    }
+
+    @MainActor func testEnglishStreetNameOmitsEmptyAndUnknownValues() {
+        let unavailable: [String?] = [nil, "", " \n ", "[]", "unknown", "Unnamed road", "无名道路"]
+        for input in unavailable {
+            XCTAssertNil(AMapGeocoder.englishStreetName(input), input ?? "nil")
+        }
+    }
+
+    @MainActor func testAppleStreetNameUsesTheRoadAndPreservesExistingEnglishSpelling() {
+        XCTAssertEqual(AMapGeocoder.appleStreetName("汉口路", houseNumber: "22"), "Hankou Road")
+        XCTAssertEqual(AMapGeocoder.appleStreetName("Hankou Road", houseNumber: nil), "Hankou Road")
+        XCTAssertEqual(AMapGeocoder.appleStreetName("West Beijing Road", houseNumber: "163"), "West Beijing Road")
+        XCTAssertNil(AMapGeocoder.appleStreetName("南京大学鼓楼校区逸夫馆", houseNumber: nil))
+        XCTAssertNil(AMapGeocoder.appleStreetName("Hankou Road, Gulou District", houseNumber: nil))
+    }
+
+    @MainActor func testNearestRoadRequiresAnUnambiguousNamedRoadNearby() {
+        XCTAssertEqual(AMapGeocoder.nearestRoadName([("汉口路", 4), ("平仓巷", 22)]), "Hankou Road")
+        XCTAssertNil(AMapGeocoder.nearestRoadName([("汉口路", 4), ("平仓巷", 8)]))
+        XCTAssertNil(AMapGeocoder.nearestRoadName([("无名道路", 3), ("汉口路", 15)]))
+        XCTAssertNil(AMapGeocoder.nearestRoadName([("汉口路", 31)]))
+    }
+
+    @MainActor func testSnapshotAcceptsALegacyRoadWithoutDisplayingAFullAddress() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        func decode(address: String, streetName: String? = nil) throws -> ElderLocationSnapshot {
+            var payload: [String: Any] = [
+                "coordinate": ["latitude": 32, "longitude": 118],
+                "recordedAt": "2026-11-21T10:00:00Z",
+                "address": address,
+                "trail": [],
+                "safeZones": [],
+            ]
+            payload["streetName"] = streetName
+            return try decoder.decode(ElderLocationSnapshot.self, from: JSONSerialization.data(withJSONObject: payload))
+        }
+
+        let oldRoad = try decode(address: "汉口路")
+        XCTAssertNil(oldRoad.streetName)
+        XCTAssertEqual(oldRoad.suppliedStreetName, "Hankou Road")
+
+        let fullAddress = "江苏省南京市鼓楼区汉口路22号"
+        let oldAddress = try decode(address: fullAddress)
+        XCTAssertEqual(oldAddress.address, fullAddress)
+        XCTAssertNil(oldAddress.suppliedStreetName)
+
+        let current = try decode(address: "Hankou Road", streetName: "平仓巷")
+        XCTAssertEqual(current.suppliedStreetName, "Pingcang Lane")
+    }
+
+    @MainActor func testStreetLookupReusesNearbyFixesAndUpdatesWhenTheSeniorMoves() async {
+        let a = GeoPoint(latitude: 32, longitude: 118)
+        let jitter = GeoPoint(latitude: 32.00002, longitude: 118)
+        let b = GeoPoint(latitude: 32.0005, longitude: 118)
+        var queries: [GeoPoint] = []
+        let lookup = CaregiverStreetLookup { point in
+            queries.append(point)
+            return point == a ? "  平仓巷  " : "汉口路"
+        }
+        await lookup.update(a)?.value
+        await lookup.update(jitter)?.value
+        XCTAssertEqual(lookup.street(at: jitter), "Pingcang Lane")
+        XCTAssertNil(lookup.street(at: b))
+        await lookup.update(b)?.value
+        XCTAssertEqual(lookup.street(at: b), "Hankou Road")
+        XCTAssertEqual(queries, [a, b])
+        lookup.update(nil)
+        XCTAssertNil(lookup.street(at: b))
+    }
+
+    @MainActor func testAnOlderStreetLookupCannotReplaceTheNewStreet() async throws {
+        let a = GeoPoint(latitude: 32, longitude: 118)
+        let b = GeoPoint(latitude: 32.001, longitude: 118)
+        let started = expectation(description: "First street request started")
+        var old: CheckedContinuation<String?, Never>?
+        let lookup = CaregiverStreetLookup { point in
+            if point == b { return "汉口路" }
+            return await withCheckedContinuation { continuation in
+                old = continuation
+                started.fulfill()
+            }
+        }
+        let first = lookup.update(a)
+        await fulfillment(of: [started], timeout: 3)
+        await lookup.update(b)?.value
+        XCTAssertEqual(lookup.street(at: b), "Hankou Road")
+        let late = try XCTUnwrap(old)
+        late.resume(returning: "平仓巷")
+        await first?.value
+        XCTAssertNil(lookup.street(at: a))
+        XCTAssertEqual(lookup.street(at: b), "Hankou Road")
+    }
+
+    @MainActor func testStreetLookupRetriesEmptyResultsAndIgnoresInvalidCoordinates() async {
+        let point = GeoPoint(latitude: 32, longitude: 118)
+        let now = Date()
+        var attempts = 0
+        let lookup = CaregiverStreetLookup { _ in
+            attempts += 1
+            return attempts == 1 ? "  " : "汇文路"
+        }
+        await lookup.update(.init(latitude: 120, longitude: 118), now: now)?.value
+        XCTAssertEqual(attempts, 0)
+        await lookup.update(point, now: now)?.value
+        XCTAssertNil(lookup.street(at: point))
+        await lookup.update(point, now: now.addingTimeInterval(59))?.value
+        XCTAssertEqual(attempts, 1)
+        await lookup.update(point, now: now.addingTimeInterval(60))?.value
+        XCTAssertEqual(lookup.street(at: point), "Huiwen Road")
+        XCTAssertEqual(attempts, 2)
+    }
+
+    @MainActor func testStreetLookupRefreshesAPositiveResultAfterThreeMinutesAtTheSameFix() async {
+        let point = GeoPoint(latitude: 32, longitude: 118)
+        let now = Date()
+        var attempts = 0
+        let lookup = CaregiverStreetLookup { _ in
+            attempts += 1
+            return attempts == 1 ? "Pingcang Lane" : "Hankou Road"
+        }
+        await lookup.update(point, now: now)?.value
+        XCTAssertEqual(lookup.street(at: point), "Pingcang Lane")
+        await lookup.update(point, now: now.addingTimeInterval(179))?.value
+        XCTAssertEqual(attempts, 1)
+        XCTAssertEqual(lookup.street(at: point), "Pingcang Lane")
+        await lookup.update(point, now: now.addingTimeInterval(181))?.value
+        XCTAssertEqual(attempts, 2)
+        XCTAssertEqual(lookup.street(at: point), "Hankou Road")
+    }
+
     func testSeniorMotionInterpolatesRetargetsAndStopsAtReceivedPosition() {
         let first = GeoPoint(latitude: 32, longitude: 118)
         let second = GeoPoint(latitude: 32.00005, longitude: 118)
